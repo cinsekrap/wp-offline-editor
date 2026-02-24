@@ -1,4 +1,7 @@
 import { v4 as uuidv4 } from 'uuid'
+import { join } from 'path'
+import { rmSync } from 'fs'
+import { app } from 'electron'
 import { getDb } from './database'
 import { storeCredential, deleteCredential } from './credentials'
 import type { Site, SiteInput, SiteUpdate } from '@shared/types'
@@ -28,9 +31,9 @@ export function addSite(input: SiteInput): Site {
   storeCredential(keychainRef, input.password)
 
   db.prepare(`
-    INSERT INTO sites (id, label, url, username, keychain_ref, auto_sync, pull_published, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(id, label, url, input.username, keychainRef, input.auto_sync ? 1 : 0, input.pull_published ?? 50, now, now)
+    INSERT INTO sites (id, label, url, username, keychain_ref, auto_sync, pull_published, media_library_limit, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, label, url, input.username, keychainRef, input.auto_sync ? 1 : 0, input.pull_published ?? 50, input.media_library_limit ?? 100, now, now)
 
   return getSiteById(id)!
 }
@@ -46,15 +49,16 @@ export function updateSite(update: SiteUpdate): Site {
   const username = update.username ?? existing.username
   const autoSync = update.auto_sync !== undefined ? (update.auto_sync ? 1 : 0) : (existing.auto_sync ? 1 : 0)
   const pullPublished = update.pull_published ?? existing.pull_published
+  const mediaLibraryLimit = update.media_library_limit ?? existing.media_library_limit
 
   if (update.password) {
     storeCredential(existing.keychain_ref, update.password)
   }
 
   db.prepare(`
-    UPDATE sites SET label = ?, url = ?, username = ?, auto_sync = ?, pull_published = ?, updated_at = ?
+    UPDATE sites SET label = ?, url = ?, username = ?, auto_sync = ?, pull_published = ?, media_library_limit = ?, updated_at = ?
     WHERE id = ?
-  `).run(label, url, username, autoSync, pullPublished, now, update.id)
+  `).run(label, url, username, autoSync, pullPublished, mediaLibraryLimit, now, update.id)
 
   return getSiteById(update.id)!
 }
@@ -66,12 +70,18 @@ export function deleteSite(id: string): void {
 
   deleteCredential(existing.keychain_ref)
   db.prepare('DELETE FROM sites WHERE id = ?').run(id)
+
+  // Clean up cached media library thumbnails
+  try {
+    rmSync(join(app.getPath('userData'), 'media-library', id), { recursive: true, force: true })
+  } catch { /* ignore */ }
 }
 
 function normalizeSiteRow(row: Site): Site {
   return {
     ...row,
     auto_sync: Boolean(row.auto_sync),
-    pull_published: Number(row.pull_published)
+    pull_published: Number(row.pull_published),
+    media_library_limit: Number(row.media_library_limit)
   }
 }

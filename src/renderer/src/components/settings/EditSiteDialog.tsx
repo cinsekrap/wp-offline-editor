@@ -30,6 +30,7 @@ export function EditSiteDialog({
   const [label, setLabel] = useState('')
   const [autoSync, setAutoSync] = useState(false)
   const [pullPublished, setPullPublished] = useState(50)
+  const [mediaLibraryLimit, setMediaLibraryLimit] = useState(100)
   const [password, setPassword] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -39,6 +40,7 @@ export function EditSiteDialog({
       setLabel(site.label)
       setAutoSync(site.auto_sync)
       setPullPublished(site.pull_published)
+      setMediaLibraryLimit(site.media_library_limit)
       setPassword('')
       setError(null)
     }
@@ -53,7 +55,8 @@ export function EditSiteDialog({
         id: site.id,
         label,
         auto_sync: autoSync,
-        pull_published: pullPublished
+        pull_published: pullPublished,
+        media_library_limit: mediaLibraryLimit
       }
       if (password.trim()) {
         update.password = password
@@ -132,6 +135,21 @@ export function EditSiteDialog({
               value={pullPublished}
               onChange={(e) => setPullPublished(Number(e.target.value))}
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="edit-media-library-limit">Media library images to sync</Label>
+            <Input
+              id="edit-media-library-limit"
+              type="number"
+              min={0}
+              max={500}
+              value={mediaLibraryLimit}
+              onChange={(e) => setMediaLibraryLimit(Number(e.target.value))}
+            />
+            <p className="text-xs text-muted-foreground">
+              Thumbnails of recent images cached for offline browsing (0 to disable)
+            </p>
           </div>
 
           {error && (

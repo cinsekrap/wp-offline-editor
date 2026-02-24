@@ -22,6 +22,7 @@ export function initDatabase(): void {
   db.pragma('foreign_keys=ON')
 
   createSchema(db)
+  runMigrations(db)
 }
 
 function createSchema(db: Database.Database): void {
@@ -83,6 +84,75 @@ function createSchema(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_media_post_local_id ON media(post_local_id);
     CREATE INDEX IF NOT EXISTS idx_acf_schema_site_id ON acf_schema(site_id);
   `)
+}
+
+function runMigrations(db: Database.Database): void {
+  // Add last_post_pull_at and last_schema_pull_at to sites if missing
+  const cols = db.prepare('PRAGMA table_info(sites)').all() as { name: string }[]
+  const colNames = new Set(cols.map((c) => c.name))
+
+  if (!colNames.has('last_post_pull_at')) {
+    db.exec('ALTER TABLE sites ADD COLUMN last_post_pull_at TEXT')
+  }
+  if (!colNames.has('last_schema_pull_at')) {
+    db.exec('ALTER TABLE sites ADD COLUMN last_schema_pull_at TEXT')
+  }
+
+  // Add location column to acf_schema if missing
+  const acfCols = db.prepare('PRAGMA table_info(acf_schema)').all() as { name: string }[]
+  const acfColNames = new Set(acfCols.map((c) => c.name))
+
+  if (!acfColNames.has('location')) {
+    db.exec('ALTER TABLE acf_schema ADD COLUMN location TEXT DEFAULT NULL')
+  }
+
+  // Add date column to posts if missing
+  const postCols = db.prepare('PRAGMA table_info(posts)').all() as { name: string }[]
+  const postColNames = new Set(postCols.map((c) => c.name))
+
+  if (!postColNames.has('date')) {
+    db.exec('ALTER TABLE posts ADD COLUMN date TEXT')
+  }
+
+  if (!postColNames.has('author_id')) {
+    db.exec('ALTER TABLE posts ADD COLUMN author_id INTEGER')
+  }
+  if (!postColNames.has('author_name')) {
+    db.exec('ALTER TABLE posts ADD COLUMN author_name TEXT')
+  }
+
+  // Unique indexes to prevent duplicate posts/schema per site
+  db.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_posts_site_wp ON posts(site_id, wp_id);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_acf_schema_site_group ON acf_schema(site_id, group_id);
+  `)
+
+  // Media library table for cached WP attachment thumbnails
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS media_library (
+      id INTEGER NOT NULL,
+      site_id TEXT NOT NULL,
+      title TEXT NOT NULL DEFAULT '',
+      filename TEXT NOT NULL DEFAULT '',
+      mime_type TEXT NOT NULL DEFAULT '',
+      alt_text TEXT NOT NULL DEFAULT '',
+      source_url TEXT NOT NULL DEFAULT '',
+      thumbnail_path TEXT NOT NULL DEFAULT '',
+      width INTEGER,
+      height INTEGER,
+      uploaded_at TEXT NOT NULL DEFAULT '',
+      PRIMARY KEY (site_id, id),
+      FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_media_library_site_id ON media_library(site_id);
+  `)
+
+  if (!colNames.has('media_library_limit')) {
+    db.exec('ALTER TABLE sites ADD COLUMN media_library_limit INTEGER NOT NULL DEFAULT 100')
+  }
+  if (!colNames.has('last_media_library_pull_at')) {
+    db.exec('ALTER TABLE sites ADD COLUMN last_media_library_pull_at TEXT')
+  }
 }
 
 export function closeDatabase(): void {

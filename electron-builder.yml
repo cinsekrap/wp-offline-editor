@@ -1,5 +1,5 @@
 appId: com.wp-offline-editor.app
-productName: WP Offline Editor
+productName: Offline Post Editor
 directories:
   buildResources: resources
   output: dist

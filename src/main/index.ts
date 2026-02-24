@@ -1,8 +1,12 @@
-import { app, BrowserWindow, shell } from 'electron'
+import { app, BrowserWindow, shell, protocol, net } from 'electron'
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 import { initDatabase, closeDatabase } from './database'
 import { registerIpcHandlers } from './ipc-handlers'
+
+// Keep userData path stable (based on package name), but show friendly name in macOS menu bar
+app.setPath('userData', join(app.getPath('appData'), 'wp-offline-editor'))
+app.name = 'Offline Post Editor'
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -47,7 +51,18 @@ function createWindow(): void {
   }
 }
 
+// Register media:// protocol for serving local media files in the renderer
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'media', privileges: { bypassCSP: true, stream: true, supportFetchAPI: true } }
+])
+
 app.whenReady().then(() => {
+  protocol.handle('media', (request) => {
+    // media://file/absolute/path/to/file?t=123 (strip query params for cache-busting)
+    const filePath = decodeURIComponent(request.url.split('?')[0].replace('media://file', ''))
+    return net.fetch(`file://${filePath}`)
+  })
+
   initDatabase()
   registerIpcHandlers()
   createWindow()

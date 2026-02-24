@@ -12,7 +12,7 @@ import { Input } from '@renderer/components/ui/input'
 import { Label } from '@renderer/components/ui/label'
 import { Switch } from '@renderer/components/ui/switch'
 import { Badge } from '@renderer/components/ui/badge'
-import { AlertTriangle, CheckCircle, Loader2, XCircle } from 'lucide-react'
+import { AlertTriangle, CheckCircle, Download, Loader2, XCircle } from 'lucide-react'
 import type { SiteInput, WpConnectionResult } from '@shared/types'
 
 interface AddSiteDialogProps {
@@ -37,6 +37,7 @@ export function AddSiteDialog({
   const [label, setLabel] = useState('')
   const [autoSync, setAutoSync] = useState(false)
   const [pullPublished, setPullPublished] = useState(50)
+  const [mediaLibraryLimit, setMediaLibraryLimit] = useState(100)
   const [testResult, setTestResult] = useState<WpConnectionResult | null>(null)
   const [testing, setTesting] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -53,6 +54,7 @@ export function AddSiteDialog({
     setLabel('')
     setAutoSync(false)
     setPullPublished(50)
+    setMediaLibraryLimit(100)
     setTestResult(null)
     setTesting(false)
     setSaving(false)
@@ -92,7 +94,8 @@ export function AddSiteDialog({
         password,
         label,
         auto_sync: autoSync,
-        pull_published: pullPublished
+        pull_published: pullPublished,
+        media_library_limit: mediaLibraryLimit
       })
       handleOpenChange(false)
     } catch (err) {
@@ -203,6 +206,32 @@ export function AddSiteDialog({
               </div>
             </div>
 
+            {testResult.acfActive && !testResult.wpoePluginActive && (
+              <div className="p-3 rounded-md bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-900">
+                <div className="flex items-center gap-2 text-yellow-700 dark:text-yellow-400 text-sm font-medium mb-2">
+                  <AlertTriangle className="h-4 w-4" />
+                  Companion plugin not detected
+                </div>
+                <p className="text-xs text-yellow-600 dark:text-yellow-500 mb-2">
+                  Code-registered ACF field groups require the WP Offline Editor Companion plugin
+                  for schema discovery. Posts will sync fine without it.
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mb-2"
+                  onClick={() => window.electronAPI.saveCompanionPlugin()}
+                >
+                  <Download className="mr-2 h-3 w-3" />
+                  Download Plugin
+                </Button>
+                <p className="text-xs text-yellow-600 dark:text-yellow-500">
+                  Install via WP Admin &rarr; Plugins &rarr; Add New &rarr; Upload Plugin, then
+                  re-test the connection.
+                </p>
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label htmlFor="site-label">Label</Label>
               <Input
@@ -238,6 +267,21 @@ export function AddSiteDialog({
               />
               <p className="text-xs text-muted-foreground">
                 Number of published posts to download for offline access
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="media-library-limit">Media library images to sync</Label>
+              <Input
+                id="media-library-limit"
+                type="number"
+                min={0}
+                max={500}
+                value={mediaLibraryLimit}
+                onChange={(e) => setMediaLibraryLimit(Number(e.target.value))}
+              />
+              <p className="text-xs text-muted-foreground">
+                Thumbnails of recent images cached for offline browsing (0 to disable)
               </p>
             </div>
 

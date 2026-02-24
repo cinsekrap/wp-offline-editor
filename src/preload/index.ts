@@ -52,7 +52,21 @@ const api: ElectronAPI = {
 
   // App
   getVersion: () => ipcRenderer.invoke('app:version'),
-  getArch: () => ipcRenderer.invoke('app:arch')
+  getArch: () => ipcRenderer.invoke('app:arch'),
+
+  // Updater
+  checkForUpdates: () => ipcRenderer.invoke('updater:check'),
+  downloadUpdate: () => ipcRenderer.invoke('updater:download'),
+  installUpdate: () => ipcRenderer.invoke('updater:install'),
+  onUpdaterEvent: (callback: (status: string, data?: Record<string, unknown>) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, status: string, data?: Record<string, unknown>): void => {
+      callback(status, data)
+    }
+    ipcRenderer.on('updater:status', handler)
+    return (): void => {
+      ipcRenderer.removeListener('updater:status', handler)
+    }
+  }
 }
 
 contextBridge.exposeInMainWorld('electronAPI', api)

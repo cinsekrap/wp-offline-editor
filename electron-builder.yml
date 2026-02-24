@@ -9,8 +9,11 @@ files:
   - '!electron.vite.config.{js,ts,mjs,cjs}'
   - '!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+publish:
+  provider: github
+  owner: cinsekrap
+  repo: wp-offline-editor
 mac:
-  entitlementsInherit: build/entitlements.mac.plist
   extendInfo:
     - NSDocumentsFolderUsageDescription: Application needs access to store offline content.
   notarize: false
@@ -18,3 +21,8 @@ mac:
     - target: dmg
       arch:
         - arm64
+        - x64
+    - target: zip
+      arch:
+        - arm64
+        - x64

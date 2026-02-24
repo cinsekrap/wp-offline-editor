@@ -3,6 +3,7 @@ import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 import { initDatabase, closeDatabase } from './database'
 import { registerIpcHandlers } from './ipc-handlers'
+import { initAutoUpdater } from './updater'
 
 // Keep userData path stable (based on package name), but show friendly name in macOS menu bar
 app.setPath('userData', join(app.getPath('appData'), 'wp-offline-editor'))
@@ -65,6 +66,7 @@ app.whenReady().then(() => {
 
   initDatabase()
   registerIpcHandlers()
+  if (!is.dev) initAutoUpdater()
   createWindow()
 
   app.on('activate', () => {

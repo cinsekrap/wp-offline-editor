@@ -298,4 +298,10 @@ export interface ElectronAPI {
   // App
   getVersion(): Promise<string>
   getArch(): Promise<string>
+
+  // Updater
+  checkForUpdates(): Promise<void>
+  downloadUpdate(): Promise<void>
+  installUpdate(): Promise<void>
+  onUpdaterEvent(callback: (status: string, data?: Record<string, unknown>) => void): () => void
 }

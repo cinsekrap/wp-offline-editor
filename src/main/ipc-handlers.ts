@@ -18,6 +18,7 @@ import {
 import { getMediaLibraryForSite } from './media-library-service'
 import { getShortcodesForSite } from './shortcode-service'
 import { getSettings, updateSettings } from './settings-service'
+import { checkForUpdates, downloadUpdate, installUpdate } from './updater'
 import type { SiteInput, SiteUpdate, PostInput, PostUpdate, AppSettings } from '@shared/types'
 
 export function registerIpcHandlers(): void {
@@ -182,5 +183,19 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('app:arch', () => {
     return process.arch
+  })
+
+  // ── Updater ─────────────────────────────────────────────────────────────
+
+  ipcMain.handle('updater:check', () => {
+    checkForUpdates()
+  })
+
+  ipcMain.handle('updater:download', () => {
+    downloadUpdate()
+  })
+
+  ipcMain.handle('updater:install', () => {
+    installUpdate()
   })
 }

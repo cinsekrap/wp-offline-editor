@@ -4,6 +4,7 @@ import { Button } from '@renderer/components/ui/button'
 import { Switch } from '@renderer/components/ui/switch'
 import { Label } from '@renderer/components/ui/label'
 import { SiteList } from './SiteList'
+import { UpdateChecker } from './UpdateChecker'
 import type { Site, AppSettings } from '@shared/types'
 
 type Section = 'sites' | 'appearance' | 'general'
@@ -202,7 +203,7 @@ function GeneralSection({
       </div>
 
       {/* Force offline */}
-      <div className="flex items-center justify-between max-w-md">
+      <div className="flex items-center justify-between max-w-md mb-8">
         <div className="space-y-0.5">
           <Label>Force offline mode</Label>
           <p className="text-xs text-muted-foreground">
@@ -213,6 +214,12 @@ function GeneralSection({
           checked={settings.forceOffline}
           onCheckedChange={(checked) => onUpdate({ forceOffline: checked })}
         />
+      </div>
+
+      {/* About / Updates */}
+      <div className="border-t pt-6">
+        <Label className="mb-3 block">About</Label>
+        <UpdateChecker />
       </div>
     </div>
   )

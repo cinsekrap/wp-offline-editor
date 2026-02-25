@@ -8,22 +8,48 @@ import { decodeHtmlEntities } from './html-utils'
 import { sanitizeHtml } from './sanitize'
 import { saveMediaFromWp } from './media-service'
 import { net } from 'electron'
+import { existsSync } from 'fs'
 import type { Post, PostInput, PostUpdate, PullResult, WpPostRaw } from '@shared/types'
 
 async function downloadBuffer(url: string): Promise<Buffer | null> {
   try {
     const resp = await net.fetch(url)
-    if (!resp.ok) return null
+    if (!resp.ok) {
+      console.warn(`[media] Download failed (${resp.status}): ${url}`)
+      return null
+    }
     return Buffer.from(await resp.arrayBuffer())
-  } catch {
+  } catch (err) {
+    console.warn(`[media] Download error for ${url}:`, err instanceof Error ? err.message : err)
     return null
   }
+}
+
+/**
+ * WordPress may store image URLs with a different origin than the actual
+ * accessible site URL (e.g. missing port in Local WP setups).
+ * This rewrites image URLs whose hostname matches the site to use the site's origin.
+ */
+function normalizeImageUrl(imageUrl: string, siteUrl: string): string {
+  try {
+    const img = new URL(imageUrl)
+    const site = new URL(siteUrl)
+    if (img.hostname === site.hostname && img.origin !== site.origin) {
+      img.protocol = site.protocol
+      img.host = site.host // includes port
+      return img.toString()
+    }
+  } catch {
+    // invalid URL, return as-is
+  }
+  return imageUrl
 }
 
 export async function downloadAndRewriteImages(
   siteId: string,
   postLocalId: string,
-  html: string
+  html: string,
+  siteUrl?: string
 ): Promise<string> {
   // Match <img ... src="https://..." ...> tags
   const imgRegex = /<img\s[^>]*\bsrc\s*=\s*"(https?:\/\/[^"]+)"[^>]*>/gi
@@ -37,7 +63,8 @@ export async function downloadAndRewriteImages(
 
   let result = html
   for (const { fullMatch, url } of matches) {
-    const buffer = await downloadBuffer(url)
+    const fetchUrl = siteUrl ? normalizeImageUrl(url, siteUrl) : url
+    const buffer = await downloadBuffer(fetchUrl)
     if (!buffer) continue // leave original URL on failure
 
     const urlPath = new URL(url).pathname
@@ -60,7 +87,8 @@ export async function downloadAndRewriteImages(
 export async function rewriteAcfImageUrls(
   siteId: string,
   postLocalId: string,
-  acfJson: string | null
+  acfJson: string | null,
+  siteUrl?: string
 ): Promise<string | null> {
   if (!acfJson) return null
 
@@ -72,7 +100,8 @@ export async function rewriteAcfImageUrls(
 
   let result = acfJson
   for (const url of urls) {
-    const buffer = await downloadBuffer(url)
+    const fetchUrl = siteUrl ? normalizeImageUrl(url, siteUrl) : url
+    const buffer = await downloadBuffer(fetchUrl)
     if (!buffer) continue
 
     const urlPath = new URL(url).pathname
@@ -105,7 +134,7 @@ export async function pullPostsForSite(siteId: string): Promise<PullResult> {
   for (const wpPost of posts) {
     try {
       const authorName = authorNames.get(wpPost.author) ?? null
-      const outcome = await upsertPost(siteId, wpPost, authorName)
+      const outcome = await upsertPost(siteId, wpPost, authorName, site.url)
       result[outcome]++
     } catch (err) {
       result.errors.push(`Post ${wpPost.id}: ${err instanceof Error ? err.message : String(err)}`)
@@ -125,7 +154,8 @@ export async function pullPostsForSite(siteId: string): Promise<PullResult> {
 async function upsertPost(
   siteId: string,
   wpPost: WpPostRaw,
-  authorName: string | null
+  authorName: string | null,
+  siteUrl: string
 ): Promise<'created' | 'updated' | 'unchanged'> {
   const db = getDb()
 
@@ -145,8 +175,8 @@ async function upsertPost(
   if (!existing) {
     // INSERT new post — generate ID first so we can use it for media download
     const postLocalId = uuidv4()
-    content = await downloadAndRewriteImages(siteId, postLocalId, content)
-    acfJson = await rewriteAcfImageUrls(siteId, postLocalId, acfJson)
+    content = await downloadAndRewriteImages(siteId, postLocalId, content, siteUrl)
+    acfJson = await rewriteAcfImageUrls(siteId, postLocalId, acfJson, siteUrl)
 
     db.prepare(`
       INSERT INTO posts (id, site_id, wp_id, title, content, status, acf, date, author_id, author_name, modified_local, modified_remote, synced, conflict)
@@ -157,6 +187,48 @@ async function upsertPost(
 
   // Same modified timestamp → unchanged, but fix stale encoded titles and backfill date/author
   if (existing.modified_remote === modifiedRemote) {
+    // Check if stored content still has un-downloaded images (previous download failure)
+    const stored = db.prepare('SELECT content, acf FROM posts WHERE id = ?').get(existing.id) as
+      { content: string; acf: string | null } | undefined
+    const hasHttp = stored ? /src="https?:\/\//.test(stored.content) : false
+    const hasMedia = stored ? /src="media:\/\//.test(stored.content) : false
+
+    // Check for broken media:// URLs (files deleted from disk)
+    let hasBrokenMedia = false
+    if (stored && hasMedia) {
+      const mediaPathRegex = /src="media:\/\/file([^"?]+)/g
+      let mp: RegExpExecArray | null
+      while ((mp = mediaPathRegex.exec(stored.content)) !== null) {
+        const filePath = decodeURIComponent(mp[1])
+        if (!existsSync(filePath)) {
+          hasBrokenMedia = true
+          break
+        }
+      }
+    }
+
+    // If images have broken media:// URLs, re-download from remote content
+    if (stored && hasBrokenMedia) {
+      let freshContent = sanitizeHtml(wpPost.content.rendered)
+      freshContent = await downloadAndRewriteImages(siteId, existing.id, freshContent, siteUrl)
+      const freshAcf = await rewriteAcfImageUrls(siteId, existing.id, acfJson, siteUrl)
+      db.prepare(
+        'UPDATE posts SET content = ?, acf = ?, title = ?, date = COALESCE(date, ?), author_id = COALESCE(author_id, ?), author_name = COALESCE(author_name, ?) WHERE id = ?'
+      ).run(freshContent, freshAcf, title, wpDate, authorId, authorName, existing.id)
+      return 'updated'
+    }
+
+    if (stored && hasHttp) {
+      const fixedContent = await downloadAndRewriteImages(siteId, existing.id, stored.content, siteUrl)
+      const fixedAcf = await rewriteAcfImageUrls(siteId, existing.id, stored.acf, siteUrl)
+      if (fixedContent !== stored.content || fixedAcf !== stored.acf) {
+        db.prepare(
+          'UPDATE posts SET content = ?, acf = ?, title = ?, date = COALESCE(date, ?), author_id = COALESCE(author_id, ?), author_name = COALESCE(author_name, ?) WHERE id = ?'
+        ).run(fixedContent, fixedAcf, title, wpDate, authorId, authorName, existing.id)
+        return 'updated'
+      }
+    }
+
     db.prepare(
       'UPDATE posts SET title = ?, date = COALESCE(date, ?), author_id = COALESCE(author_id, ?), author_name = COALESCE(author_name, ?) WHERE id = ? AND (title != ? OR date IS NULL OR author_id IS NULL)'
     ).run(title, wpDate, authorId, authorName, existing.id, title)
@@ -166,8 +238,8 @@ async function upsertPost(
   // Different modified_remote
   if (existing.synced === 1) {
     // No local edits → safe to update — download images
-    content = await downloadAndRewriteImages(siteId, existing.id, content)
-    acfJson = await rewriteAcfImageUrls(siteId, existing.id, acfJson)
+    content = await downloadAndRewriteImages(siteId, existing.id, content, siteUrl)
+    acfJson = await rewriteAcfImageUrls(siteId, existing.id, acfJson, siteUrl)
 
     db.prepare(`
       UPDATE posts SET title = ?, content = ?, status = ?, acf = ?, date = ?, author_id = ?, author_name = ?, modified_local = ?, modified_remote = ?, synced = 1, conflict = 0

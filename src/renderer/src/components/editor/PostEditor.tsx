@@ -167,6 +167,10 @@ export function PostEditor({
   // Refresh media queue when content changes (new images inserted)
   // and clean up orphaned media (images removed via backspace, cut, etc.)
   useEffect(() => {
+    // Skip orphan cleanup until post content has been loaded — running with
+    // empty content would delete ALL media files as "orphans"
+    if (!initializedRef.current) return
+
     refreshQueue().then(async () => {
       // Extract media IDs still present in the editor content
       const idRegex = /data-media-id="([^"]+)"/g

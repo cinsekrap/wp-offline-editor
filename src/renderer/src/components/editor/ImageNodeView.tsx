@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
 import { NodeViewWrapper, type ReactNodeViewProps } from '@tiptap/react'
 
-export function ImageNodeView({ node, updateAttributes, selected }: ReactNodeViewProps) {
+export function ImageNodeView({ node, updateAttributes, selected, extension }: ReactNodeViewProps) {
   const { src, alt, mediaId, caption } = node.attrs
   const [editing, setEditing] = useState(false)
   const captionRef = useRef<HTMLElement>(null)
@@ -38,6 +38,16 @@ export function ImageNodeView({ node, updateAttributes, selected }: ReactNodeVie
     []
   )
 
+  const handleImageClick = useCallback(
+    (e: MouseEvent) => {
+      const onImageClick = extension.options.onImageClick
+      if (mediaId && onImageClick) {
+        onImageClick(mediaId, src, alt || '', { x: e.clientX, y: e.clientY })
+      }
+    },
+    [mediaId, src, alt, extension.options]
+  )
+
   return (
     <NodeViewWrapper as="figure" className="image-figure" data-drag-handle="">
       <img
@@ -46,6 +56,8 @@ export function ImageNodeView({ node, updateAttributes, selected }: ReactNodeVie
         data-media-id={mediaId || undefined}
         className={selected ? 'ProseMirror-selectednode' : undefined}
         draggable={false}
+        onClick={handleImageClick}
+        style={mediaId ? { cursor: 'pointer' } : undefined}
       />
       <figcaption
         ref={captionRef}

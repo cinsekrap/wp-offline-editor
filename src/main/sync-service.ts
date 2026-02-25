@@ -172,8 +172,8 @@ export async function resolveConflict(
   let acfJson = wpPost.acf ? JSON.stringify(wpPost.acf) : null
 
   // Download external images and rewrite to media:// protocol
-  content = await downloadAndRewriteImages(post.site_id, postId, content)
-  acfJson = await rewriteAcfImageUrls(post.site_id, postId, acfJson)
+  content = await downloadAndRewriteImages(post.site_id, postId, content, site.url)
+  acfJson = await rewriteAcfImageUrls(post.site_id, postId, acfJson, site.url)
 
   db.prepare(`
     UPDATE posts SET title = ?, content = ?, status = ?, acf = ?, date = ?, author_id = ?, author_name = ?, modified_local = ?, modified_remote = ?, synced = 1, conflict = 0

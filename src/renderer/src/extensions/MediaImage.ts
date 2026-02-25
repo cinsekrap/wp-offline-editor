@@ -5,6 +5,15 @@ import { ImageNodeView } from '@renderer/components/editor/ImageNodeView'
 export const MediaImage = Image.extend({
   name: 'image',
 
+  addOptions() {
+    return {
+      ...this.parent?.(),
+      onImageClick: null as
+        | ((mediaId: string, src: string, alt: string, position: { x: number; y: number }) => void)
+        | null
+    }
+  },
+
   addAttributes() {
     const imgFromFigure = (el: HTMLElement): HTMLImageElement | null =>
       el.tagName === 'FIGURE' ? el.querySelector('img') : null

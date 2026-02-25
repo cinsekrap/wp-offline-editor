@@ -59,28 +59,13 @@ export function TipTapEditor({
         Underline,
         Link.configure({ openOnClick: false }),
         Placeholder.configure({ placeholder: 'Start writing...' }),
-        MediaImage
+        MediaImage.configure({ onImageClick })
       ],
       content,
       onUpdate: ({ editor: e }) => {
         onChange(e.getHTML())
       },
       editorProps: {
-        handleClick: (_view, _pos, event) => {
-          const target = event.target as HTMLElement
-          if (target.tagName === 'IMG') {
-            const mediaId = target.getAttribute('data-media-id')
-            if (mediaId && onImageClick) {
-              const alt = (target as HTMLImageElement).alt || ''
-              onImageClick(mediaId, (target as HTMLImageElement).src, alt, {
-                x: event.clientX,
-                y: event.clientY
-              })
-              return true
-            }
-          }
-          return false
-        },
         handlePaste: (_view, event) => {
           const files = event.clipboardData?.files
           if (!files || files.length === 0) return false

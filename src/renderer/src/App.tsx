@@ -27,6 +27,7 @@ function App(): JSX.Element {
   const { settings, updateSettings } = useSettings()
 
   const [currentView, setCurrentView] = useState<View>('settings')
+  const [previousView, setPreviousView] = useState<View>('dashboard')
   const [selectedSiteId, setSelectedSiteId] = useState<string | null>(null)
   const [syncing, setSyncing] = useState(false)
 
@@ -238,12 +239,14 @@ function App(): JSX.Element {
   }
 
   const handleDashboardSelectPost = useCallback((id: string) => {
+    setPreviousView('dashboard')
     setSelectedPostId(id)
     setInitialPostFilter(null)
     setCurrentView('posts')
   }, [])
 
   const handleDashboardNewPost = useCallback(async () => {
+    setPreviousView('dashboard')
     const post = await createPost()
     setSelectedPostId(post.id)
     setInitialPostFilter(null)
@@ -251,6 +254,7 @@ function App(): JSX.Element {
   }, [createPost])
 
   const handleDashboardSeeAll = useCallback((filter?: PostListFilter) => {
+    setPreviousView('dashboard')
     setSelectedPostId(null)
     setInitialPostFilter(filter ?? null)
     setCurrentView('posts')
@@ -261,6 +265,18 @@ function App(): JSX.Element {
     setInitialPostFilter(null)
     setCurrentView('dashboard')
   }, [])
+
+  const handlePostListSelectPost = useCallback((id: string | null) => {
+    if (id !== null) setPreviousView('posts')
+    setSelectedPostId(id)
+  }, [])
+
+  const handlePostBack = useCallback(() => {
+    setSelectedPostId(null)
+    if (previousView === 'dashboard') {
+      setCurrentView('dashboard')
+    }
+  }, [previousView])
 
   function renderContent(): JSX.Element {
     switch (currentView) {
@@ -311,7 +327,8 @@ function App(): JSX.Element {
             online={effectiveOnline}
             editorFontSize={settings.editorFontSize}
             selectedPostId={selectedPostId}
-            onSelectPost={setSelectedPostId}
+            onSelectPost={handlePostListSelectPost}
+            onBack={handlePostBack}
             initialFilter={initialPostFilter}
             posts={posts}
             postsLoading={postsLoading}

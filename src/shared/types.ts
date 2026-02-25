@@ -53,6 +53,7 @@ export interface Post {
   date: string | null
   author_id: number | null
   author_name: string | null
+  featured_image: string | null
   modified_local: string
   modified_remote: string | null
   synced: boolean
@@ -74,6 +75,7 @@ export interface PostUpdate {
   status?: PostStatus
   acf?: Record<string, unknown> | null
   date?: string | null
+  featured_image?: string | null
 }
 
 // ── Media ────────────────────────────────────────────────────────────────
@@ -157,6 +159,7 @@ export interface WpPostRaw {
   modified: string
   date: string
   author: number
+  featured_media: number
   acf?: Record<string, unknown>
 }
 

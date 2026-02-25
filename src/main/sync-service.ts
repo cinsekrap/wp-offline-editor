@@ -2,7 +2,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { getDb } from './database'
 import { getSiteById } from './site-service'
 import { getCredential } from './credentials'
-import { getPostById, deletePost, pullPostsForSite, downloadAndRewriteImages, rewriteAcfImageUrls } from './post-service'
+import { getPostById, deletePost, pullPostsForSite, downloadAndRewriteImages, rewriteAcfImageUrls, downloadFeaturedImage } from './post-service'
 import { getMediaForPost, uploadMediaToWp } from './media-service'
 import { pushPost, deleteRemotePost, fetchSinglePost, fetchUserNames } from './wp-client'
 import { decodeHtmlEntities } from './html-utils'
@@ -83,13 +83,32 @@ export async function pushPostToWp(postId: string): Promise<PushResult> {
     swappedAcf = resolveMediaRefs(swappedAcf) as Record<string, unknown>
   }
 
+  // Resolve featured image to WP attachment ID
+  let featuredMedia: number | undefined
+  if (post.featured_image) {
+    // Check the mediaIdToWpId map first (just uploaded), then look up directly from DB
+    const wpId = mediaIdToWpId.get(post.featured_image)
+    if (wpId) {
+      featuredMedia = wpId
+    } else {
+      const mediaRow = db.prepare('SELECT wp_id FROM media WHERE id = ?').get(post.featured_image) as { wp_id: number | null } | undefined
+      if (mediaRow?.wp_id) {
+        featuredMedia = mediaRow.wp_id
+      }
+    }
+  } else {
+    // Explicitly clear featured image
+    featuredMedia = 0
+  }
+
   // Push to WordPress
   const result = await pushPost(site.url, site.username, password, post.wp_id, {
     title: post.title,
     content: swappedContent,
     status: post.status,
     date: post.date,
-    acf: swappedAcf
+    acf: swappedAcf,
+    featured_media: featuredMedia
   })
 
   // Update local DB
@@ -147,8 +166,8 @@ export async function resolveConflict(
     // Create a copy of the current local post as a new draft
     const forkAcfJson = post.acf ? JSON.stringify(post.acf) : null
     db.prepare(`
-      INSERT INTO posts (id, site_id, wp_id, title, content, status, acf, date, author_id, author_name, modified_local, modified_remote, synced, conflict)
-      VALUES (?, ?, NULL, ?, ?, 'draft', ?, ?, ?, ?, ?, NULL, 0, 0)
+      INSERT INTO posts (id, site_id, wp_id, title, content, status, acf, date, author_id, author_name, featured_image, modified_local, modified_remote, synced, conflict)
+      VALUES (?, ?, NULL, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, NULL, 0, 0)
     `).run(
       uuidv4(),
       post.site_id,
@@ -158,6 +177,7 @@ export async function resolveConflict(
       post.date,
       post.author_id,
       post.author_name,
+      post.featured_image,
       new Date().toISOString()
     )
   }
@@ -175,8 +195,14 @@ export async function resolveConflict(
   content = await downloadAndRewriteImages(post.site_id, postId, content, site.url)
   acfJson = await rewriteAcfImageUrls(post.site_id, postId, acfJson, site.url)
 
+  // Download featured image from remote
+  let featuredImage: string | null = null
+  if (wpPost.featured_media > 0) {
+    featuredImage = await downloadFeaturedImage(post.site_id, postId, wpPost.featured_media, site.url)
+  }
+
   db.prepare(`
-    UPDATE posts SET title = ?, content = ?, status = ?, acf = ?, date = ?, author_id = ?, author_name = ?, modified_local = ?, modified_remote = ?, synced = 1, conflict = 0
+    UPDATE posts SET title = ?, content = ?, status = ?, acf = ?, date = ?, author_id = ?, author_name = ?, featured_image = ?, modified_local = ?, modified_remote = ?, synced = 1, conflict = 0
     WHERE id = ?
   `).run(
     title,
@@ -186,6 +212,7 @@ export async function resolveConflict(
     wpPost.date,
     wpPost.author,
     authorName,
+    featuredImage,
     now,
     wpPost.modified,
     postId

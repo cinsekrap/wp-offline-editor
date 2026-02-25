@@ -39,7 +39,8 @@ export const PostUpdateSchema = z.object({
   content: z.string().optional(),
   status: postStatusSchema.optional(),
   acf: z.unknown().optional(),
-  date: z.string().nullable().optional()
+  date: z.string().nullable().optional(),
+  featured_image: z.string().nullable().optional()
 })
 
 export const ConflictStrategySchema = z.enum(['keep-mine', 'keep-theirs', 'fork'])

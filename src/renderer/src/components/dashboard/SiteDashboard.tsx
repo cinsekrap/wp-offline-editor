@@ -146,11 +146,21 @@ export function SiteDashboard({
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-lg font-semibold">Posts</h1>
-          <Button variant="outline" size="sm" onClick={onNewPost}>
-            <Plus className="h-4 w-4 mr-1.5" />
-            New post
-          </Button>
         </div>
+
+        {/* Start something new */}
+        <section className="mb-8">
+          <h2 className="text-sm font-medium text-muted-foreground mb-3">Start something new</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <button
+              onClick={onNewPost}
+              className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 hover:border-muted-foreground/50 hover:bg-accent/30 transition-colors cursor-pointer text-left w-full flex flex-col items-center justify-center gap-2"
+            >
+              <Plus className="h-6 w-6 text-muted-foreground" />
+              <span className="text-sm font-medium text-muted-foreground">New post</span>
+            </button>
+          </div>
+        </section>
 
         {/* Pick back up */}
         {pickBackUp.length > 0 && (

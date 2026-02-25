@@ -28,6 +28,9 @@ export function useAutoSave(update: PostUpdate | null, delay = 1000): UseAutoSav
 
     if (serialized === lastSavedRef.current) return
 
+    // Don't save blank posts (no title and no content)
+    if (!data.title?.trim() && !data.content?.trim()) return
+
     try {
       setStatus('saving')
       await window.electronAPI.updatePost(data)

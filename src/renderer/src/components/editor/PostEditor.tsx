@@ -113,6 +113,7 @@ export function PostEditor({
   const [postStatus, setPostStatus] = useState<PostStatus>('draft')
   const [acf, setAcf] = useState<Record<string, unknown>>({})
   const [scheduledDate, setScheduledDate] = useState<Date | undefined>()
+  const [featuredImage, setFeaturedImage] = useState<string | null>(null)
 
   const editorRef = useRef<Editor | null>(null)
 
@@ -132,6 +133,7 @@ export function PostEditor({
         setPostStatus(p.status)
         setAcf(p.acf ?? {})
         setScheduledDate(p.date ? new Date(p.date) : undefined)
+        setFeaturedImage(p.featured_image)
         initializedRef.current = true
       }
       setLoading(false)
@@ -143,8 +145,8 @@ export function PostEditor({
     const date = postStatus === 'future' && scheduledDate
       ? scheduledDate.toISOString()
       : post.date
-    return { id: postId, title, content, status: postStatus, acf, date }
-  }, [postId, title, content, postStatus, acf, scheduledDate, post])
+    return { id: postId, title, content, status: postStatus, acf, date, featured_image: featuredImage }
+  }, [postId, title, content, postStatus, acf, scheduledDate, featuredImage, post])
 
   const { status: saveStatus, flush } = useAutoSave(update)
 
@@ -180,6 +182,11 @@ export function PostEditor({
         activeIds.add(match[1])
       }
 
+      // Exempt featured image from orphan deletion
+      if (featuredImage) {
+        activeIds.add(featuredImage)
+      }
+
       // Delete any media in the queue that's no longer in the content
       const currentQueue = await window.electronAPI.getMediaForPost(postId)
       const orphans = currentQueue.filter((m) => !activeIds.has(m.id))
@@ -188,7 +195,7 @@ export function PostEditor({
         refreshQueue()
       }
     })
-  }, [content, refreshQueue, postId])
+  }, [content, featuredImage, refreshQueue, postId])
 
   const handleAcfChange = useCallback((name: string, value: unknown) => {
     setAcf((prev) => ({ ...prev, [name]: value }))
@@ -236,6 +243,7 @@ export function PostEditor({
       setPostStatus(p.status)
       setAcf(p.acf ?? {})
       setScheduledDate(p.date ? new Date(p.date) : undefined)
+      setFeaturedImage(p.featured_image)
     }
   }, [postId])
 
@@ -281,6 +289,14 @@ export function PostEditor({
     },
     [postId, reloadPost, onPostUpdated, toast]
   )
+
+  const handleBack = useCallback(async () => {
+    // If the post is blank (no title, no content), delete it silently
+    if (!title.trim() && !content.trim()) {
+      await onDelete()
+    }
+    onBack()
+  }, [title, content, onDelete, onBack])
 
   const handleDelete = useCallback(async () => {
     await onDelete()
@@ -421,7 +437,7 @@ export function PostEditor({
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
         <div className="flex items-center gap-2 px-4 py-2 border-b shrink-0">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onBack} title="Back to post list">
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleBack} title="Back to post list">
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <SaveIndicator status={saveStatus} />
@@ -580,6 +596,11 @@ export function PostEditor({
             scheduledDate={scheduledDate}
             onStatusChange={setPostStatus}
             onDateChange={setScheduledDate}
+            featuredImage={featuredImage}
+            onFeaturedImageChange={setFeaturedImage}
+            siteId={siteId}
+            postId={postId}
+            mediaItems={queue}
           />
           <Separator />
           <AcfMediaProvider value={{ siteId, postId, mediaItems: queue, refreshMedia: refreshQueue }}>

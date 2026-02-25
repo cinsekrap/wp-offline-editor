@@ -160,7 +160,7 @@ export async function fetchPosts(
 ): Promise<{ posts: WpPostRaw[]; total: number }> {
   const baseUrl = url.replace(/\/+$/, '')
   const headers = makeAuthHeaders(username, password)
-  const fields = 'id,title,content,status,modified,date,author,acf'
+  const fields = 'id,title,content,status,modified,date,author,featured_media,acf'
   const allPosts: WpPostRaw[] = []
 
   for (const status of statuses) {
@@ -291,6 +291,30 @@ export async function fetchShortcodes(
   return (await res.json()) as { tag: string }[]
 }
 
+// ── Attachment URL fetch ─────────────────────────────────────────────────
+
+export async function fetchAttachmentUrl(
+  url: string,
+  username: string,
+  password: string,
+  attachmentId: number
+): Promise<string | null> {
+  const baseUrl = url.replace(/\/+$/, '')
+  const headers = makeAuthHeaders(username, password)
+
+  try {
+    const res = await fetch(
+      `${baseUrl}/wp-json/wp/v2/media/${attachmentId}?_fields=source_url`,
+      { headers }
+    )
+    if (!res.ok) return null
+    const data = (await res.json()) as { source_url: string }
+    return data.source_url || null
+  } catch {
+    return null
+  }
+}
+
 // ── Post push (create / update) ─────────────────────────────────────────
 
 export async function pushPost(
@@ -298,7 +322,7 @@ export async function pushPost(
   username: string,
   password: string,
   wpId: number | null,
-  data: { title: string; content: string; status: string; date?: string | null; acf?: Record<string, unknown> | null }
+  data: { title: string; content: string; status: string; date?: string | null; acf?: Record<string, unknown> | null; featured_media?: number }
 ): Promise<{ id: number; modified: string }> {
   const baseUrl = url.replace(/\/+$/, '')
   const headers = {
@@ -313,6 +337,7 @@ export async function pushPost(
   }
   if (data.date) body.date = data.date
   if (data.acf) body.acf = data.acf
+  if (data.featured_media !== undefined) body.featured_media = data.featured_media
 
   const endpoint = wpId
     ? `${baseUrl}/wp-json/wp/v2/posts/${wpId}`
@@ -367,7 +392,7 @@ export async function fetchSinglePost(
   const headers = makeAuthHeaders(username, password)
 
   const res = await fetch(
-    `${baseUrl}/wp-json/wp/v2/posts/${wpId}?_fields=id,title,content,status,modified,date,author,acf`,
+    `${baseUrl}/wp-json/wp/v2/posts/${wpId}?_fields=id,title,content,status,modified,date,author,featured_media,acf`,
     { headers }
   )
 

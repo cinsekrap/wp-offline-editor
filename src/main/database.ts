@@ -121,6 +121,10 @@ function runMigrations(db: Database.Database): void {
     db.exec('ALTER TABLE posts ADD COLUMN author_name TEXT')
   }
 
+  if (!postColNames.has('featured_image')) {
+    db.exec('ALTER TABLE posts ADD COLUMN featured_image TEXT')
+  }
+
   // Unique indexes to prevent duplicate posts/schema per site
   db.exec(`
     CREATE UNIQUE INDEX IF NOT EXISTS idx_posts_site_wp ON posts(site_id, wp_id);

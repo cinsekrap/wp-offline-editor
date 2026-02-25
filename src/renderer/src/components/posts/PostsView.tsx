@@ -11,6 +11,7 @@ interface PostsViewProps {
   editorFontSize?: number
   selectedPostId: string | null
   onSelectPost: (id: string | null) => void
+  onBack?: () => void
   initialFilter?: PostListFilter | null
   posts: Post[]
   postsLoading: boolean
@@ -26,6 +27,7 @@ export function PostsView({
   editorFontSize,
   selectedPostId,
   onSelectPost,
+  onBack,
   initialFilter,
   posts,
   postsLoading,
@@ -59,7 +61,7 @@ export function PostsView({
         key={selectedPostId}
         postId={selectedPostId}
         siteId={siteId}
-        onBack={() => onSelectPost(null)}
+        onBack={onBack ?? (() => onSelectPost(null))}
         onDelete={handleDeletePost}
         onPostUpdated={handlePostUpdated}
         online={online}

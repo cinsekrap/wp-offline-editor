@@ -3,7 +3,7 @@ import { basename } from 'path'
 import { getDb } from './database'
 import { getSiteById } from './site-service'
 import { getCredential } from './credentials'
-import { fetchPosts, fetchUserNames } from './wp-client'
+import { fetchPosts, fetchUserNames, fetchAttachmentUrl } from './wp-client'
 import { decodeHtmlEntities } from './html-utils'
 import { sanitizeHtml } from './sanitize'
 import { saveMediaFromWp } from './media-service'
@@ -43,6 +43,31 @@ function normalizeImageUrl(imageUrl: string, siteUrl: string): string {
     // invalid URL, return as-is
   }
   return imageUrl
+}
+
+export async function downloadFeaturedImage(
+  siteId: string,
+  postLocalId: string,
+  attachmentId: number,
+  siteUrl: string
+): Promise<string | null> {
+  const site = getSiteById(siteId)
+  if (!site) return null
+
+  const password = getCredential(site.keychain_ref)
+  if (!password) return null
+
+  const sourceUrl = await fetchAttachmentUrl(siteUrl, site.username, password, attachmentId)
+  if (!sourceUrl) return null
+
+  const fetchUrl = normalizeImageUrl(sourceUrl, siteUrl)
+  const buffer = await downloadBuffer(fetchUrl)
+  if (!buffer) return null
+
+  const urlPath = new URL(sourceUrl).pathname
+  const filename = basename(urlPath) || 'featured.jpg'
+  const media = saveMediaFromWp(siteId, postLocalId, filename, buffer, sourceUrl)
+  return media.id
 }
 
 export async function downloadAndRewriteImages(
@@ -178,10 +203,16 @@ async function upsertPost(
     content = await downloadAndRewriteImages(siteId, postLocalId, content, siteUrl)
     acfJson = await rewriteAcfImageUrls(siteId, postLocalId, acfJson, siteUrl)
 
+    // Download featured image if present
+    let featuredImage: string | null = null
+    if (wpPost.featured_media > 0) {
+      featuredImage = await downloadFeaturedImage(siteId, postLocalId, wpPost.featured_media, siteUrl)
+    }
+
     db.prepare(`
-      INSERT INTO posts (id, site_id, wp_id, title, content, status, acf, date, author_id, author_name, modified_local, modified_remote, synced, conflict)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0)
-    `).run(postLocalId, siteId, wpPost.id, title, content, status, acfJson, wpDate, authorId, authorName, now, modifiedRemote)
+      INSERT INTO posts (id, site_id, wp_id, title, content, status, acf, date, author_id, author_name, featured_image, modified_local, modified_remote, synced, conflict)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0)
+    `).run(postLocalId, siteId, wpPost.id, title, content, status, acfJson, wpDate, authorId, authorName, featuredImage, now, modifiedRemote)
     return 'created'
   }
 
@@ -241,10 +272,16 @@ async function upsertPost(
     content = await downloadAndRewriteImages(siteId, existing.id, content, siteUrl)
     acfJson = await rewriteAcfImageUrls(siteId, existing.id, acfJson, siteUrl)
 
+    // Download featured image
+    let featuredImage: string | null = null
+    if (wpPost.featured_media > 0) {
+      featuredImage = await downloadFeaturedImage(siteId, existing.id, wpPost.featured_media, siteUrl)
+    }
+
     db.prepare(`
-      UPDATE posts SET title = ?, content = ?, status = ?, acf = ?, date = ?, author_id = ?, author_name = ?, modified_local = ?, modified_remote = ?, synced = 1, conflict = 0
+      UPDATE posts SET title = ?, content = ?, status = ?, acf = ?, date = ?, author_id = ?, author_name = ?, featured_image = ?, modified_local = ?, modified_remote = ?, synced = 1, conflict = 0
       WHERE id = ?
-    `).run(title, content, status, acfJson, wpDate, authorId, authorName, now, modifiedRemote, existing.id)
+    `).run(title, content, status, acfJson, wpDate, authorId, authorName, featuredImage, now, modifiedRemote, existing.id)
     return 'updated'
   }
 
@@ -295,11 +332,12 @@ export function updatePost(update: PostUpdate): Post {
   const acf = update.acf !== undefined ? update.acf : existing.acf
   const acfJson = acf ? JSON.stringify(acf) : null
   const date = update.date !== undefined ? update.date : existing.date
+  const featuredImage = update.featured_image !== undefined ? update.featured_image : existing.featured_image
 
   db.prepare(`
-    UPDATE posts SET title = ?, content = ?, status = ?, acf = ?, date = ?, modified_local = ?, synced = 0
+    UPDATE posts SET title = ?, content = ?, status = ?, acf = ?, date = ?, featured_image = ?, modified_local = ?, synced = 0
     WHERE id = ?
-  `).run(title, content, status, acfJson, date, now, update.id)
+  `).run(title, content, status, acfJson, date, featuredImage, now, update.id)
 
   return getPostById(update.id)!
 }
@@ -317,6 +355,7 @@ function normalizePostRow(row: Post): Post {
     acf: typeof row.acf === 'string' ? JSON.parse(row.acf) : row.acf,
     date: row.date ?? null,
     author_id: row.author_id ?? null,
-    author_name: row.author_name ?? null
+    author_name: row.author_name ?? null,
+    featured_image: row.featured_image ?? null
   }
 }

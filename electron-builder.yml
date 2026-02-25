@@ -9,6 +9,9 @@ files:
   - '!electron.vite.config.{js,ts,mjs,cjs}'
   - '!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+extraResources:
+  - from: resources/wp-offline-editor-companion.zip
+    to: wp-offline-editor-companion.zip
 publish:
   provider: github
   owner: cinsekrap

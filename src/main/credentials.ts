@@ -1,6 +1,6 @@
 import { safeStorage, app } from 'electron'
 import { randomBytes } from 'crypto'
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs'
+import { existsSync, readFileSync, writeFileSync, mkdirSync, chmodSync } from 'fs'
 import { join, dirname } from 'path'
 
 const DB_KEY_FILE = 'db-key.enc.json'
@@ -25,12 +25,20 @@ function writeStore(filename: string, store: EncryptedStore): void {
   const path = getStorePath(filename)
   const dir = dirname(path)
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
-  writeFileSync(path, JSON.stringify(store, null, 2), 'utf-8')
+  writeFileSync(path, JSON.stringify(store, null, 2), { encoding: 'utf-8', mode: 0o600 })
+  chmodSync(path, 0o600)
+}
+
+function ensureEncryptionAvailable(): void {
+  if (!safeStorage.isEncryptionAvailable()) {
+    throw new Error('OS encryption is not available — cannot safely store credentials')
+  }
 }
 
 // ── Database encryption key ──────────────────────────────────────────────
 
 export function getOrCreateDbKey(): string {
+  ensureEncryptionAvailable()
   const store = readStore(DB_KEY_FILE)
 
   if (store.dbKey) {
@@ -48,6 +56,7 @@ export function getOrCreateDbKey(): string {
 // ── Site credential storage ──────────────────────────────────────────────
 
 export function storeCredential(keychainRef: string, password: string): void {
+  ensureEncryptionAvailable()
   const store = readStore(CRED_FILE)
   const encrypted = safeStorage.encryptString(password)
   store[keychainRef] = encrypted.toString('base64')
@@ -55,6 +64,7 @@ export function storeCredential(keychainRef: string, password: string): void {
 }
 
 export function getCredential(keychainRef: string): string | null {
+  ensureEncryptionAvailable()
   const store = readStore(CRED_FILE)
   const entry = store[keychainRef]
   if (!entry) return null

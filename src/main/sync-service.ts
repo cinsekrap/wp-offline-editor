@@ -2,10 +2,11 @@ import { v4 as uuidv4 } from 'uuid'
 import { getDb } from './database'
 import { getSiteById } from './site-service'
 import { getCredential } from './credentials'
-import { getPostById, pullPostsForSite } from './post-service'
+import { getPostById, deletePost, pullPostsForSite, downloadAndRewriteImages, rewriteAcfImageUrls } from './post-service'
 import { getMediaForPost, uploadMediaToWp } from './media-service'
-import { pushPost, fetchSinglePost, fetchUserNames } from './wp-client'
+import { pushPost, deleteRemotePost, fetchSinglePost, fetchUserNames } from './wp-client'
 import { decodeHtmlEntities } from './html-utils'
+import { sanitizeHtml } from './sanitize'
 import { pullAcfSchemaForSite } from './acf-service'
 import { pullMediaLibraryForSite } from './media-library-service'
 import type { PushResult, SyncResult } from '@shared/types'
@@ -102,6 +103,25 @@ export async function pushPostToWp(postId: string): Promise<PushResult> {
   return { wp_id: result.id, modified_remote: result.modified }
 }
 
+export async function deletePostFromWp(postId: string): Promise<void> {
+  const post = getPostById(postId)
+  if (!post) throw new Error(`Post not found: ${postId}`)
+
+  // If the post exists on WordPress, delete it remotely first
+  if (post.wp_id) {
+    const site = getSiteById(post.site_id)
+    if (!site) throw new Error(`Site not found: ${post.site_id}`)
+
+    const password = getCredential(site.keychain_ref)
+    if (!password) throw new Error(`No credential found for site: ${site.label}`)
+
+    await deleteRemotePost(site.url, site.username, password, post.wp_id)
+  }
+
+  // Then delete locally
+  deletePost(postId)
+}
+
 export async function resolveConflict(
   postId: string,
   strategy: 'keep-mine' | 'keep-theirs' | 'fork'
@@ -148,8 +168,12 @@ export async function resolveConflict(
   const authorName = authorNames.get(wpPost.author) ?? post.author_name
   const now = new Date().toISOString()
   const title = decodeHtmlEntities(wpPost.title.rendered)
-  const content = wpPost.content.rendered
-  const acfJson = wpPost.acf ? JSON.stringify(wpPost.acf) : null
+  let content = sanitizeHtml(wpPost.content.rendered)
+  let acfJson = wpPost.acf ? JSON.stringify(wpPost.acf) : null
+
+  // Download external images and rewrite to media:// protocol
+  content = await downloadAndRewriteImages(post.site_id, postId, content)
+  acfJson = await rewriteAcfImageUrls(post.site_id, postId, acfJson)
 
   db.prepare(`
     UPDATE posts SET title = ?, content = ?, status = ?, acf = ?, date = ?, author_id = ?, author_name = ?, modified_local = ?, modified_remote = ?, synced = 1, conflict = 0

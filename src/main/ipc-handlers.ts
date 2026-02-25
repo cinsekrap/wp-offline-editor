@@ -1,11 +1,12 @@
 import { ipcMain, app, dialog } from 'electron'
 import { join } from 'path'
 import { copyFileSync } from 'fs'
+import { z } from 'zod'
 import { is } from '@electron-toolkit/utils'
 import { getAllSites, getSiteById, addSite, updateSite, deleteSite } from './site-service'
 import { testWpConnection } from './wp-client'
-import { pullPostsForSite, getAllPostsForSite, getPostById, createPost, updatePost, deletePost } from './post-service'
-import { pushPostToWp, resolveConflict, getUnsyncedPostCount, syncSite } from './sync-service'
+import { pullPostsForSite, getAllPostsForSite, getPostById, createPost, updatePost } from './post-service'
+import { pushPostToWp, deletePostFromWp, resolveConflict, getUnsyncedPostCount, syncSite } from './sync-service'
 import { pullAcfSchemaForSite, getAcfSchemasForSite } from './acf-service'
 import {
   saveMediaLocally,
@@ -19,7 +20,15 @@ import { getMediaLibraryForSite } from './media-library-service'
 import { getShortcodesForSite } from './shortcode-service'
 import { getSettings, updateSettings } from './settings-service'
 import { checkForUpdates, downloadUpdate, installUpdate } from './updater'
-import type { SiteInput, SiteUpdate, PostInput, PostUpdate, AppSettings } from '@shared/types'
+import {
+  uuidSchema,
+  SiteInputSchema,
+  SiteUpdateSchema,
+  PostInputSchema,
+  PostUpdateSchema,
+  ConflictStrategySchema,
+  AppSettingsSchema
+} from './ipc-schemas'
 
 export function registerIpcHandlers(): void {
   // ── Sites ────────────────────────────────────────────────────────────────
@@ -28,123 +37,134 @@ export function registerIpcHandlers(): void {
     return getAllSites()
   })
 
-  ipcMain.handle('sites:get', (_event, id: string) => {
-    return getSiteById(id)
+  ipcMain.handle('sites:get', (_event, id: unknown) => {
+    return getSiteById(uuidSchema.parse(id))
   })
 
-  ipcMain.handle('sites:add', (_event, input: SiteInput) => {
-    return addSite(input)
+  ipcMain.handle('sites:add', (_event, input: unknown) => {
+    return addSite(SiteInputSchema.parse(input))
   })
 
-  ipcMain.handle('sites:update', (_event, update: SiteUpdate) => {
-    return updateSite(update)
+  ipcMain.handle('sites:update', (_event, update: unknown) => {
+    return updateSite(SiteUpdateSchema.parse(update))
   })
 
-  ipcMain.handle('sites:delete', (_event, id: string) => {
-    deleteSite(id)
+  ipcMain.handle('sites:delete', (_event, id: unknown) => {
+    deleteSite(uuidSchema.parse(id))
   })
 
   ipcMain.handle(
     'sites:test-connection',
-    (_event, url: string, username: string, password: string) => {
-      return testWpConnection(url, username, password)
+    (_event, url: unknown, username: unknown, password: unknown) => {
+      return testWpConnection(
+        z.string().url().parse(url),
+        z.string().min(1).parse(username),
+        z.string().min(1).parse(password)
+      )
     }
   )
 
   // ── Posts ────────────────────────────────────────────────────────────────
 
-  ipcMain.handle('posts:pull', (_event, siteId: string) => {
-    return pullPostsForSite(siteId)
+  ipcMain.handle('posts:pull', (_event, siteId: unknown) => {
+    return pullPostsForSite(uuidSchema.parse(siteId))
   })
 
-  ipcMain.handle('posts:get-all', (_event, siteId: string) => {
-    return getAllPostsForSite(siteId)
+  ipcMain.handle('posts:get-all', (_event, siteId: unknown) => {
+    return getAllPostsForSite(uuidSchema.parse(siteId))
   })
 
-  ipcMain.handle('posts:get', (_event, id: string) => {
-    return getPostById(id)
+  ipcMain.handle('posts:get', (_event, id: unknown) => {
+    return getPostById(uuidSchema.parse(id))
   })
 
-  ipcMain.handle('posts:create', (_event, input: PostInput) => {
-    return createPost(input)
+  ipcMain.handle('posts:create', (_event, input: unknown) => {
+    return createPost(PostInputSchema.parse(input))
   })
 
-  ipcMain.handle('posts:update', (_event, update: PostUpdate) => {
-    return updatePost(update)
+  ipcMain.handle('posts:update', (_event, update: unknown) => {
+    return updatePost(PostUpdateSchema.parse(update))
   })
 
-  ipcMain.handle('posts:delete', (_event, id: string) => {
-    deletePost(id)
+  ipcMain.handle('posts:delete', (_event, id: unknown) => {
+    return deletePostFromWp(uuidSchema.parse(id))
   })
 
-  ipcMain.handle('posts:push', (_event, postId: string) => {
-    return pushPostToWp(postId)
+  ipcMain.handle('posts:push', (_event, postId: unknown) => {
+    return pushPostToWp(uuidSchema.parse(postId))
   })
 
   ipcMain.handle(
     'posts:resolve-conflict',
-    (_event, postId: string, strategy: 'keep-mine' | 'keep-theirs' | 'fork') => {
-      return resolveConflict(postId, strategy)
+    (_event, postId: unknown, strategy: unknown) => {
+      return resolveConflict(uuidSchema.parse(postId), ConflictStrategySchema.parse(strategy))
     }
   )
 
-  ipcMain.handle('posts:unsynced-count', (_event, siteId: string) => {
-    return getUnsyncedPostCount(siteId)
+  ipcMain.handle('posts:unsynced-count', (_event, siteId: unknown) => {
+    return getUnsyncedPostCount(uuidSchema.parse(siteId))
   })
 
-  ipcMain.handle('site:sync', (_event, siteId: string) => {
-    return syncSite(siteId)
+  ipcMain.handle('site:sync', (_event, siteId: unknown) => {
+    return syncSite(uuidSchema.parse(siteId))
   })
 
   // ── ACF Schema ──────────────────────────────────────────────────────────
 
-  ipcMain.handle('acf:pull-schema', (_event, siteId: string) => {
-    return pullAcfSchemaForSite(siteId)
+  ipcMain.handle('acf:pull-schema', (_event, siteId: unknown) => {
+    return pullAcfSchemaForSite(uuidSchema.parse(siteId))
   })
 
-  ipcMain.handle('acf:get-schemas', (_event, siteId: string) => {
-    return getAcfSchemasForSite(siteId)
+  ipcMain.handle('acf:get-schemas', (_event, siteId: unknown) => {
+    return getAcfSchemasForSite(uuidSchema.parse(siteId))
   })
 
   // ── Media Library ──────────────────────────────────────────────────────────
 
-  ipcMain.handle('media-library:get', (_event, siteId: string) => {
-    return getMediaLibraryForSite(siteId)
+  ipcMain.handle('media-library:get', (_event, siteId: unknown) => {
+    return getMediaLibraryForSite(uuidSchema.parse(siteId))
   })
 
   // ── Media ─────────────────────────────────────────────────────────────────
 
   ipcMain.handle(
     'media:save-local',
-    (_event, siteId: string, postLocalId: string, filename: string, buffer: ArrayBuffer) => {
-      return saveMediaLocally(siteId, postLocalId, filename, Buffer.from(buffer))
+    (_event, siteId: unknown, postLocalId: unknown, filename: unknown, buffer: unknown) => {
+      if (!(buffer instanceof ArrayBuffer)) throw new Error('Expected ArrayBuffer for media buffer')
+      return saveMediaLocally(
+        uuidSchema.parse(siteId),
+        uuidSchema.parse(postLocalId),
+        z.string().min(1).parse(filename),
+        Buffer.from(buffer)
+      )
     }
   )
 
-  ipcMain.handle('media:get-for-post', (_event, postLocalId: string) => {
-    return getMediaForPost(postLocalId)
+  ipcMain.handle('media:get-for-post', (_event, postLocalId: unknown) => {
+    return getMediaForPost(uuidSchema.parse(postLocalId))
   })
 
-  ipcMain.handle('media:get-queue', (_event, siteId: string) => {
-    return getMediaQueue(siteId)
+  ipcMain.handle('media:get-queue', (_event, siteId: unknown) => {
+    return getMediaQueue(uuidSchema.parse(siteId))
   })
 
-  ipcMain.handle('media:upload', (_event, mediaId: string) => {
-    return uploadMediaToWp(mediaId)
+  ipcMain.handle('media:upload', (_event, mediaId: unknown) => {
+    return uploadMediaToWp(uuidSchema.parse(mediaId))
   })
 
-  ipcMain.handle('media:delete', (_event, id: string) => {
-    deleteMedia(id)
+  ipcMain.handle('media:delete', (_event, id: unknown) => {
+    deleteMedia(uuidSchema.parse(id))
   })
 
-  ipcMain.handle('media:replace-file', (_event, mediaId: string, buffer: ArrayBuffer) => {
-    return replaceMediaFile(mediaId, Buffer.from(buffer))
+  ipcMain.handle('media:replace-file', (_event, mediaId: unknown, buffer: unknown) => {
+    if (!(buffer instanceof ArrayBuffer)) throw new Error('Expected ArrayBuffer for media buffer')
+    return replaceMediaFile(uuidSchema.parse(mediaId), Buffer.from(buffer))
   })
 
   // ── Shortcodes ──────────────────────────────────────────────────────────
 
-  ipcMain.handle('shortcodes:get', (_event, siteId: string) => {
-    return getShortcodesForSite(siteId)
+  ipcMain.handle('shortcodes:get', (_event, siteId: unknown) => {
+    return getShortcodesForSite(uuidSchema.parse(siteId))
   })
 
   // ── Plugin ────────────────────────────────────────────────────────────────
@@ -171,8 +191,8 @@ export function registerIpcHandlers(): void {
     return getSettings()
   })
 
-  ipcMain.handle('settings:update', (_event, patch: Partial<AppSettings>) => {
-    return updateSettings(patch)
+  ipcMain.handle('settings:update', (_event, patch: unknown) => {
+    return updateSettings(AppSettingsSchema.parse(patch))
   })
 
   // ── App ──────────────────────────────────────────────────────────────────

@@ -1,10 +1,90 @@
 import { v4 as uuidv4 } from 'uuid'
+import { basename } from 'path'
 import { getDb } from './database'
 import { getSiteById } from './site-service'
 import { getCredential } from './credentials'
 import { fetchPosts, fetchUserNames } from './wp-client'
 import { decodeHtmlEntities } from './html-utils'
+import { sanitizeHtml } from './sanitize'
+import { saveMediaFromWp } from './media-service'
+import { net } from 'electron'
 import type { Post, PostInput, PostUpdate, PullResult, WpPostRaw } from '@shared/types'
+
+async function downloadBuffer(url: string): Promise<Buffer | null> {
+  try {
+    const resp = await net.fetch(url)
+    if (!resp.ok) return null
+    return Buffer.from(await resp.arrayBuffer())
+  } catch {
+    return null
+  }
+}
+
+export async function downloadAndRewriteImages(
+  siteId: string,
+  postLocalId: string,
+  html: string
+): Promise<string> {
+  // Match <img ... src="https://..." ...> tags
+  const imgRegex = /<img\s[^>]*\bsrc\s*=\s*"(https?:\/\/[^"]+)"[^>]*>/gi
+  const matches: { fullMatch: string; url: string }[] = []
+  let m: RegExpExecArray | null
+  while ((m = imgRegex.exec(html)) !== null) {
+    matches.push({ fullMatch: m[0], url: m[1] })
+  }
+
+  if (matches.length === 0) return html
+
+  let result = html
+  for (const { fullMatch, url } of matches) {
+    const buffer = await downloadBuffer(url)
+    if (!buffer) continue // leave original URL on failure
+
+    const urlPath = new URL(url).pathname
+    const filename = basename(urlPath) || 'image.jpg'
+    const media = saveMediaFromWp(siteId, postLocalId, filename, buffer, url)
+    const mediaUrl = `media://file${encodeURI(media.local_path)}`
+
+    // Build replacement tag: swap src and add data-media-id
+    let newTag = fullMatch.replace(`src="${url}"`, `src="${mediaUrl}"`)
+    if (!newTag.includes('data-media-id')) {
+      newTag = newTag.replace('<img ', `<img data-media-id="${media.id}" `)
+    }
+
+    result = result.split(fullMatch).join(newTag)
+  }
+
+  return result
+}
+
+export async function rewriteAcfImageUrls(
+  siteId: string,
+  postLocalId: string,
+  acfJson: string | null
+): Promise<string | null> {
+  if (!acfJson) return null
+
+  // Find all external image URLs in the ACF JSON string
+  const urlRegex = /https?:\/\/[^"\\]+\.(?:jpe?g|png|gif|webp|svg|avif)(?:\?[^"\\]*)?/gi
+  const urls = [...new Set(acfJson.match(urlRegex) || [])]
+
+  if (urls.length === 0) return acfJson
+
+  let result = acfJson
+  for (const url of urls) {
+    const buffer = await downloadBuffer(url)
+    if (!buffer) continue
+
+    const urlPath = new URL(url).pathname
+    const filename = basename(urlPath) || 'image.jpg'
+    const media = saveMediaFromWp(siteId, postLocalId, filename, buffer, url)
+    const mediaUrl = `media://file${encodeURI(media.local_path)}`
+
+    result = result.split(url).join(mediaUrl)
+  }
+
+  return result
+}
 
 export async function pullPostsForSite(siteId: string): Promise<PullResult> {
   const site = getSiteById(siteId)
@@ -25,7 +105,7 @@ export async function pullPostsForSite(siteId: string): Promise<PullResult> {
   for (const wpPost of posts) {
     try {
       const authorName = authorNames.get(wpPost.author) ?? null
-      const outcome = upsertPost(siteId, wpPost, authorName)
+      const outcome = await upsertPost(siteId, wpPost, authorName)
       result[outcome]++
     } catch (err) {
       result.errors.push(`Post ${wpPost.id}: ${err instanceof Error ? err.message : String(err)}`)
@@ -42,11 +122,11 @@ export async function pullPostsForSite(siteId: string): Promise<PullResult> {
   return result
 }
 
-function upsertPost(
+async function upsertPost(
   siteId: string,
   wpPost: WpPostRaw,
   authorName: string | null
-): 'created' | 'updated' | 'unchanged' {
+): Promise<'created' | 'updated' | 'unchanged'> {
   const db = getDb()
 
   const existing = db
@@ -54,20 +134,24 @@ function upsertPost(
     .get(siteId, wpPost.id) as { id: string; modified_remote: string | null; synced: number } | undefined
 
   const title = decodeHtmlEntities(wpPost.title.rendered)
-  const content = wpPost.content.rendered
+  let content = sanitizeHtml(wpPost.content.rendered)
   const status = wpPost.status
   const modifiedRemote = wpPost.modified
   const wpDate = wpPost.date || null
   const authorId = wpPost.author || null
-  const acfJson = wpPost.acf ? JSON.stringify(wpPost.acf) : null
+  let acfJson = wpPost.acf ? JSON.stringify(wpPost.acf) : null
   const now = new Date().toISOString()
 
   if (!existing) {
-    // INSERT new post
+    // INSERT new post — generate ID first so we can use it for media download
+    const postLocalId = uuidv4()
+    content = await downloadAndRewriteImages(siteId, postLocalId, content)
+    acfJson = await rewriteAcfImageUrls(siteId, postLocalId, acfJson)
+
     db.prepare(`
       INSERT INTO posts (id, site_id, wp_id, title, content, status, acf, date, author_id, author_name, modified_local, modified_remote, synced, conflict)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0)
-    `).run(uuidv4(), siteId, wpPost.id, title, content, status, acfJson, wpDate, authorId, authorName, now, modifiedRemote)
+    `).run(postLocalId, siteId, wpPost.id, title, content, status, acfJson, wpDate, authorId, authorName, now, modifiedRemote)
     return 'created'
   }
 
@@ -81,7 +165,10 @@ function upsertPost(
 
   // Different modified_remote
   if (existing.synced === 1) {
-    // No local edits → safe to update
+    // No local edits → safe to update — download images
+    content = await downloadAndRewriteImages(siteId, existing.id, content)
+    acfJson = await rewriteAcfImageUrls(siteId, existing.id, acfJson)
+
     db.prepare(`
       UPDATE posts SET title = ?, content = ?, status = ?, acf = ?, date = ?, author_id = ?, author_name = ?, modified_local = ?, modified_remote = ?, synced = 1, conflict = 0
       WHERE id = ?

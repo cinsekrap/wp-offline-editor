@@ -1,6 +1,6 @@
 {
   "name": "wp-offline-editor",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Offline Post Editor",
   "main": "./out/main/index.js",
   "author": "",
@@ -34,6 +34,7 @@
     "@types/better-sqlite3": "^7.6.13",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "@types/sanitize-html": "^2.16.0",
     "@types/uuid": "^11.0.0",
     "@vitejs/plugin-react": "^5.1.4",
     "autoprefixer": "^10.4.24",
@@ -74,6 +75,8 @@
     "electron-updater": "^6.8.3",
     "react-day-picker": "^9.13.2",
     "react-easy-crop": "^5.5.6",
-    "uuid": "^13.0.0"
+    "sanitize-html": "^2.17.1",
+    "uuid": "^13.0.0",
+    "zod": "^4.3.6"
   }
 }

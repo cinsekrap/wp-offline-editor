@@ -18,25 +18,26 @@ export function usePosts(siteId: string | null): UsePostsReturn {
   const [pulling, setPulling] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (showLoading = false) => {
     if (!siteId) {
       setPosts([])
       return
     }
     try {
-      setLoading(true)
+      if (showLoading) setLoading(true)
       setError(null)
       const result = await window.electronAPI.getPosts(siteId)
       setPosts(result)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load posts')
     } finally {
-      setLoading(false)
+      if (showLoading) setLoading(false)
     }
   }, [siteId])
 
+  // Initial load shows loading indicator
   useEffect(() => {
-    refresh()
+    refresh(true)
   }, [refresh])
 
   const pullPosts = useCallback(async (): Promise<PullResult> => {

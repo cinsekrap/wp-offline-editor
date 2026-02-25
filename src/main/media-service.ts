@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid'
 import { app } from 'electron'
-import { join } from 'path'
+import { join, basename } from 'path'
 import { mkdirSync, writeFileSync, existsSync, unlinkSync } from 'fs'
 import { getDb } from './database'
 import { getSiteById } from './site-service'
@@ -21,6 +21,36 @@ function normalizeMediaRow(row: Media): Media {
   }
 }
 
+export function saveMediaFromWp(
+  siteId: string,
+  postLocalId: string,
+  filename: string,
+  buffer: Buffer,
+  wpUrl: string
+): Media {
+  const db = getDb()
+
+  // Dedup: if we already have this wp_url for this post, return existing
+  const existing = db
+    .prepare('SELECT * FROM media WHERE post_local_id = ? AND wp_url = ?')
+    .get(postLocalId, wpUrl) as Media | undefined
+  if (existing) return normalizeMediaRow(existing)
+
+  const id = uuidv4()
+  const safeFilename = `${id}-${basename(filename)}`
+  const dir = getMediaDir(siteId)
+  const localPath = join(dir, safeFilename)
+
+  writeFileSync(localPath, buffer)
+
+  db.prepare(`
+    INSERT INTO media (id, site_id, post_local_id, local_path, wp_url, filename, synced)
+    VALUES (?, ?, ?, ?, ?, ?, 1)
+  `).run(id, siteId, postLocalId, localPath, wpUrl, filename)
+
+  return getMediaById(id)!
+}
+
 export function saveMediaLocally(
   siteId: string,
   postLocalId: string,
@@ -29,7 +59,7 @@ export function saveMediaLocally(
 ): Media {
   const db = getDb()
   const id = uuidv4()
-  const safeFilename = `${id}-${filename}`
+  const safeFilename = `${id}-${basename(filename)}`
   const dir = getMediaDir(siteId)
   const localPath = join(dir, safeFilename)
 

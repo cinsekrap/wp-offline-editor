@@ -1,5 +1,5 @@
 import { app, BrowserWindow, shell, protocol, net } from 'electron'
-import { join } from 'path'
+import { join, resolve, normalize } from 'path'
 import { is } from '@electron-toolkit/utils'
 import { initDatabase, closeDatabase } from './database'
 import { registerIpcHandlers } from './ipc-handlers'
@@ -31,9 +31,11 @@ function createWindow(): void {
     mainWindow.show()
   })
 
-  // External links → system browser
+  // External links → system browser (restrict to http/https)
   mainWindow.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url)
+    if (details.url.startsWith('https://') || details.url.startsWith('http://')) {
+      shell.openExternal(details.url)
+    }
     return { action: 'deny' }
   })
 
@@ -41,7 +43,9 @@ function createWindow(): void {
   mainWindow.webContents.on('will-navigate', (event, url) => {
     if (!url.startsWith('http://localhost') && !url.startsWith('file://')) {
       event.preventDefault()
-      shell.openExternal(url)
+      if (url.startsWith('https://') || url.startsWith('http://')) {
+        shell.openExternal(url)
+      }
     }
   })
 
@@ -61,7 +65,18 @@ app.whenReady().then(() => {
   protocol.handle('media', (request) => {
     // media://file/absolute/path/to/file?t=123 (strip query params for cache-busting)
     const filePath = decodeURIComponent(request.url.split('?')[0].replace('media://file', ''))
-    return net.fetch(`file://${filePath}`)
+    const resolved = normalize(resolve(filePath))
+    const userDataDir = app.getPath('userData')
+    const allowedPrefixes = [
+      join(userDataDir, 'media') + '/',
+      join(userDataDir, 'media-library') + '/'
+    ]
+
+    if (!allowedPrefixes.some((prefix) => resolved.startsWith(prefix))) {
+      return new Response('Forbidden', { status: 403 })
+    }
+
+    return net.fetch(`file://${resolved}`)
   })
 
   initDatabase()

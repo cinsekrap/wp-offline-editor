@@ -1,5 +1,8 @@
-import { Settings, RefreshCw, Loader2, LayoutGrid, ImageIcon, WifiOff, CloudUpload } from 'lucide-react'
+import { Settings, RefreshCw, Loader2, LayoutGrid, ImageIcon, WifiOff, CloudUpload, ArrowLeftRight, Check } from 'lucide-react'
 import { Badge } from '@renderer/components/ui/badge'
+import { Popover, PopoverContent, PopoverTrigger } from '@renderer/components/ui/popover'
+import { cn } from '@renderer/lib/utils'
+import type { Site } from '@shared/types'
 
 interface ToolbarProps {
   onSettingsClick: () => void
@@ -11,6 +14,9 @@ interface ToolbarProps {
   pendingMediaCount?: number
   online?: boolean
   unsyncedPostCount?: number
+  sites?: Site[]
+  selectedSiteId?: string | null
+  onSwitchSite?: (site: Site) => void
 }
 
 export function Toolbar({
@@ -22,21 +28,30 @@ export function Toolbar({
   onSiteNameClick,
   pendingMediaCount,
   online = true,
-  unsyncedPostCount
+  unsyncedPostCount,
+  sites,
+  selectedSiteId,
+  onSwitchSite
 }: ToolbarProps): JSX.Element {
+  const showSwitchSite = sites && sites.length > 1 && onSwitchSite && siteName
+
   return (
     <div className="h-12 border-b flex items-center px-4 drag-region bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       {/* Left: traffic light spacing + menu button */}
       <div className="flex items-center gap-2 flex-1 min-w-0">
         <div className="w-20 shrink-0" />
-        {siteName ? (
+        {onSiteNameClick ? (
           <button
             onClick={onSiteNameClick}
             className="p-2 rounded-md hover:bg-accent transition-colors no-drag"
-            title="Back to settings"
+            title="Back to dashboard"
           >
             <LayoutGrid className="h-4 w-4" />
           </button>
+        ) : siteName ? (
+          <div className="p-2">
+            <LayoutGrid className="h-4 w-4 text-muted-foreground" />
+          </div>
         ) : (
           <span className="text-sm font-semibold select-none">Settings</span>
         )}
@@ -86,6 +101,38 @@ export function Toolbar({
               <RefreshCw className="h-4 w-4" />
             )}
           </button>
+        )}
+        {showSwitchSite && (
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                className="p-2 rounded-md hover:bg-accent transition-colors no-drag"
+                title="Switch site"
+              >
+                <ArrowLeftRight className="h-4 w-4" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-52 p-2">
+              <p className="text-xs font-medium text-muted-foreground mb-1.5 px-2">Switch site</p>
+              {sites!.map((site) => (
+                <button
+                  key={site.id}
+                  onClick={() => onSwitchSite!(site)}
+                  className={cn(
+                    'w-full text-left px-2 py-1.5 text-sm rounded-sm transition-colors flex items-center gap-2',
+                    site.id === selectedSiteId
+                      ? 'bg-accent text-accent-foreground'
+                      : 'hover:bg-accent/50'
+                  )}
+                >
+                  <span className="truncate flex-1">{site.label || site.url}</span>
+                  {site.id === selectedSiteId && (
+                    <Check className="h-3.5 w-3.5 shrink-0" />
+                  )}
+                </button>
+              ))}
+            </PopoverContent>
+          </Popover>
         )}
         <button
           onClick={onSettingsClick}

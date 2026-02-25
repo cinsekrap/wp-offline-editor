@@ -1,5 +1,6 @@
 import { ReactNode } from 'react'
 import { Toolbar } from './Toolbar'
+import type { Site } from '@shared/types'
 
 interface AppShellProps {
   children: ReactNode
@@ -12,6 +13,9 @@ interface AppShellProps {
   pendingMediaCount?: number
   online?: boolean
   unsyncedPostCount?: number
+  sites?: Site[]
+  selectedSiteId?: string | null
+  onSwitchSite?: (site: Site) => void
 }
 
 export function AppShell({
@@ -24,7 +28,10 @@ export function AppShell({
   onSiteNameClick,
   pendingMediaCount,
   online,
-  unsyncedPostCount
+  unsyncedPostCount,
+  sites,
+  selectedSiteId,
+  onSwitchSite
 }: AppShellProps): JSX.Element {
   return (
     <div className="h-screen flex flex-col">
@@ -38,6 +45,9 @@ export function AppShell({
         pendingMediaCount={pendingMediaCount}
         online={online}
         unsyncedPostCount={unsyncedPostCount}
+        sites={sites}
+        selectedSiteId={selectedSiteId}
+        onSwitchSite={onSwitchSite}
       />
       <main className="flex-1 overflow-hidden">{children}</main>
     </div>

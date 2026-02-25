@@ -16,7 +16,7 @@ interface TipTapEditorProps {
   siteId: string
   onChange: (html: string) => void
   onEditorReady?: (editor: Editor) => void
-  onImageClick?: (mediaId: string, src: string, position: { x: number; y: number }) => void
+  onImageClick?: (mediaId: string, src: string, alt: string, position: { x: number; y: number }) => void
   fontSize?: number
 }
 
@@ -71,7 +71,8 @@ export function TipTapEditor({
           if (target.tagName === 'IMG') {
             const mediaId = target.getAttribute('data-media-id')
             if (mediaId && onImageClick) {
-              onImageClick(mediaId, (target as HTMLImageElement).src, {
+              const alt = (target as HTMLImageElement).alt || ''
+              onImageClick(mediaId, (target as HTMLImageElement).src, alt, {
                 x: event.clientX,
                 y: event.clientY
               })

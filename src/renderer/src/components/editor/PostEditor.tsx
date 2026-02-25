@@ -5,7 +5,6 @@ import {
   Loader2,
   CheckCircle,
   AlertCircle,
-  PanelLeft,
   PanelRight,
   ImageIcon,
   Upload,
@@ -26,6 +25,7 @@ import { PostMeta } from './PostMeta'
 import { AcfPanel } from './acf/AcfPanel'
 import { AcfMediaProvider } from './acf/AcfMediaContext'
 import { ConflictDialog } from './ConflictDialog'
+import { DeletePostDialog } from './DeletePostDialog'
 import { ImageCropDialog } from './ImageCropDialog'
 import { useAutoSave, type SaveStatus } from '@renderer/hooks/useAutoSave'
 import { useMediaQueue } from '@renderer/hooks/useMediaQueue'
@@ -36,9 +36,8 @@ interface PostEditorProps {
   postId: string
   siteId: string
   onBack: () => void
+  onDelete: () => Promise<void>
   onPostUpdated: () => void
-  sidebarOpen?: boolean
-  onToggleSidebar?: () => void
   online?: boolean
   editorFontSize?: number
 }
@@ -86,9 +85,8 @@ export function PostEditor({
   postId,
   siteId,
   onBack,
+  onDelete,
   onPostUpdated,
-  sidebarOpen,
-  onToggleSidebar,
   online = true,
   editorFontSize
 }: PostEditorProps): JSX.Element {
@@ -99,13 +97,16 @@ export function PostEditor({
   const [uploading, setUploading] = useState<string | null>(null)
   const [pushing, setPushing] = useState(false)
   const [conflictDialogOpen, setConflictDialogOpen] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [cropTarget, setCropTarget] = useState<{ mediaId: string; src: string } | null>(null)
   const [imageMenu, setImageMenu] = useState<{
     mediaId: string
     src: string
+    alt: string
     x: number
     y: number
   } | null>(null)
+  const [altText, setAltText] = useState('')
 
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
@@ -277,9 +278,15 @@ export function PostEditor({
     [postId, reloadPost, onPostUpdated, toast]
   )
 
+  const handleDelete = useCallback(async () => {
+    await onDelete()
+    onBack()
+  }, [onDelete, onBack])
+
   const handleImageClick = useCallback(
-    (mediaId: string, src: string, position: { x: number; y: number }) => {
-      setImageMenu({ mediaId, src, x: position.x, y: position.y })
+    (mediaId: string, src: string, alt: string, position: { x: number; y: number }) => {
+      setImageMenu({ mediaId, src, alt, x: position.x, y: position.y })
+      setAltText(alt)
     },
     []
   )
@@ -331,6 +338,21 @@ export function PostEditor({
     [refreshQueue]
   )
 
+  const handleAltSave = useCallback(
+    (mediaId: string, newAlt: string) => {
+      if (!editorRef.current) return
+      const { doc, tr } = editorRef.current.state
+      doc.descendants((node, pos) => {
+        if (node.type.name === 'image' && node.attrs.mediaId === mediaId) {
+          editorRef.current!.view.dispatch(
+            tr.setNodeMarkup(pos, undefined, { ...node.attrs, alt: newAlt })
+          )
+        }
+      })
+    },
+    []
+  )
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -349,27 +371,45 @@ export function PostEditor({
 
   return (
     <div className="flex h-full" onClick={() => imageMenu && setImageMenu(null)}>
-      {/* Image context menu */}
+      {/* Image popover menu */}
       {imageMenu && (
         <div
-          className="fixed z-50 bg-popover border rounded-md shadow-md py-1 min-w-[120px] animate-in fade-in-0 zoom-in-95"
+          className="fixed z-50 bg-popover border rounded-lg shadow-lg p-3 w-[240px] animate-in fade-in-0 zoom-in-95"
           style={{ left: imageMenu.x, top: imageMenu.y }}
           onClick={(e: MouseEvent) => e.stopPropagation()}
         >
-          <button
-            className="flex items-center gap-2 w-full px-3 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground transition-colors"
-            onClick={handleImageEdit}
-          >
-            <Pencil className="h-3.5 w-3.5" />
-            Edit
-          </button>
-          <button
-            className="flex items-center gap-2 w-full px-3 py-1.5 text-sm text-destructive hover:bg-destructive/10 transition-colors"
-            onClick={handleImageDelete}
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-            Delete
-          </button>
+          <label className="text-xs font-medium text-muted-foreground">Alt text</label>
+          <Input
+            value={altText}
+            onChange={(e) => setAltText(e.target.value)}
+            onBlur={() => handleAltSave(imageMenu.mediaId, altText)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                handleAltSave(imageMenu.mediaId, altText)
+                setImageMenu(null)
+              }
+            }}
+            placeholder="Describe this image..."
+            className="mt-1 h-8 text-sm"
+            autoFocus
+          />
+          <Separator className="my-2" />
+          <div className="flex flex-col gap-0.5">
+            <button
+              className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded hover:bg-accent hover:text-accent-foreground transition-colors"
+              onClick={handleImageEdit}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              Crop
+            </button>
+            <button
+              className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded text-destructive hover:bg-destructive/10 transition-colors"
+              onClick={handleImageDelete}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Delete
+            </button>
+          </div>
         </div>
       )}
 
@@ -377,18 +417,7 @@ export function PostEditor({
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
         <div className="flex items-center gap-2 px-4 py-2 border-b shrink-0">
-          {onToggleSidebar && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              onClick={onToggleSidebar}
-              title={sidebarOpen ? 'Hide post list' : 'Show post list'}
-            >
-              <PanelLeft className="h-4 w-4" />
-            </Button>
-          )}
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onBack}>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onBack} title="Back to post list">
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <SaveIndicator status={saveStatus} />
@@ -496,6 +525,16 @@ export function PostEditor({
           <Button
             variant="ghost"
             size="icon"
+            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+            onClick={() => setDeleteDialogOpen(true)}
+            title="Delete post"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="icon"
             className="h-8 w-8"
             onClick={() => setRightPanelOpen((prev) => !prev)}
             title={rightPanelOpen ? 'Hide details panel' : 'Show details panel'}
@@ -550,6 +589,13 @@ export function PostEditor({
         open={conflictDialogOpen}
         onOpenChange={setConflictDialogOpen}
         onResolve={handleResolveConflict}
+      />
+
+      <DeletePostDialog
+        postTitle={title}
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        onConfirm={handleDelete}
       />
 
       {cropTarget && (

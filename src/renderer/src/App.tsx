@@ -5,17 +5,20 @@ import { AddSiteDialog } from '@renderer/components/settings/AddSiteDialog'
 import { EditSiteDialog } from '@renderer/components/settings/EditSiteDialog'
 import { DeleteSiteDialog } from '@renderer/components/settings/DeleteSiteDialog'
 import { PostsView } from '@renderer/components/posts/PostsView'
+import { SiteDashboard } from '@renderer/components/dashboard/SiteDashboard'
 import { Toaster } from '@renderer/components/ui/toaster'
 import { ToastAction } from '@renderer/components/ui/toast'
 import { useToast } from '@renderer/components/ui/use-toast'
 import { useSites } from '@renderer/hooks/useSites'
+import { usePosts } from '@renderer/hooks/usePosts'
 import { useOnlineStatus } from '@renderer/hooks/useOnlineStatus'
 import { useAutoSync } from '@renderer/hooks/useAutoSync'
 import { useSettings } from '@renderer/hooks/useSettings'
 import type { Site } from '@shared/types'
+import type { PostListFilter } from '@renderer/components/posts/PostList'
 import '@renderer/styles/globals.css'
 
-type View = 'posts' | 'settings'
+type View = 'dashboard' | 'posts' | 'settings'
 
 function App(): JSX.Element {
   const { sites, addSite, updateSite, deleteSite, testConnection } = useSites()
@@ -30,11 +33,17 @@ function App(): JSX.Element {
   const [pendingMediaCount, setPendingMediaCount] = useState(0)
   const [unsyncedPostCount, setUnsyncedPostCount] = useState(0)
 
+  const [selectedPostId, setSelectedPostId] = useState<string | null>(null)
+  const [initialPostFilter, setInitialPostFilter] = useState<PostListFilter | null>(null)
+
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [editSite, setEditSite] = useState<Site | null>(null)
   const [deletingSite, setDeletingSite] = useState<Site | null>(null)
 
   const selectedSite = sites.find((s) => s.id === selectedSiteId) ?? null
+
+  // Posts data — shared between dashboard and posts view
+  const { posts, loading: postsLoading, refresh: refreshPosts, createPost, deletePost } = usePosts(selectedSiteId)
 
   // Effective online: real network AND not force-offline
   const effectiveOnline = online && !settings.forceOffline
@@ -112,7 +121,9 @@ function App(): JSX.Element {
 
     // Auto-pull posts + schema for the new site
     setSelectedSiteId(site.id)
-    setCurrentView('posts')
+    setSelectedPostId(null)
+    setInitialPostFilter(null)
+    setCurrentView('dashboard')
     try {
       setSyncing(true)
       const [postResult, schemaResult] = await Promise.all([
@@ -184,8 +195,9 @@ function App(): JSX.Element {
     } finally {
       setSyncing(false)
       refreshUnsyncedCount()
+      refreshPosts()
     }
-  }, [selectedSiteId, toast, refreshUnsyncedCount])
+  }, [selectedSiteId, toast, refreshUnsyncedCount, refreshPosts])
 
   // Reconnect toast
   useEffect(() => {
@@ -220,8 +232,35 @@ function App(): JSX.Element {
 
   function handleSelectSite(site: Site): void {
     setSelectedSiteId(site.id)
-    setCurrentView('posts')
+    setSelectedPostId(null)
+    setInitialPostFilter(null)
+    setCurrentView('dashboard')
   }
+
+  const handleDashboardSelectPost = useCallback((id: string) => {
+    setSelectedPostId(id)
+    setInitialPostFilter(null)
+    setCurrentView('posts')
+  }, [])
+
+  const handleDashboardNewPost = useCallback(async () => {
+    const post = await createPost()
+    setSelectedPostId(post.id)
+    setInitialPostFilter(null)
+    setCurrentView('posts')
+  }, [createPost])
+
+  const handleDashboardSeeAll = useCallback((filter?: PostListFilter) => {
+    setSelectedPostId(null)
+    setInitialPostFilter(filter ?? null)
+    setCurrentView('posts')
+  }, [])
+
+  const handleBackToDashboard = useCallback(() => {
+    setSelectedPostId(null)
+    setInitialPostFilter(null)
+    setCurrentView('dashboard')
+  }, [])
 
   function renderContent(): JSX.Element {
     switch (currentView) {
@@ -235,7 +274,25 @@ function App(): JSX.Element {
             onSelectSite={handleSelectSite}
             settings={settings}
             onUpdateSettings={updateSettings}
-            onClose={selectedSiteId ? () => setCurrentView('posts') : undefined}
+            onClose={selectedSiteId ? () => setCurrentView('dashboard') : undefined}
+          />
+        )
+      case 'dashboard':
+        if (!selectedSiteId) {
+          return (
+            <div className="text-center py-12 text-muted-foreground">
+              <p className="text-lg font-medium mb-1">Posts</p>
+              <p className="text-sm">Select a site to view posts.</p>
+            </div>
+          )
+        }
+        return (
+          <SiteDashboard
+            posts={posts}
+            loading={postsLoading || syncing}
+            onSelectPost={handleDashboardSelectPost}
+            onNewPost={handleDashboardNewPost}
+            onSeeAllPosts={handleDashboardSeeAll}
           />
         )
       case 'posts':
@@ -253,6 +310,14 @@ function App(): JSX.Element {
             pulling={syncing}
             online={effectiveOnline}
             editorFontSize={settings.editorFontSize}
+            selectedPostId={selectedPostId}
+            onSelectPost={setSelectedPostId}
+            initialFilter={initialPostFilter}
+            posts={posts}
+            postsLoading={postsLoading}
+            refreshPosts={refreshPosts}
+            createPost={createPost}
+            deletePost={deletePost}
           />
         )
       default:
@@ -266,12 +331,15 @@ function App(): JSX.Element {
         onSettingsClick={() => setCurrentView('settings')}
         onSyncClick={handleToolbarSync}
         syncing={syncing}
-        showSync={currentView === 'posts' && !!selectedSiteId}
-        siteName={currentView === 'posts' ? selectedSite?.label : undefined}
-        onSiteNameClick={() => setCurrentView('settings')}
-        pendingMediaCount={currentView === 'posts' ? pendingMediaCount : 0}
+        showSync={(currentView === 'posts' || currentView === 'dashboard') && !!selectedSiteId}
+        siteName={currentView !== 'settings' ? selectedSite?.label : undefined}
+        onSiteNameClick={currentView === 'posts' ? handleBackToDashboard : undefined}
+        pendingMediaCount={currentView !== 'settings' ? pendingMediaCount : 0}
         online={effectiveOnline}
-        unsyncedPostCount={currentView === 'posts' ? unsyncedPostCount : 0}
+        unsyncedPostCount={currentView !== 'settings' ? unsyncedPostCount : 0}
+        sites={sites}
+        selectedSiteId={selectedSiteId}
+        onSwitchSite={currentView !== 'settings' ? handleSelectSite : undefined}
       >
         {renderContent()}
       </AppShell>

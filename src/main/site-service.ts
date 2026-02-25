@@ -6,6 +6,30 @@ import { getDb } from './database'
 import { storeCredential, deleteCredential } from './credentials'
 import type { Site, SiteInput, SiteUpdate } from '@shared/types'
 
+function isLocalUrl(url: string): boolean {
+  try {
+    const { hostname } = new URL(url)
+    return (
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname === '::1' ||
+      hostname.endsWith('.local') ||
+      hostname.endsWith('.test') ||
+      hostname.endsWith('.localhost')
+    )
+  } catch {
+    return false
+  }
+}
+
+function enforceHttps(url: string): string {
+  if (isLocalUrl(url)) return url
+  if (url.startsWith('http://')) {
+    throw new Error('Non-local sites must use HTTPS. Change the URL to https://.')
+  }
+  return url
+}
+
 export function getAllSites(): Site[] {
   const db = getDb()
   const rows = db.prepare('SELECT * FROM sites ORDER BY label ASC').all() as Site[]
@@ -25,7 +49,7 @@ export function addSite(input: SiteInput): Site {
   const now = new Date().toISOString()
 
   // Normalize URL: strip trailing slash
-  const url = input.url.replace(/\/+$/, '')
+  const url = enforceHttps(input.url.replace(/\/+$/, ''))
   const label = input.label || new URL(url).hostname
 
   storeCredential(keychainRef, input.password)
@@ -44,7 +68,7 @@ export function updateSite(update: SiteUpdate): Site {
   if (!existing) throw new Error(`Site not found: ${update.id}`)
 
   const now = new Date().toISOString()
-  const url = update.url ? update.url.replace(/\/+$/, '') : existing.url
+  const url = update.url ? enforceHttps(update.url.replace(/\/+$/, '')) : existing.url
   const label = update.label ?? existing.label
   const username = update.username ?? existing.username
   const autoSync = update.auto_sync !== undefined ? (update.auto_sync ? 1 : 0) : (existing.auto_sync ? 1 : 0)

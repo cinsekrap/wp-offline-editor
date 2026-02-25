@@ -13,10 +13,19 @@ export function useAutoSave(update: PostUpdate | null, delay = 1000): UseAutoSav
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastSavedRef = useRef<string>('')
   const updateRef = useRef(update)
+  const freshRef = useRef(true)
   updateRef.current = update
 
   const save = useCallback(async (data: PostUpdate) => {
     const serialized = JSON.stringify(data)
+
+    // First call after a post ID change: snapshot without saving
+    if (freshRef.current) {
+      lastSavedRef.current = serialized
+      freshRef.current = false
+      return
+    }
+
     if (serialized === lastSavedRef.current) return
 
     try {
@@ -62,6 +71,7 @@ export function useAutoSave(update: PostUpdate | null, delay = 1000): UseAutoSav
   useEffect(() => {
     if (update?.id !== prevIdRef.current) {
       lastSavedRef.current = ''
+      freshRef.current = true
       setStatus('idle')
       prevIdRef.current = update?.id
     }

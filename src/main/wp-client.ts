@@ -25,12 +25,33 @@ function makeAuthHeaders(username: string, password: string): Record<string, str
   }
 }
 
+function isLocalUrl(url: string): boolean {
+  try {
+    const { hostname } = new URL(url)
+    return (
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname === '::1' ||
+      hostname.endsWith('.local') ||
+      hostname.endsWith('.test') ||
+      hostname.endsWith('.localhost')
+    )
+  } catch {
+    return false
+  }
+}
+
 export async function testWpConnection(
   url: string,
   username: string,
   password: string
 ): Promise<WpConnectionResult> {
   const baseUrl = url.replace(/\/+$/, '')
+
+  if (baseUrl.startsWith('http://') && !isLocalUrl(baseUrl)) {
+    return { success: false, error: 'Non-local sites must use HTTPS. Change the URL to https://.' }
+  }
+
   const apiBase = `${baseUrl}/wp-json`
 
   try {
@@ -310,6 +331,28 @@ export async function pushPost(
 
   const result = (await res.json()) as { id: number; modified: string }
   return { id: result.id, modified: result.modified }
+}
+
+// ── Post delete ─────────────────────────────────────────────────────────
+
+export async function deleteRemotePost(
+  url: string,
+  username: string,
+  password: string,
+  wpId: number
+): Promise<void> {
+  const baseUrl = url.replace(/\/+$/, '')
+  const headers = makeAuthHeaders(username, password)
+
+  const res = await fetch(`${baseUrl}/wp-json/wp/v2/posts/${wpId}?force=true`, {
+    method: 'DELETE',
+    headers
+  })
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(`Delete failed: HTTP ${res.status} ${text}`)
+  }
 }
 
 // ── Single post fetch ───────────────────────────────────────────────────

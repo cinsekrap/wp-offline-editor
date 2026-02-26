@@ -200,8 +200,14 @@ async function upsertPost(
   const now = new Date().toISOString()
 
   if (!existing) {
-    // INSERT new post — generate ID first so we can use it for media download
+    // INSERT a minimal post row first so media FK references are satisfied
     const postLocalId = uuidv4()
+    db.prepare(`
+      INSERT INTO posts (id, site_id, wp_id, title, content, status, acf, date, author_id, author_name, featured_image, categories, tags, modified_local, modified_remote, synced, conflict)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, 1, 0)
+    `).run(postLocalId, siteId, wpPost.id, title, '', status, null, wpDate, authorId, authorName, categoriesJson, tagsJson, now, modifiedRemote)
+
+    // Now download images (media inserts can reference the post row)
     content = await downloadAndRewriteImages(siteId, postLocalId, content, siteUrl)
     acfJson = await rewriteAcfImageUrls(siteId, postLocalId, acfJson, siteUrl)
 
@@ -211,10 +217,11 @@ async function upsertPost(
       featuredImage = await downloadFeaturedImage(siteId, postLocalId, wpPost.featured_media, siteUrl)
     }
 
+    // Update with full content now that images are downloaded
     db.prepare(`
-      INSERT INTO posts (id, site_id, wp_id, title, content, status, acf, date, author_id, author_name, featured_image, categories, tags, modified_local, modified_remote, synced, conflict)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0)
-    `).run(postLocalId, siteId, wpPost.id, title, content, status, acfJson, wpDate, authorId, authorName, featuredImage, categoriesJson, tagsJson, now, modifiedRemote)
+      UPDATE posts SET content = ?, acf = ?, featured_image = ?
+      WHERE id = ?
+    `).run(content, acfJson, featuredImage, postLocalId)
     return 'created'
   }
 

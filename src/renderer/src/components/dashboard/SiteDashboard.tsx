@@ -77,7 +77,7 @@ function PostCard({
           {pillLabel}
         </Badge>
         <span className="text-xs text-muted-foreground">
-          {formatRelativeDate(post.modified_local)}
+          {formatRelativeDate(post.date ?? post.modified_local)}
         </span>
       </div>
       {post.author_name && (

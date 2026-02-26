@@ -17,15 +17,18 @@ publish:
   owner: cinsekrap
   repo: wp-offline-editor
 mac:
+  identity: "Nicolas Chambers-Parkes (J3ZA4LV4K6)"
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: resources/entitlements.mac.plist
+  entitlementsInherit: resources/entitlements.mac.plist
   extendInfo:
     - NSDocumentsFolderUsageDescription: Application needs access to store offline content.
-  notarize: false
+  notarize: true
   target:
     - target: dmg
       arch:
         - arm64
-        - x64
     - target: zip
       arch:
         - arm64
-        - x64

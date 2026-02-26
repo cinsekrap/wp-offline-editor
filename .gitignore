@@ -22,6 +22,9 @@ Thumbs.db
 # Electron
 *.asar
 
+# Signing docs
+CODE_SIGNING.md
+
 # Debug
 *.log
 npm-debug.log*

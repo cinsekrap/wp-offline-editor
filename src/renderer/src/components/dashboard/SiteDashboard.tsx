@@ -1,6 +1,5 @@
 import { useMemo } from 'react'
 import { Plus, CloudUpload, CheckCircle, ChevronRight } from 'lucide-react'
-import { Button } from '@renderer/components/ui/button'
 import { Badge } from '@renderer/components/ui/badge'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
 import { cn } from '@renderer/lib/utils'
@@ -148,17 +147,25 @@ export function SiteDashboard({
           <h1 className="text-lg font-semibold">Posts</h1>
         </div>
 
-        {/* Start something new */}
+        {/* Quick actions */}
         <section className="mb-8">
-          <h2 className="text-sm font-medium text-muted-foreground mb-3">Start something new</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className="flex gap-3">
             <button
               onClick={onNewPost}
-              className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 hover:border-muted-foreground/50 hover:bg-accent/30 transition-colors cursor-pointer text-left w-full flex flex-col items-center justify-center gap-2"
+              className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 hover:border-muted-foreground/50 hover:bg-accent/30 transition-colors cursor-pointer flex flex-col items-center justify-center gap-2 flex-1"
             >
               <Plus className="h-6 w-6 text-muted-foreground" />
               <span className="text-sm font-medium text-muted-foreground">New post</span>
             </button>
+            {posts.length > 0 && (
+              <button
+                onClick={() => onSeeAllPosts()}
+                className="border rounded-lg p-6 hover:bg-accent/30 transition-colors cursor-pointer flex flex-col items-center justify-center gap-2 flex-1"
+              >
+                <ChevronRight className="h-6 w-6 text-muted-foreground" />
+                <span className="text-sm font-medium text-muted-foreground">See all posts</span>
+              </button>
+            )}
           </div>
         </section>
 
@@ -227,14 +234,6 @@ export function SiteDashboard({
           </div>
         )}
 
-        {/* See all posts */}
-        {posts.length > 0 && (
-          <div className="flex justify-center mt-2">
-            <Button variant="outline" onClick={() => onSeeAllPosts()}>
-              See all posts
-            </Button>
-          </div>
-        )}
       </div>
     </ScrollArea>
   )

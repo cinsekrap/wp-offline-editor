@@ -40,10 +40,14 @@ export const PostUpdateSchema = z.object({
   status: postStatusSchema.optional(),
   acf: z.unknown().optional(),
   date: z.string().nullable().optional(),
-  featured_image: z.string().nullable().optional()
+  featured_image: z.string().nullable().optional(),
+  categories: z.array(z.number().int()).optional(),
+  tags: z.array(z.number().int()).optional()
 })
 
 export const ConflictStrategySchema = z.enum(['keep-mine', 'keep-theirs', 'fork'])
+
+export const TaxonomySchema = z.enum(['category', 'post_tag'])
 
 export const AppSettingsSchema = z.object({
   theme: z.enum(['light', 'dark', 'system']).optional(),

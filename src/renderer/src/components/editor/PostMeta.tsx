@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { Label } from '@renderer/components/ui/label'
 import {
   Select,
@@ -12,10 +12,12 @@ import { Popover, PopoverContent, PopoverTrigger } from '@renderer/components/ui
 import { Button } from '@renderer/components/ui/button'
 import { Input } from '@renderer/components/ui/input'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
+import { Checkbox } from '@renderer/components/ui/checkbox'
+import { Badge } from '@renderer/components/ui/badge'
 import { CalendarIcon, ImageIcon, X, Upload, Loader2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { cn } from '@renderer/lib/utils'
-import type { PostStatus, Media } from '@shared/types'
+import type { PostStatus, Media, TaxonomyTerm } from '@shared/types'
 
 interface PostMetaProps {
   status: PostStatus
@@ -24,6 +26,10 @@ interface PostMetaProps {
   onDateChange: (date: Date | undefined) => void
   featuredImage: string | null
   onFeaturedImageChange: (mediaId: string | null) => void
+  categories: number[]
+  tags: number[]
+  onCategoriesChange: (ids: number[]) => void
+  onTagsChange: (ids: number[]) => void
   siteId: string
   postId: string
   mediaItems: Media[]
@@ -44,6 +50,10 @@ export function PostMeta({
   onDateChange,
   featuredImage,
   onFeaturedImageChange,
+  categories,
+  tags,
+  onCategoriesChange,
+  onTagsChange,
   siteId,
   postId,
   mediaItems
@@ -51,6 +61,16 @@ export function PostMeta({
   const [pickerOpen, setPickerOpen] = useState(false)
   const [uploading, setUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Taxonomy term caches
+  const [categoryTerms, setCategoryTerms] = useState<TaxonomyTerm[]>([])
+  const [tagTerms, setTagTerms] = useState<TaxonomyTerm[]>([])
+  const [tagInput, setTagInput] = useState('')
+
+  useEffect(() => {
+    window.electronAPI.getTaxonomyTerms(siteId, 'category').then(setCategoryTerms).catch(() => {})
+    window.electronAPI.getTaxonomyTerms(siteId, 'post_tag').then(setTagTerms).catch(() => {})
+  }, [siteId])
 
   // Find the media item for the current featured image
   const featuredMedia = featuredImage
@@ -236,6 +256,202 @@ export function PostMeta({
               )}
             </PopoverContent>
           </Popover>
+        )}
+      </div>
+
+      {/* Categories */}
+      {categoryTerms.length > 0 && (
+        <CategoriesSection
+          terms={categoryTerms}
+          selected={categories}
+          onChange={onCategoriesChange}
+        />
+      )}
+
+      {/* Tags */}
+      {tagTerms.length > 0 && (
+        <TagsSection
+          terms={tagTerms}
+          selected={tags}
+          onChange={onTagsChange}
+          tagInput={tagInput}
+          onTagInputChange={setTagInput}
+        />
+      )}
+    </div>
+  )
+}
+
+// ── Categories (hierarchical checkbox list) ──────────────────────────────
+
+function CategoriesSection({
+  terms,
+  selected,
+  onChange
+}: {
+  terms: TaxonomyTerm[]
+  selected: number[]
+  onChange: (ids: number[]) => void
+}): JSX.Element {
+  // Build parent→children map for hierarchy
+  const { roots, childrenMap } = useMemo(() => {
+    const cMap = new Map<number, TaxonomyTerm[]>()
+    const rts: TaxonomyTerm[] = []
+    for (const t of terms) {
+      if (t.parent === 0) {
+        rts.push(t)
+      } else {
+        const siblings = cMap.get(t.parent) || []
+        siblings.push(t)
+        cMap.set(t.parent, siblings)
+      }
+    }
+    return { roots: rts, childrenMap: cMap }
+  }, [terms])
+
+  const toggle = useCallback(
+    (id: number) => {
+      onChange(
+        selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id]
+      )
+    },
+    [selected, onChange]
+  )
+
+  const renderTerm = (term: TaxonomyTerm, depth: number): JSX.Element => (
+    <div key={term.id}>
+      <label
+        className="flex items-center gap-2 py-0.5 cursor-pointer hover:bg-muted/50 rounded px-1"
+        style={{ paddingLeft: `${depth * 16 + 4}px` }}
+      >
+        <Checkbox
+          checked={selected.includes(term.id)}
+          onCheckedChange={() => toggle(term.id)}
+          className="h-3.5 w-3.5"
+        />
+        <span className="text-sm truncate">{term.name}</span>
+      </label>
+      {childrenMap.get(term.id)?.map((child) => renderTerm(child, depth + 1))}
+    </div>
+  )
+
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+        Categories
+      </Label>
+      <div className="max-h-48 overflow-y-auto border rounded-md p-1">
+        {roots.map((t) => renderTerm(t, 0))}
+      </div>
+    </div>
+  )
+}
+
+// ── Tags (badge chips + autocomplete input) ──────────────────────────────
+
+function TagsSection({
+  terms,
+  selected,
+  onChange,
+  tagInput,
+  onTagInputChange
+}: {
+  terms: TaxonomyTerm[]
+  selected: number[]
+  onChange: (ids: number[]) => void
+  tagInput: string
+  onTagInputChange: (v: string) => void
+}): JSX.Element {
+  const [showDropdown, setShowDropdown] = useState(false)
+
+  const termMap = useMemo(() => new Map(terms.map((t) => [t.id, t])), [terms])
+
+  const filtered = useMemo(() => {
+    if (!tagInput.trim()) return []
+    const q = tagInput.toLowerCase()
+    return terms
+      .filter((t) => !selected.includes(t.id) && t.name.toLowerCase().includes(q))
+      .slice(0, 8)
+  }, [tagInput, terms, selected])
+
+  const addTag = useCallback(
+    (id: number) => {
+      if (!selected.includes(id)) {
+        onChange([...selected, id])
+      }
+      onTagInputChange('')
+      setShowDropdown(false)
+    },
+    [selected, onChange, onTagInputChange]
+  )
+
+  const removeTag = useCallback(
+    (id: number) => {
+      onChange(selected.filter((x) => x !== id))
+    },
+    [selected, onChange]
+  )
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter' && filtered.length > 0) {
+        e.preventDefault()
+        addTag(filtered[0].id)
+      }
+    },
+    [filtered, addTag]
+  )
+
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+        Tags
+      </Label>
+      {selected.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {selected.map((id) => {
+            const term = termMap.get(id)
+            if (!term) return null
+            return (
+              <Badge key={id} variant="secondary" className="text-xs pl-2 pr-1 py-0 h-6 gap-1">
+                {term.name}
+                <button
+                  className="ml-0.5 hover:text-destructive"
+                  onClick={() => removeTag(id)}
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            )
+          })}
+        </div>
+      )}
+      <div className="relative">
+        <Input
+          value={tagInput}
+          onChange={(e) => {
+            onTagInputChange(e.target.value)
+            setShowDropdown(true)
+          }}
+          onFocus={() => setShowDropdown(true)}
+          onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
+          onKeyDown={handleKeyDown}
+          placeholder="Search tags..."
+          className="h-8 text-sm"
+        />
+        {showDropdown && filtered.length > 0 && (
+          <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-md">
+            {filtered.map((t) => (
+              <button
+                key={t.id}
+                className="w-full text-left px-3 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => addTag(t.id)}
+              >
+                {t.name}
+              </button>
+            ))}
+          </div>
         )}
       </div>
     </div>

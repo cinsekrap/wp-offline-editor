@@ -114,6 +114,9 @@ export function PostEditor({
   const [acf, setAcf] = useState<Record<string, unknown>>({})
   const [scheduledDate, setScheduledDate] = useState<Date | undefined>()
   const [featuredImage, setFeaturedImage] = useState<string | null>(null)
+  const [categories, setCategories] = useState<number[]>([])
+  const [tags, setTags] = useState<number[]>([])
+
 
   const editorRef = useRef<Editor | null>(null)
 
@@ -134,6 +137,8 @@ export function PostEditor({
         setAcf(p.acf ?? {})
         setScheduledDate(p.date ? new Date(p.date) : undefined)
         setFeaturedImage(p.featured_image)
+        setCategories(p.categories ?? [])
+        setTags(p.tags ?? [])
         initializedRef.current = true
       }
       setLoading(false)
@@ -145,8 +150,8 @@ export function PostEditor({
     const date = postStatus === 'future' && scheduledDate
       ? scheduledDate.toISOString()
       : post.date
-    return { id: postId, title, content, status: postStatus, acf, date, featured_image: featuredImage }
-  }, [postId, title, content, postStatus, acf, scheduledDate, featuredImage, post])
+    return { id: postId, title, content, status: postStatus, acf, date, featured_image: featuredImage, categories, tags }
+  }, [postId, title, content, postStatus, acf, scheduledDate, featuredImage, categories, tags, post])
 
   const { status: saveStatus, flush } = useAutoSave(update)
 
@@ -244,6 +249,8 @@ export function PostEditor({
       setAcf(p.acf ?? {})
       setScheduledDate(p.date ? new Date(p.date) : undefined)
       setFeaturedImage(p.featured_image)
+      setCategories(p.categories ?? [])
+      setTags(p.tags ?? [])
     }
   }, [postId])
 
@@ -598,6 +605,10 @@ export function PostEditor({
             onDateChange={setScheduledDate}
             featuredImage={featuredImage}
             onFeaturedImageChange={setFeaturedImage}
+            categories={categories}
+            tags={tags}
+            onCategoriesChange={setCategories}
+            onTagsChange={setTags}
             siteId={siteId}
             postId={postId}
             mediaItems={queue}

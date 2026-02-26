@@ -17,6 +17,7 @@ import {
   replaceMediaFile
 } from './media-service'
 import { getMediaLibraryForSite } from './media-library-service'
+import { getTaxonomyTerms } from './taxonomy-service'
 import { getShortcodesForSite } from './shortcode-service'
 import { getSettings, updateSettings } from './settings-service'
 import { checkForUpdates, downloadUpdate, installUpdate } from './updater'
@@ -27,6 +28,7 @@ import {
   PostInputSchema,
   PostUpdateSchema,
   ConflictStrategySchema,
+  TaxonomySchema,
   AppSettingsSchema
 } from './ipc-schemas'
 
@@ -117,6 +119,12 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('acf:get-schemas', (_event, siteId: unknown) => {
     return getAcfSchemasForSite(uuidSchema.parse(siteId))
+  })
+
+  // ── Taxonomy ───────────────────────────────────────────────────────────────
+
+  ipcMain.handle('taxonomy:get-terms', (_event, siteId: unknown, taxonomy: unknown) => {
+    return getTaxonomyTerms(uuidSchema.parse(siteId), TaxonomySchema.parse(taxonomy))
   })
 
   // ── Media Library ──────────────────────────────────────────────────────────

@@ -28,6 +28,9 @@ const api: ElectronAPI = {
   pullAcfSchema: (siteId) => ipcRenderer.invoke('acf:pull-schema', siteId),
   getAcfSchemas: (siteId) => ipcRenderer.invoke('acf:get-schemas', siteId),
 
+  // Taxonomy
+  getTaxonomyTerms: (siteId, taxonomy) => ipcRenderer.invoke('taxonomy:get-terms', siteId, taxonomy),
+
   // Media Library
   getMediaLibrary: (siteId) => ipcRenderer.invoke('media-library:get', siteId),
 

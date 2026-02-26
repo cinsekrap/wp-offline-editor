@@ -9,6 +9,7 @@ import { decodeHtmlEntities } from './html-utils'
 import { sanitizeHtml } from './sanitize'
 import { pullAcfSchemaForSite } from './acf-service'
 import { pullMediaLibraryForSite } from './media-library-service'
+import { pullTaxonomyTerms } from './taxonomy-service'
 import type { PushResult, SyncResult } from '@shared/types'
 
 export async function pushPostToWp(postId: string): Promise<PushResult> {
@@ -108,7 +109,9 @@ export async function pushPostToWp(postId: string): Promise<PushResult> {
     status: post.status,
     date: post.date,
     acf: swappedAcf,
-    featured_media: featuredMedia
+    featured_media: featuredMedia,
+    categories: post.categories.length > 0 ? post.categories : undefined,
+    tags: post.tags.length > 0 ? post.tags : undefined
   })
 
   // Update local DB
@@ -165,9 +168,11 @@ export async function resolveConflict(
   if (strategy === 'fork') {
     // Create a copy of the current local post as a new draft
     const forkAcfJson = post.acf ? JSON.stringify(post.acf) : null
+    const forkCategoriesJson = JSON.stringify(post.categories)
+    const forkTagsJson = JSON.stringify(post.tags)
     db.prepare(`
-      INSERT INTO posts (id, site_id, wp_id, title, content, status, acf, date, author_id, author_name, featured_image, modified_local, modified_remote, synced, conflict)
-      VALUES (?, ?, NULL, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, NULL, 0, 0)
+      INSERT INTO posts (id, site_id, wp_id, title, content, status, acf, date, author_id, author_name, featured_image, categories, tags, modified_local, modified_remote, synced, conflict)
+      VALUES (?, ?, NULL, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, NULL, 0, 0)
     `).run(
       uuidv4(),
       post.site_id,
@@ -178,6 +183,8 @@ export async function resolveConflict(
       post.author_id,
       post.author_name,
       post.featured_image,
+      forkCategoriesJson,
+      forkTagsJson,
       new Date().toISOString()
     )
   }
@@ -201,8 +208,11 @@ export async function resolveConflict(
     featuredImage = await downloadFeaturedImage(post.site_id, postId, wpPost.featured_media, site.url)
   }
 
+  const categoriesJson = JSON.stringify(wpPost.categories ?? [])
+  const tagsJson = JSON.stringify(wpPost.tags ?? [])
+
   db.prepare(`
-    UPDATE posts SET title = ?, content = ?, status = ?, acf = ?, date = ?, author_id = ?, author_name = ?, featured_image = ?, modified_local = ?, modified_remote = ?, synced = 1, conflict = 0
+    UPDATE posts SET title = ?, content = ?, status = ?, acf = ?, date = ?, author_id = ?, author_name = ?, featured_image = ?, categories = ?, tags = ?, modified_local = ?, modified_remote = ?, synced = 1, conflict = 0
     WHERE id = ?
   `).run(
     title,
@@ -213,6 +223,8 @@ export async function resolveConflict(
     wpPost.author,
     authorName,
     featuredImage,
+    categoriesJson,
+    tagsJson,
     now,
     wpPost.modified,
     postId
@@ -239,10 +251,11 @@ export async function syncSite(siteId: string): Promise<SyncResult> {
     }
   }
 
-  // Then pull posts + ACF schema + media library
+  // Then pull posts + ACF schema + media library + taxonomy terms
   const pull = await pullPostsForSite(siteId)
   const schemaPull = await pullAcfSchemaForSite(siteId)
   const mediaLibraryPull = await pullMediaLibraryForSite(siteId)
+  await pullTaxonomyTerms(siteId).catch(() => { /* non-critical */ })
 
   return { pushed, pushErrors, pull, schemaPull, mediaLibraryPull }
 }

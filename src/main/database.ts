@@ -157,6 +157,28 @@ function runMigrations(db: Database.Database): void {
   if (!colNames.has('last_media_library_pull_at')) {
     db.exec('ALTER TABLE sites ADD COLUMN last_media_library_pull_at TEXT')
   }
+
+  // Taxonomy terms cache (site-level)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS taxonomy_terms (
+      id INTEGER NOT NULL,
+      site_id TEXT NOT NULL,
+      taxonomy TEXT NOT NULL,
+      name TEXT NOT NULL,
+      slug TEXT NOT NULL,
+      parent INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (site_id, taxonomy, id),
+      FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
+    );
+  `)
+
+  // Per-post categories and tags (JSON arrays of term IDs)
+  if (!postColNames.has('categories')) {
+    db.exec('ALTER TABLE posts ADD COLUMN categories TEXT')
+  }
+  if (!postColNames.has('tags')) {
+    db.exec('ALTER TABLE posts ADD COLUMN tags TEXT')
+  }
 }
 
 export function closeDatabase(): void {

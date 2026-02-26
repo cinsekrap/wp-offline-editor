@@ -195,6 +195,8 @@ async function upsertPost(
   const wpDate = wpPost.date || null
   const authorId = wpPost.author || null
   let acfJson = wpPost.acf ? JSON.stringify(wpPost.acf) : null
+  const categoriesJson = wpPost.categories ? JSON.stringify(wpPost.categories) : '[]'
+  const tagsJson = wpPost.tags ? JSON.stringify(wpPost.tags) : '[]'
   const now = new Date().toISOString()
 
   if (!existing) {
@@ -210,9 +212,9 @@ async function upsertPost(
     }
 
     db.prepare(`
-      INSERT INTO posts (id, site_id, wp_id, title, content, status, acf, date, author_id, author_name, featured_image, modified_local, modified_remote, synced, conflict)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0)
-    `).run(postLocalId, siteId, wpPost.id, title, content, status, acfJson, wpDate, authorId, authorName, featuredImage, now, modifiedRemote)
+      INSERT INTO posts (id, site_id, wp_id, title, content, status, acf, date, author_id, author_name, featured_image, categories, tags, modified_local, modified_remote, synced, conflict)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0)
+    `).run(postLocalId, siteId, wpPost.id, title, content, status, acfJson, wpDate, authorId, authorName, featuredImage, categoriesJson, tagsJson, now, modifiedRemote)
     return 'created'
   }
 
@@ -279,9 +281,9 @@ async function upsertPost(
     }
 
     db.prepare(`
-      UPDATE posts SET title = ?, content = ?, status = ?, acf = ?, date = ?, author_id = ?, author_name = ?, featured_image = ?, modified_local = ?, modified_remote = ?, synced = 1, conflict = 0
+      UPDATE posts SET title = ?, content = ?, status = ?, acf = ?, date = ?, author_id = ?, author_name = ?, featured_image = ?, categories = ?, tags = ?, modified_local = ?, modified_remote = ?, synced = 1, conflict = 0
       WHERE id = ?
-    `).run(title, content, status, acfJson, wpDate, authorId, authorName, featuredImage, now, modifiedRemote, existing.id)
+    `).run(title, content, status, acfJson, wpDate, authorId, authorName, featuredImage, categoriesJson, tagsJson, now, modifiedRemote, existing.id)
     return 'updated'
   }
 
@@ -333,11 +335,15 @@ export function updatePost(update: PostUpdate): Post {
   const acfJson = acf ? JSON.stringify(acf) : null
   const date = update.date !== undefined ? update.date : existing.date
   const featuredImage = update.featured_image !== undefined ? update.featured_image : existing.featured_image
+  const categories = update.categories !== undefined ? update.categories : existing.categories
+  const tags = update.tags !== undefined ? update.tags : existing.tags
+  const categoriesJson = JSON.stringify(categories)
+  const tagsJson = JSON.stringify(tags)
 
   db.prepare(`
-    UPDATE posts SET title = ?, content = ?, status = ?, acf = ?, date = ?, featured_image = ?, modified_local = ?, synced = 0
+    UPDATE posts SET title = ?, content = ?, status = ?, acf = ?, date = ?, featured_image = ?, categories = ?, tags = ?, modified_local = ?, synced = 0
     WHERE id = ?
-  `).run(title, content, status, acfJson, date, featuredImage, now, update.id)
+  `).run(title, content, status, acfJson, date, featuredImage, categoriesJson, tagsJson, now, update.id)
 
   return getPostById(update.id)!
 }
@@ -356,6 +362,8 @@ function normalizePostRow(row: Post): Post {
     date: row.date ?? null,
     author_id: row.author_id ?? null,
     author_name: row.author_name ?? null,
-    featured_image: row.featured_image ?? null
+    featured_image: row.featured_image ?? null,
+    categories: typeof row.categories === 'string' ? JSON.parse(row.categories) : row.categories ?? [],
+    tags: typeof row.tags === 'string' ? JSON.parse(row.tags) : row.tags ?? []
   }
 }

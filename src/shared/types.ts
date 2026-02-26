@@ -54,6 +54,8 @@ export interface Post {
   author_id: number | null
   author_name: string | null
   featured_image: string | null
+  categories: number[]
+  tags: number[]
   modified_local: string
   modified_remote: string | null
   synced: boolean
@@ -76,6 +78,8 @@ export interface PostUpdate {
   acf?: Record<string, unknown> | null
   date?: string | null
   featured_image?: string | null
+  categories?: number[]
+  tags?: number[]
 }
 
 // ── Media ────────────────────────────────────────────────────────────────
@@ -113,6 +117,17 @@ export interface MediaLibraryPullResult {
   updated: number
   removed: number
   errors: string[]
+}
+
+// ── Taxonomy Terms ───────────────────────────────────────────────────────
+
+export interface TaxonomyTerm {
+  id: number
+  site_id: string
+  taxonomy: 'category' | 'post_tag'
+  name: string
+  slug: string
+  parent: number
 }
 
 // ── ACF Schema ───────────────────────────────────────────────────────────
@@ -160,6 +175,8 @@ export interface WpPostRaw {
   date: string
   author: number
   featured_media: number
+  categories?: number[]
+  tags?: number[]
   acf?: Record<string, unknown>
 }
 
@@ -271,6 +288,9 @@ export interface ElectronAPI {
   // ACF Schema
   pullAcfSchema(siteId: string): Promise<AcfPullResult>
   getAcfSchemas(siteId: string): Promise<AcfSchema[]>
+
+  // Taxonomy
+  getTaxonomyTerms(siteId: string, taxonomy: 'category' | 'post_tag'): Promise<TaxonomyTerm[]>
 
   // Media Library
   getMediaLibrary(siteId: string): Promise<MediaLibraryItem[]>

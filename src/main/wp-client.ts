@@ -160,7 +160,7 @@ export async function fetchPosts(
 ): Promise<{ posts: WpPostRaw[]; total: number }> {
   const baseUrl = url.replace(/\/+$/, '')
   const headers = makeAuthHeaders(username, password)
-  const fields = 'id,title,content,status,modified,date,author,featured_media,acf'
+  const fields = 'id,title,content,status,modified,date,author,featured_media,categories,tags,acf'
   const allPosts: WpPostRaw[] = []
 
   for (const status of statuses) {
@@ -235,6 +235,51 @@ export async function fetchUserNames(
     map.set(u.id, u.name)
   }
   return map
+}
+
+// ── Taxonomy term fetching ───────────────────────────────────────────────
+
+export interface WpTaxonomyTermRaw {
+  id: number
+  name: string
+  slug: string
+  parent?: number
+}
+
+export async function fetchTaxonomyTerms(
+  url: string,
+  username: string,
+  password: string,
+  taxonomy: 'categories' | 'tags'
+): Promise<WpTaxonomyTermRaw[]> {
+  const baseUrl = url.replace(/\/+$/, '')
+  const headers = makeAuthHeaders(username, password)
+  const allTerms: WpTaxonomyTermRaw[] = []
+
+  let page = 1
+  let totalPages = 1
+
+  while (page <= totalPages) {
+    const params = new URLSearchParams({
+      per_page: '100',
+      page: String(page),
+      _fields: 'id,name,slug,parent'
+    })
+
+    const res = await fetch(`${baseUrl}/wp-json/wp/v2/${taxonomy}?${params}`, { headers })
+
+    if (!res.ok) {
+      if (res.status === 400) break
+      throw new Error(`Failed to fetch ${taxonomy}: HTTP ${res.status}`)
+    }
+
+    totalPages = parseInt(res.headers.get('x-wp-totalpages') || '1', 10)
+    const batch = (await res.json()) as WpTaxonomyTermRaw[]
+    allTerms.push(...batch)
+    page++
+  }
+
+  return allTerms
 }
 
 // ── ACF field group fetching (via companion plugin wpoe/v1) ─────────────
@@ -322,7 +367,7 @@ export async function pushPost(
   username: string,
   password: string,
   wpId: number | null,
-  data: { title: string; content: string; status: string; date?: string | null; acf?: Record<string, unknown> | null; featured_media?: number }
+  data: { title: string; content: string; status: string; date?: string | null; acf?: Record<string, unknown> | null; featured_media?: number; categories?: number[]; tags?: number[] }
 ): Promise<{ id: number; modified: string }> {
   const baseUrl = url.replace(/\/+$/, '')
   const headers = {
@@ -338,6 +383,8 @@ export async function pushPost(
   if (data.date) body.date = data.date
   if (data.acf) body.acf = data.acf
   if (data.featured_media !== undefined) body.featured_media = data.featured_media
+  if (data.categories) body.categories = data.categories
+  if (data.tags) body.tags = data.tags
 
   const endpoint = wpId
     ? `${baseUrl}/wp-json/wp/v2/posts/${wpId}`
@@ -392,7 +439,7 @@ export async function fetchSinglePost(
   const headers = makeAuthHeaders(username, password)
 
   const res = await fetch(
-    `${baseUrl}/wp-json/wp/v2/posts/${wpId}?_fields=id,title,content,status,modified,date,author,featured_media,acf`,
+    `${baseUrl}/wp-json/wp/v2/posts/${wpId}?_fields=id,title,content,status,modified,date,author,featured_media,categories,tags,acf`,
     { headers }
   )
 

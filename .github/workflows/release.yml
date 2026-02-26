@@ -41,9 +41,9 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
 
-          # Install Apple intermediate CA
+          # Install Apple intermediate CA (may already exist on runner)
           curl -sO https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer
-          security import DeveloperIDG2CA.cer -k "$KEYCHAIN_PATH"
+          security import DeveloperIDG2CA.cer -k "$KEYCHAIN_PATH" || true
           rm DeveloperIDG2CA.cer
 
       - run: pnpm build

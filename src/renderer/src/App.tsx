@@ -147,6 +147,7 @@ function App(): JSX.Element {
       toast({ title: 'Initial sync failed', description: 'Could not sync with WordPress.', variant: 'destructive' })
     } finally {
       setSyncing(false)
+      await refreshPosts()
     }
   }
 
@@ -305,7 +306,7 @@ function App(): JSX.Element {
         return (
           <SiteDashboard
             posts={posts}
-            loading={postsLoading || syncing}
+            loading={(postsLoading || syncing) && posts.length === 0}
             onSelectPost={handleDashboardSelectPost}
             onNewPost={handleDashboardNewPost}
             onSeeAllPosts={handleDashboardSeeAll}

@@ -135,3 +135,102 @@
 .tiptap p {
   margin: 0.25em 0;
 }
+
+/* ── Tables ────────────────────────────────────────────────────────────── */
+
+.tiptap table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.5em 0;
+  overflow: hidden;
+}
+
+.tiptap table td,
+.tiptap table th {
+  border: 1px solid hsl(var(--border));
+  padding: 0.4em 0.6em;
+  vertical-align: top;
+  position: relative;
+  min-width: 80px;
+}
+
+.tiptap table th {
+  background: hsl(var(--muted));
+  font-weight: 600;
+}
+
+.tiptap table .selectedCell::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: hsl(var(--primary) / 0.08);
+  pointer-events: none;
+}
+
+/* ── Syntax highlighting (lowlight) ───────────────────────────────────── */
+
+.tiptap pre code .hljs-comment,
+.tiptap pre code .hljs-quote {
+  color: hsl(var(--muted-foreground));
+  font-style: italic;
+}
+
+.tiptap pre code .hljs-keyword,
+.tiptap pre code .hljs-selector-tag,
+.tiptap pre code .hljs-addition {
+  color: #d73a49;
+}
+
+.tiptap pre code .hljs-string,
+.tiptap pre code .hljs-attr,
+.tiptap pre code .hljs-meta .hljs-string {
+  color: #032f62;
+}
+
+.tiptap pre code .hljs-number,
+.tiptap pre code .hljs-literal,
+.tiptap pre code .hljs-symbol,
+.tiptap pre code .hljs-bullet {
+  color: #005cc5;
+}
+
+.tiptap pre code .hljs-title,
+.tiptap pre code .hljs-section {
+  color: #6f42c1;
+}
+
+.tiptap pre code .hljs-built_in,
+.tiptap pre code .hljs-type {
+  color: #e36209;
+}
+
+/* ── Dark mode syntax highlighting ────────────────────────────────────── */
+
+.dark .tiptap pre code .hljs-keyword,
+.dark .tiptap pre code .hljs-selector-tag,
+.dark .tiptap pre code .hljs-addition {
+  color: #ff7b72;
+}
+
+.dark .tiptap pre code .hljs-string,
+.dark .tiptap pre code .hljs-attr,
+.dark .tiptap pre code .hljs-meta .hljs-string {
+  color: #a5d6ff;
+}
+
+.dark .tiptap pre code .hljs-number,
+.dark .tiptap pre code .hljs-literal,
+.dark .tiptap pre code .hljs-symbol,
+.dark .tiptap pre code .hljs-bullet {
+  color: #79c0ff;
+}
+
+.dark .tiptap pre code .hljs-title,
+.dark .tiptap pre code .hljs-section {
+  color: #d2a8ff;
+}
+
+.dark .tiptap pre code .hljs-built_in,
+.dark .tiptap pre code .hljs-type {
+  color: #ffa657;
+}

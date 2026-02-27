@@ -160,7 +160,7 @@ export async function fetchPosts(
 ): Promise<{ posts: WpPostRaw[]; total: number }> {
   const baseUrl = url.replace(/\/+$/, '')
   const headers = makeAuthHeaders(username, password)
-  const fields = 'id,title,content,status,modified,date,author,featured_media,categories,tags,acf'
+  const fields = 'id,title,content,excerpt,slug,status,modified,date,author,featured_media,categories,tags,acf'
   const allPosts: WpPostRaw[] = []
 
   for (const status of statuses) {
@@ -367,7 +367,7 @@ export async function pushPost(
   username: string,
   password: string,
   wpId: number | null,
-  data: { title: string; content: string; status: string; date?: string | null; acf?: Record<string, unknown> | null; featured_media?: number; categories?: number[]; tags?: number[] }
+  data: { title: string; content: string; status: string; date?: string | null; acf?: Record<string, unknown> | null; featured_media?: number; excerpt?: string; slug?: string; categories?: number[]; tags?: number[] }
 ): Promise<{ id: number; modified: string }> {
   const baseUrl = url.replace(/\/+$/, '')
   const headers = {
@@ -383,6 +383,8 @@ export async function pushPost(
   if (data.date) body.date = data.date
   if (data.acf) body.acf = data.acf
   if (data.featured_media !== undefined) body.featured_media = data.featured_media
+  if (data.excerpt) body.excerpt = data.excerpt
+  if (data.slug) body.slug = data.slug
   if (data.categories) body.categories = data.categories
   if (data.tags) body.tags = data.tags
 
@@ -439,7 +441,7 @@ export async function fetchSinglePost(
   const headers = makeAuthHeaders(username, password)
 
   const res = await fetch(
-    `${baseUrl}/wp-json/wp/v2/posts/${wpId}?_fields=id,title,content,status,modified,date,author,featured_media,categories,tags,acf`,
+    `${baseUrl}/wp-json/wp/v2/posts/${wpId}?_fields=id,title,content,excerpt,slug,status,modified,date,author,featured_media,categories,tags,acf`,
     { headers }
   )
 

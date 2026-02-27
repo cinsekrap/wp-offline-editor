@@ -6,6 +6,9 @@ import { EditSiteDialog } from '@renderer/components/settings/EditSiteDialog'
 import { DeleteSiteDialog } from '@renderer/components/settings/DeleteSiteDialog'
 import { PostsView } from '@renderer/components/posts/PostsView'
 import { SiteDashboard } from '@renderer/components/dashboard/SiteDashboard'
+import { TemplateList } from '@renderer/components/templates/TemplateList'
+import { TemplateEditor } from '@renderer/components/templates/TemplateEditor'
+import { TemplatePickerDialog } from '@renderer/components/templates/TemplatePickerDialog'
 import { Toaster } from '@renderer/components/ui/toaster'
 import { ToastAction } from '@renderer/components/ui/toast'
 import { useToast } from '@renderer/components/ui/use-toast'
@@ -14,11 +17,12 @@ import { usePosts } from '@renderer/hooks/usePosts'
 import { useOnlineStatus } from '@renderer/hooks/useOnlineStatus'
 import { useAutoSync } from '@renderer/hooks/useAutoSync'
 import { useSettings } from '@renderer/hooks/useSettings'
-import type { Site } from '@shared/types'
+import { useTemplates } from '@renderer/hooks/useTemplates'
+import type { Site, Template, TaxonomyTerm } from '@shared/types'
 import type { PostListFilter } from '@renderer/components/posts/PostList'
 import '@renderer/styles/globals.css'
 
-type View = 'dashboard' | 'posts' | 'settings'
+type View = 'dashboard' | 'posts' | 'settings' | 'templates'
 
 function App(): JSX.Element {
   const { sites, addSite, updateSite, deleteSite, testConnection } = useSites()
@@ -40,6 +44,11 @@ function App(): JSX.Element {
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [editSite, setEditSite] = useState<Site | null>(null)
   const [deletingSite, setDeletingSite] = useState<Site | null>(null)
+
+  // Templates
+  const { templates, loading: templatesLoading, create: createTemplateRaw, update: updateTemplateRaw, remove: removeTemplate, refresh: refreshTemplates } = useTemplates()
+  const [editingTemplate, setEditingTemplate] = useState<Template | null>(null)
+  const [templatePickerOpen, setTemplatePickerOpen] = useState(false)
 
   const selectedSite = sites.find((s) => s.id === selectedSiteId) ?? null
 
@@ -166,6 +175,81 @@ function App(): JSX.Element {
     })
   }
 
+  // ── Template handlers ────────────────────────────────────────────────
+  const handleNewTemplate = useCallback(async () => {
+    const t = await createTemplateRaw({ name: 'Untitled Template' })
+    setEditingTemplate(t)
+  }, [createTemplateRaw])
+
+  const handleTemplateBack = useCallback(async () => {
+    // Delete the template if it's still blank (user never edited it)
+    if (editingTemplate) {
+      const fresh = await window.electronAPI.getTemplate(editingTemplate.id)
+      if (fresh && fresh.name === 'Untitled Template' && !fresh.title_template && !fresh.content && !fresh.excerpt && !fresh.description) {
+        await removeTemplate(fresh.id)
+      }
+    }
+    setEditingTemplate(null)
+    refreshTemplates()
+  }, [editingTemplate, removeTemplate, refreshTemplates])
+
+  const handleNewPostFromTemplate = useCallback(async (template: Template) => {
+    if (!selectedSiteId) return
+
+    // Resolve category/tag names → IDs against current site's terms
+    let resolvedCategories: number[] = []
+    let resolvedTags: number[] = []
+    try {
+      if (template.category_names.length > 0) {
+        const catTerms = await window.electronAPI.getTaxonomyTerms(selectedSiteId, 'category') as TaxonomyTerm[]
+        const nameMap = new Map(catTerms.map((t) => [t.name.toLowerCase(), t.id]))
+        resolvedCategories = template.category_names
+          .map((n) => nameMap.get(n.toLowerCase()))
+          .filter((id): id is number => id !== undefined)
+        const skipped = template.category_names.length - resolvedCategories.length
+        if (skipped > 0) {
+          toast({ title: 'Note', description: `${skipped} category name(s) not found on this site — skipped.` })
+        }
+      }
+      if (template.tag_names.length > 0) {
+        const tagTerms = await window.electronAPI.getTaxonomyTerms(selectedSiteId, 'post_tag') as TaxonomyTerm[]
+        const nameMap = new Map(tagTerms.map((t) => [t.name.toLowerCase(), t.id]))
+        resolvedTags = template.tag_names
+          .map((n) => nameMap.get(n.toLowerCase()))
+          .filter((id): id is number => id !== undefined)
+        const skipped = template.tag_names.length - resolvedTags.length
+        if (skipped > 0) {
+          toast({ title: 'Note', description: `${skipped} tag name(s) not found on this site — skipped.` })
+        }
+      }
+    } catch {
+      // non-critical: proceed without resolved terms
+    }
+
+    const post = await window.electronAPI.createPost({
+      site_id: selectedSiteId,
+      title: template.title_template,
+      content: template.content,
+      status: template.status as 'draft',
+      excerpt: template.excerpt
+    })
+
+    // Update with categories, tags if resolved
+    if (resolvedCategories.length > 0 || resolvedTags.length > 0) {
+      await window.electronAPI.updatePost({
+        id: post.id,
+        categories: resolvedCategories,
+        tags: resolvedTags
+      })
+    }
+
+    await refreshPosts()
+    setPreviousView('dashboard')
+    setSelectedPostId(post.id)
+    setInitialPostFilter(null)
+    setCurrentView('posts')
+  }, [selectedSiteId, refreshPosts, toast])
+
   const handleToolbarSync = useCallback(async (): Promise<void> => {
     if (!selectedSiteId) return
     try {
@@ -247,6 +331,18 @@ function App(): JSX.Element {
   }, [])
 
   const handleDashboardNewPost = useCallback(async () => {
+    if (templates.length > 0) {
+      setTemplatePickerOpen(true)
+      return
+    }
+    setPreviousView('dashboard')
+    const post = await createPost()
+    setSelectedPostId(post.id)
+    setInitialPostFilter(null)
+    setCurrentView('posts')
+  }, [createPost, templates])
+
+  const handleBlankPost = useCallback(async () => {
     setPreviousView('dashboard')
     const post = await createPost()
     setSelectedPostId(post.id)
@@ -338,6 +434,25 @@ function App(): JSX.Element {
             deletePost={deletePost}
           />
         )
+      case 'templates':
+        if (editingTemplate) {
+          return (
+            <TemplateEditor
+              template={editingTemplate}
+              onBack={handleTemplateBack}
+              onSave={async (upd) => { const t = await updateTemplateRaw(upd); setEditingTemplate(t) }}
+            />
+          )
+        }
+        return (
+          <TemplateList
+            templates={templates}
+            loading={templatesLoading}
+            onNew={handleNewTemplate}
+            onSelect={(t) => setEditingTemplate(t)}
+            onDelete={async (id) => { await removeTemplate(id); if (editingTemplate?.id === id) setEditingTemplate(null) }}
+          />
+        )
       default:
         return <div />
     }
@@ -347,11 +462,14 @@ function App(): JSX.Element {
     <>
       <AppShell
         onSettingsClick={() => setCurrentView('settings')}
+        onPostsClick={selectedSiteId && currentView !== 'settings' ? () => { setSelectedPostId(null); setInitialPostFilter(null); setCurrentView('posts') } : undefined}
+        onTemplatesClick={selectedSiteId && currentView !== 'settings' ? () => { setEditingTemplate(null); setCurrentView('templates') } : undefined}
         onSyncClick={handleToolbarSync}
         syncing={syncing}
-        showSync={(currentView === 'posts' || currentView === 'dashboard') && !!selectedSiteId}
+        showSync={currentView !== 'settings' && !!selectedSiteId}
         siteName={currentView !== 'settings' ? selectedSite?.label : undefined}
-        onSiteNameClick={currentView === 'posts' ? handleBackToDashboard : undefined}
+        onSiteNameClick={currentView !== 'settings' && currentView !== 'dashboard' ? handleBackToDashboard : undefined}
+        activeView={currentView !== 'settings' ? currentView : undefined}
         pendingMediaCount={currentView !== 'settings' ? pendingMediaCount : 0}
         online={effectiveOnline}
         unsyncedPostCount={currentView !== 'settings' ? unsyncedPostCount : 0}
@@ -385,6 +503,14 @@ function App(): JSX.Element {
           if (!open) setDeletingSite(null)
         }}
         onConfirm={handleDeleteSite}
+      />
+
+      <TemplatePickerDialog
+        open={templatePickerOpen}
+        onOpenChange={setTemplatePickerOpen}
+        templates={templates}
+        onBlank={handleBlankPost}
+        onSelect={handleNewPostFromTemplate}
       />
 
       <Toaster />

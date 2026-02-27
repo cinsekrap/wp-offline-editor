@@ -54,6 +54,8 @@ export interface Post {
   author_id: number | null
   author_name: string | null
   featured_image: string | null
+  excerpt: string
+  slug: string
   categories: number[]
   tags: number[]
   modified_local: string
@@ -68,6 +70,8 @@ export interface PostInput {
   content?: string
   status?: PostStatus
   acf?: Record<string, unknown> | null
+  excerpt?: string
+  slug?: string
 }
 
 export interface PostUpdate {
@@ -78,6 +82,8 @@ export interface PostUpdate {
   acf?: Record<string, unknown> | null
   date?: string | null
   featured_image?: string | null
+  excerpt?: string
+  slug?: string
   categories?: number[]
   tags?: number[]
 }
@@ -170,6 +176,8 @@ export interface WpPostRaw {
   id: number
   title: { rendered: string }
   content: { rendered: string }
+  excerpt: { rendered: string }
+  slug: string
   status: string
   modified: string
   date: string
@@ -206,6 +214,45 @@ export interface WpAcfFieldRaw {
   layouts?: WpAcfLayoutRaw[] | Record<string, WpAcfLayoutRaw>
   choices?: Record<string, string> | string[]
   [k: string]: unknown
+}
+
+// ── Templates ────────────────────────────────────────────────────────────
+
+export interface Template {
+  id: string
+  name: string
+  description: string
+  title_template: string
+  content: string
+  excerpt: string
+  status: PostStatus | string
+  category_names: string[]
+  tag_names: string[]
+  created_at: string
+  updated_at: string
+}
+
+export interface TemplateInput {
+  name: string
+  description?: string
+  title_template?: string
+  content?: string
+  excerpt?: string
+  status?: string
+  category_names?: string[]
+  tag_names?: string[]
+}
+
+export interface TemplateUpdate {
+  id: string
+  name?: string
+  description?: string
+  title_template?: string
+  content?: string
+  excerpt?: string
+  status?: string
+  category_names?: string[]
+  tag_names?: string[]
 }
 
 // ── Push Results ────────────────────────────────────────────────────────
@@ -307,6 +354,17 @@ export interface ElectronAPI {
   uploadMedia(mediaId: string): Promise<Media>
   deleteMedia(id: string): Promise<void>
   replaceMediaFile(mediaId: string, buffer: ArrayBuffer): Promise<Media>
+
+  // Markdown
+  importMarkdown(): Promise<string | null>
+  exportMarkdown(html: string, name?: string): Promise<boolean>
+
+  // Templates
+  getTemplates(): Promise<Template[]>
+  getTemplate(id: string): Promise<Template | null>
+  createTemplate(input: TemplateInput): Promise<Template>
+  updateTemplate(update: TemplateUpdate): Promise<Template>
+  deleteTemplate(id: string): Promise<void>
 
   // Shortcodes
   getShortcodes(siteId: string): Promise<string[]>

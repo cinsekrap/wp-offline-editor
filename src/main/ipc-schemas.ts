@@ -30,7 +30,9 @@ export const PostInputSchema = z.object({
   title: z.string().optional(),
   content: z.string().optional(),
   status: postStatusSchema.optional(),
-  acf: z.unknown().optional()
+  acf: z.unknown().optional(),
+  excerpt: z.string().optional(),
+  slug: z.string().optional()
 })
 
 export const PostUpdateSchema = z.object({
@@ -41,6 +43,8 @@ export const PostUpdateSchema = z.object({
   acf: z.unknown().optional(),
   date: z.string().nullable().optional(),
   featured_image: z.string().nullable().optional(),
+  excerpt: z.string().optional(),
+  slug: z.string().optional(),
   categories: z.array(z.number().int()).optional(),
   tags: z.array(z.number().int()).optional()
 })
@@ -48,6 +52,29 @@ export const PostUpdateSchema = z.object({
 export const ConflictStrategySchema = z.enum(['keep-mine', 'keep-theirs', 'fork'])
 
 export const TaxonomySchema = z.enum(['category', 'post_tag'])
+
+export const TemplateInputSchema = z.object({
+  name: z.string().min(1),
+  description: z.string().optional(),
+  title_template: z.string().optional(),
+  content: z.string().optional(),
+  excerpt: z.string().optional(),
+  status: z.enum(['draft', 'publish', 'pending', 'private', 'future']).optional(),
+  category_names: z.array(z.string()).optional(),
+  tag_names: z.array(z.string()).optional()
+})
+
+export const TemplateUpdateSchema = z.object({
+  id: z.string(),
+  name: z.string().min(1).optional(),
+  description: z.string().optional(),
+  title_template: z.string().optional(),
+  content: z.string().optional(),
+  excerpt: z.string().optional(),
+  status: z.enum(['draft', 'publish', 'pending', 'private', 'future']).optional(),
+  category_names: z.array(z.string()).optional(),
+  tag_names: z.array(z.string()).optional()
+})
 
 export const AppSettingsSchema = z.object({
   theme: z.enum(['light', 'dark', 'system']).optional(),

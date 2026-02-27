@@ -17,7 +17,9 @@ import {
   Undo2,
   Redo2,
   Library,
-  Upload
+  Upload,
+  Table2,
+  Minimize2
 } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
 import { Popover, PopoverTrigger, PopoverContent } from '@renderer/components/ui/popover'
@@ -28,14 +30,16 @@ interface EditorToolbarProps {
   siteId?: string
   onImageInsert?: (file: File) => void
   onLibraryImageInsert?: () => void
+  onExitFocusMode?: () => void
 }
 
-export function EditorToolbar({ editor, siteId, onImageInsert, onLibraryImageInsert }: EditorToolbarProps): JSX.Element | null {
+export function EditorToolbar({ editor, siteId, onImageInsert, onLibraryImageInsert, onExitFocusMode }: EditorToolbarProps): JSX.Element | null {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [shortcodes, setShortcodes] = useState<string[]>([])
   const [shortcodesOpen, setShortcodesOpen] = useState(false)
   const [shortcodesLoaded, setShortcodesLoaded] = useState(false)
   const [imageMenuOpen, setImageMenuOpen] = useState(false)
+  const [tableMenuOpen, setTableMenuOpen] = useState(false)
 
   useEffect(() => {
     if (!shortcodesOpen || !siteId || shortcodesLoaded) return
@@ -152,6 +156,7 @@ export function EditorToolbar({ editor, siteId, onImageInsert, onLibraryImageIns
           active: false
         }]),
     ...(siteId ? [{ type: 'shortcode-button' as const }] : []),
+    { type: 'table-button' as const },
     { type: 'separator' as const },
     {
       icon: Undo2,
@@ -164,7 +169,7 @@ export function EditorToolbar({ editor, siteId, onImageInsert, onLibraryImageIns
       label: 'Redo',
       action: () => editor.chain().focus().redo().run(),
       active: false
-    }
+    },
   ]
 
   return (
@@ -249,6 +254,45 @@ export function EditorToolbar({ editor, siteId, onImageInsert, onLibraryImageIns
             </Popover>
           )
         }
+        if ('type' in item && item.type === 'table-button') {
+          const inTable = editor.isActive('table')
+          return (
+            <Popover key="table-menu" open={tableMenuOpen} onOpenChange={setTableMenuOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={cn('h-8 w-8', inTable && 'bg-accent text-accent-foreground')}
+                  title="Table"
+                >
+                  <Table2 className="h-4 w-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-48 p-1" align="start">
+                {!inTable ? (
+                  <button
+                    className="flex items-center gap-2 w-full text-left text-sm px-2 py-1.5 rounded hover:bg-accent hover:text-accent-foreground"
+                    onClick={() => {
+                      editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
+                      setTableMenuOpen(false)
+                    }}
+                  >
+                    Insert 3×3 table
+                  </button>
+                ) : (
+                  <>
+                    <button className="flex items-center w-full text-left text-sm px-2 py-1.5 rounded hover:bg-accent hover:text-accent-foreground" onClick={() => { editor.chain().focus().addRowAfter().run(); setTableMenuOpen(false) }}>Add row below</button>
+                    <button className="flex items-center w-full text-left text-sm px-2 py-1.5 rounded hover:bg-accent hover:text-accent-foreground" onClick={() => { editor.chain().focus().addColumnAfter().run(); setTableMenuOpen(false) }}>Add column right</button>
+                    <button className="flex items-center w-full text-left text-sm px-2 py-1.5 rounded hover:bg-accent hover:text-accent-foreground" onClick={() => { editor.chain().focus().deleteRow().run(); setTableMenuOpen(false) }}>Delete row</button>
+                    <button className="flex items-center w-full text-left text-sm px-2 py-1.5 rounded hover:bg-accent hover:text-accent-foreground" onClick={() => { editor.chain().focus().deleteColumn().run(); setTableMenuOpen(false) }}>Delete column</button>
+                    <div className="h-px bg-border my-1" />
+                    <button className="flex items-center w-full text-left text-sm px-2 py-1.5 rounded text-destructive hover:bg-destructive/10" onClick={() => { editor.chain().focus().deleteTable().run(); setTableMenuOpen(false) }}>Delete table</button>
+                  </>
+                )}
+              </PopoverContent>
+            </Popover>
+          )
+        }
         const { icon: Icon, label, action, active } = item as {
           icon: typeof Bold
           label: string
@@ -268,6 +312,20 @@ export function EditorToolbar({ editor, siteId, onImageInsert, onLibraryImageIns
           </Button>
         )
       })}
+      {onExitFocusMode && (
+        <>
+          <div className="flex-1" />
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={onExitFocusMode}
+            title="Exit focus mode"
+          >
+            <Minimize2 className="h-4 w-4" />
+          </Button>
+        </>
+      )}
       <input
         ref={fileInputRef}
         type="file"

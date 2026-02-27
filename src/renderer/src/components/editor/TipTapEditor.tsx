@@ -4,8 +4,15 @@ import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
 import Link from '@tiptap/extension-link'
 import Placeholder from '@tiptap/extension-placeholder'
+import { Table } from '@tiptap/extension-table'
+import { TableRow } from '@tiptap/extension-table-row'
+import { TableCell } from '@tiptap/extension-table-cell'
+import { TableHeader } from '@tiptap/extension-table-header'
+import { CodeBlockLowlight } from '@tiptap/extension-code-block-lowlight'
+import { common, createLowlight } from 'lowlight'
 import { useState, useEffect, type CSSProperties } from 'react'
 import { MediaImage } from '@renderer/extensions/MediaImage'
+import { useWordCount } from '@renderer/hooks/useWordCount'
 import { EditorToolbar } from './EditorToolbar'
 import { MediaLibraryPicker } from './acf/MediaLibraryPicker'
 import '@renderer/styles/tiptap.css'
@@ -18,6 +25,8 @@ interface TipTapEditorProps {
   onEditorReady?: (editor: Editor) => void
   onImageClick?: (mediaId: string, src: string, alt: string, position: { x: number; y: number }) => void
   fontSize?: number
+  focusMode?: boolean
+  onExitFocusMode?: () => void
 }
 
 function toMediaUrl(localPath: string): string {
@@ -50,16 +59,23 @@ export function TipTapEditor({
   onChange,
   onEditorReady,
   onImageClick,
-  fontSize
+  fontSize,
+  focusMode,
+  onExitFocusMode
 }: TipTapEditorProps): JSX.Element {
   const editor = useEditor(
     {
       extensions: [
-        StarterKit,
+        StarterKit.configure({ codeBlock: false }),
         Underline,
         Link.configure({ openOnClick: false }),
         Placeholder.configure({ placeholder: 'Start writing...' }),
-        MediaImage.configure({ onImageClick })
+        MediaImage.configure({ onImageClick }),
+        Table.configure({ resizable: false }),
+        TableRow,
+        TableCell,
+        TableHeader,
+        CodeBlockLowlight.configure({ lowlight: createLowlight(common) })
       ],
       content,
       onUpdate: ({ editor: e }) => {
@@ -102,6 +118,7 @@ export function TipTapEditor({
     }
   }, [editor, onEditorReady])
 
+  const { words, readingTime } = useWordCount(editor)
   const [libraryPickerOpen, setLibraryPickerOpen] = useState(false)
 
   const handleImageInsert = async (file: File): Promise<void> => {
@@ -131,6 +148,7 @@ export function TipTapEditor({
         siteId={siteId}
         onImageInsert={handleImageInsert}
         onLibraryImageInsert={() => setLibraryPickerOpen(true)}
+        onExitFocusMode={focusMode ? onExitFocusMode : undefined}
       />
       <MediaLibraryPicker
         open={libraryPickerOpen}
@@ -138,7 +156,14 @@ export function TipTapEditor({
         siteId={siteId}
         onSelect={handleLibrarySelect}
       />
-      <div className="flex-1 overflow-y-auto border rounded-b-md" style={style}>
+      <div className="flex items-center justify-between px-3 py-1 border-x text-xs text-muted-foreground">
+        <span>{words} words</span>
+        <span>{readingTime}</span>
+      </div>
+      <div
+        className="flex-1 overflow-y-auto border rounded-b-md"
+        style={style}
+      >
         <EditorContent editor={editor} className="h-full" />
       </div>
     </div>

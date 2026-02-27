@@ -11,6 +11,7 @@ import { Calendar } from '@renderer/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/components/ui/popover'
 import { Button } from '@renderer/components/ui/button'
 import { Input } from '@renderer/components/ui/input'
+import { Textarea } from '@renderer/components/ui/textarea'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
 import { Checkbox } from '@renderer/components/ui/checkbox'
 import { Badge } from '@renderer/components/ui/badge'
@@ -26,6 +27,10 @@ interface PostMetaProps {
   onDateChange: (date: Date | undefined) => void
   featuredImage: string | null
   onFeaturedImageChange: (mediaId: string | null) => void
+  excerpt: string
+  slug: string
+  onExcerptChange: (value: string) => void
+  onSlugChange: (value: string) => void
   categories: number[]
   tags: number[]
   onCategoriesChange: (ids: number[]) => void
@@ -50,6 +55,10 @@ export function PostMeta({
   onDateChange,
   featuredImage,
   onFeaturedImageChange,
+  excerpt,
+  slug,
+  onExcerptChange,
+  onSlugChange,
   categories,
   tags,
   onCategoriesChange,
@@ -164,6 +173,33 @@ export function PostMeta({
           )}
         </div>
       )}
+
+      {/* Slug */}
+      <div className="space-y-1.5">
+        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+          Slug
+        </Label>
+        <Input
+          value={slug}
+          onChange={(e) => onSlugChange(e.target.value)}
+          placeholder="post-url-slug"
+          className="h-8 text-sm font-mono"
+        />
+      </div>
+
+      {/* Excerpt */}
+      <div className="space-y-1.5">
+        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+          Excerpt
+        </Label>
+        <Textarea
+          value={excerpt}
+          onChange={(e) => onExcerptChange(e.target.value)}
+          placeholder="Brief description..."
+          rows={3}
+          className="text-sm resize-none"
+        />
+      </div>
 
       {/* Featured Image */}
       <div className="space-y-1.5">

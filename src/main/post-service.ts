@@ -190,6 +190,8 @@ async function upsertPost(
 
   const title = decodeHtmlEntities(wpPost.title.rendered)
   let content = sanitizeHtml(wpPost.content.rendered)
+  const excerpt = wpPost.excerpt ? decodeHtmlEntities(wpPost.excerpt.rendered) : ''
+  const slug = wpPost.slug ?? ''
   const status = wpPost.status
   const modifiedRemote = wpPost.modified
   const wpDate = wpPost.date || null
@@ -203,9 +205,9 @@ async function upsertPost(
     // INSERT a minimal post row first so media FK references are satisfied
     const postLocalId = uuidv4()
     db.prepare(`
-      INSERT INTO posts (id, site_id, wp_id, title, content, status, acf, date, author_id, author_name, featured_image, categories, tags, modified_local, modified_remote, synced, conflict)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, 1, 0)
-    `).run(postLocalId, siteId, wpPost.id, title, '', status, null, wpDate, authorId, authorName, categoriesJson, tagsJson, now, modifiedRemote)
+      INSERT INTO posts (id, site_id, wp_id, title, content, status, acf, excerpt, slug, date, author_id, author_name, featured_image, categories, tags, modified_local, modified_remote, synced, conflict)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, 1, 0)
+    `).run(postLocalId, siteId, wpPost.id, title, '', status, null, excerpt, slug, wpDate, authorId, authorName, categoriesJson, tagsJson, now, modifiedRemote)
 
     // Now download images (media inserts can reference the post row)
     content = await downloadAndRewriteImages(siteId, postLocalId, content, siteUrl)
@@ -253,8 +255,8 @@ async function upsertPost(
       freshContent = await downloadAndRewriteImages(siteId, existing.id, freshContent, siteUrl)
       const freshAcf = await rewriteAcfImageUrls(siteId, existing.id, acfJson, siteUrl)
       db.prepare(
-        'UPDATE posts SET content = ?, acf = ?, title = ?, date = COALESCE(date, ?), author_id = COALESCE(author_id, ?), author_name = COALESCE(author_name, ?) WHERE id = ?'
-      ).run(freshContent, freshAcf, title, wpDate, authorId, authorName, existing.id)
+        'UPDATE posts SET content = ?, acf = ?, title = ?, excerpt = COALESCE(NULLIF(excerpt, \'\'), ?), slug = COALESCE(NULLIF(slug, \'\'), ?), date = COALESCE(date, ?), author_id = COALESCE(author_id, ?), author_name = COALESCE(author_name, ?) WHERE id = ?'
+      ).run(freshContent, freshAcf, title, excerpt, slug, wpDate, authorId, authorName, existing.id)
       return 'updated'
     }
 
@@ -263,15 +265,15 @@ async function upsertPost(
       const fixedAcf = await rewriteAcfImageUrls(siteId, existing.id, stored.acf, siteUrl)
       if (fixedContent !== stored.content || fixedAcf !== stored.acf) {
         db.prepare(
-          'UPDATE posts SET content = ?, acf = ?, title = ?, date = COALESCE(date, ?), author_id = COALESCE(author_id, ?), author_name = COALESCE(author_name, ?) WHERE id = ?'
-        ).run(fixedContent, fixedAcf, title, wpDate, authorId, authorName, existing.id)
+          'UPDATE posts SET content = ?, acf = ?, title = ?, excerpt = COALESCE(NULLIF(excerpt, \'\'), ?), slug = COALESCE(NULLIF(slug, \'\'), ?), date = COALESCE(date, ?), author_id = COALESCE(author_id, ?), author_name = COALESCE(author_name, ?) WHERE id = ?'
+        ).run(fixedContent, fixedAcf, title, excerpt, slug, wpDate, authorId, authorName, existing.id)
         return 'updated'
       }
     }
 
     db.prepare(
-      'UPDATE posts SET title = ?, date = COALESCE(date, ?), author_id = COALESCE(author_id, ?), author_name = COALESCE(author_name, ?) WHERE id = ? AND (title != ? OR date IS NULL OR author_id IS NULL)'
-    ).run(title, wpDate, authorId, authorName, existing.id, title)
+      'UPDATE posts SET title = ?, excerpt = COALESCE(NULLIF(excerpt, \'\'), ?), slug = COALESCE(NULLIF(slug, \'\'), ?), date = COALESCE(date, ?), author_id = COALESCE(author_id, ?), author_name = COALESCE(author_name, ?) WHERE id = ? AND (title != ? OR date IS NULL OR author_id IS NULL OR excerpt = \'\' OR slug = \'\')'
+    ).run(title, excerpt, slug, wpDate, authorId, authorName, existing.id, title)
     return 'unchanged'
   }
 
@@ -288,9 +290,9 @@ async function upsertPost(
     }
 
     db.prepare(`
-      UPDATE posts SET title = ?, content = ?, status = ?, acf = ?, date = ?, author_id = ?, author_name = ?, featured_image = ?, categories = ?, tags = ?, modified_local = ?, modified_remote = ?, synced = 1, conflict = 0
+      UPDATE posts SET title = ?, content = ?, status = ?, acf = ?, excerpt = ?, slug = ?, date = ?, author_id = ?, author_name = ?, featured_image = ?, categories = ?, tags = ?, modified_local = ?, modified_remote = ?, synced = 1, conflict = 0
       WHERE id = ?
-    `).run(title, content, status, acfJson, wpDate, authorId, authorName, featuredImage, categoriesJson, tagsJson, now, modifiedRemote, existing.id)
+    `).run(title, content, status, acfJson, excerpt, slug, wpDate, authorId, authorName, featuredImage, categoriesJson, tagsJson, now, modifiedRemote, existing.id)
     return 'updated'
   }
 
@@ -321,9 +323,9 @@ export function createPost(input: PostInput): Post {
   const acfJson = input.acf ? JSON.stringify(input.acf) : null
 
   db.prepare(`
-    INSERT INTO posts (id, site_id, wp_id, title, content, status, acf, modified_local, modified_remote, synced, conflict)
-    VALUES (?, ?, NULL, ?, ?, ?, ?, ?, NULL, 0, 0)
-  `).run(id, input.site_id, input.title ?? '', input.content ?? '', input.status ?? 'draft', acfJson, now)
+    INSERT INTO posts (id, site_id, wp_id, title, content, status, acf, excerpt, slug, modified_local, modified_remote, synced, conflict)
+    VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, NULL, 0, 0)
+  `).run(id, input.site_id, input.title ?? '', input.content ?? '', input.status ?? 'draft', acfJson, input.excerpt ?? '', input.slug ?? '', now)
 
   return getPostById(id)!
 }
@@ -342,15 +344,17 @@ export function updatePost(update: PostUpdate): Post {
   const acfJson = acf ? JSON.stringify(acf) : null
   const date = update.date !== undefined ? update.date : existing.date
   const featuredImage = update.featured_image !== undefined ? update.featured_image : existing.featured_image
+  const excerpt = update.excerpt !== undefined ? update.excerpt : existing.excerpt
+  const slug = update.slug !== undefined ? update.slug : existing.slug
   const categories = update.categories !== undefined ? update.categories : existing.categories
   const tags = update.tags !== undefined ? update.tags : existing.tags
   const categoriesJson = JSON.stringify(categories)
   const tagsJson = JSON.stringify(tags)
 
   db.prepare(`
-    UPDATE posts SET title = ?, content = ?, status = ?, acf = ?, date = ?, featured_image = ?, categories = ?, tags = ?, modified_local = ?, synced = 0
+    UPDATE posts SET title = ?, content = ?, status = ?, acf = ?, date = ?, featured_image = ?, excerpt = ?, slug = ?, categories = ?, tags = ?, modified_local = ?, synced = 0
     WHERE id = ?
-  `).run(title, content, status, acfJson, date, featuredImage, categoriesJson, tagsJson, now, update.id)
+  `).run(title, content, status, acfJson, date, featuredImage, excerpt, slug, categoriesJson, tagsJson, now, update.id)
 
   return getPostById(update.id)!
 }
@@ -370,6 +374,8 @@ function normalizePostRow(row: Post): Post {
     author_id: row.author_id ?? null,
     author_name: row.author_name ?? null,
     featured_image: row.featured_image ?? null,
+    excerpt: row.excerpt ?? '',
+    slug: row.slug ?? '',
     categories: typeof row.categories === 'string' ? JSON.parse(row.categories) : row.categories ?? [],
     tags: typeof row.tags === 'string' ? JSON.parse(row.tags) : row.tags ?? []
   }

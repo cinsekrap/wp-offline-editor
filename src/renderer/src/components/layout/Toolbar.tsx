@@ -1,4 +1,4 @@
-import { Settings, RefreshCw, Loader2, LayoutGrid, ImageIcon, WifiOff, CloudUpload, ArrowLeftRight, Check } from 'lucide-react'
+import { Settings, RefreshCw, Loader2, LayoutGrid, ImageIcon, WifiOff, CloudUpload, ArrowLeftRight, Check, FileText, AlignLeft } from 'lucide-react'
 import { Badge } from '@renderer/components/ui/badge'
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/components/ui/popover'
 import { cn } from '@renderer/lib/utils'
@@ -6,11 +6,14 @@ import type { Site } from '@shared/types'
 
 interface ToolbarProps {
   onSettingsClick: () => void
+  onPostsClick?: () => void
+  onTemplatesClick?: () => void
   onSyncClick?: () => void
   syncing?: boolean
   showSync?: boolean
   siteName?: string
   onSiteNameClick?: () => void
+  activeView?: string
   pendingMediaCount?: number
   online?: boolean
   unsyncedPostCount?: number
@@ -21,11 +24,14 @@ interface ToolbarProps {
 
 export function Toolbar({
   onSettingsClick,
+  onPostsClick,
+  onTemplatesClick,
   onSyncClick,
   syncing,
   showSync,
   siteName,
   onSiteNameClick,
+  activeView,
   pendingMediaCount,
   online = true,
   unsyncedPostCount,
@@ -37,21 +43,46 @@ export function Toolbar({
 
   return (
     <div className="h-12 border-b flex items-center px-4 drag-region bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      {/* Left: traffic light spacing + menu button */}
-      <div className="flex items-center gap-2 flex-1 min-w-0">
+      {/* Left: traffic light spacing + view buttons */}
+      <div className="flex items-center gap-1 flex-1 min-w-0">
         <div className="w-20 shrink-0" />
-        {onSiteNameClick ? (
-          <button
-            onClick={onSiteNameClick}
-            className="p-2 rounded-md hover:bg-accent transition-colors no-drag"
-            title="Back to dashboard"
-          >
-            <LayoutGrid className="h-4 w-4" />
-          </button>
-        ) : siteName ? (
-          <div className="p-2">
-            <LayoutGrid className="h-4 w-4 text-muted-foreground" />
-          </div>
+        {siteName ? (
+          <>
+            <button
+              onClick={onSiteNameClick}
+              className={cn(
+                'p-2 rounded-md transition-colors no-drag',
+                activeView === 'dashboard' ? 'bg-accent text-accent-foreground' : 'hover:bg-accent'
+              )}
+              title="Dashboard"
+            >
+              <LayoutGrid className="h-4 w-4" />
+            </button>
+            {onPostsClick && (
+              <button
+                onClick={onPostsClick}
+                className={cn(
+                  'p-2 rounded-md transition-colors no-drag',
+                  activeView === 'posts' ? 'bg-accent text-accent-foreground' : 'hover:bg-accent'
+                )}
+                title="Posts"
+              >
+                <AlignLeft className="h-4 w-4" />
+              </button>
+            )}
+            {onTemplatesClick && (
+              <button
+                onClick={onTemplatesClick}
+                className={cn(
+                  'p-2 rounded-md transition-colors no-drag',
+                  activeView === 'templates' ? 'bg-accent text-accent-foreground' : 'hover:bg-accent'
+                )}
+                title="Templates"
+              >
+                <FileText className="h-4 w-4" />
+              </button>
+            )}
+          </>
         ) : (
           <span className="text-sm font-semibold select-none">Settings</span>
         )}

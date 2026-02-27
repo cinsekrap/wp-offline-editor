@@ -110,6 +110,8 @@ export async function pushPostToWp(postId: string): Promise<PushResult> {
     date: post.date,
     acf: swappedAcf,
     featured_media: featuredMedia,
+    excerpt: post.excerpt || undefined,
+    slug: post.slug || undefined,
     categories: post.categories.length > 0 ? post.categories : undefined,
     tags: post.tags.length > 0 ? post.tags : undefined
   })
@@ -171,14 +173,16 @@ export async function resolveConflict(
     const forkCategoriesJson = JSON.stringify(post.categories)
     const forkTagsJson = JSON.stringify(post.tags)
     db.prepare(`
-      INSERT INTO posts (id, site_id, wp_id, title, content, status, acf, date, author_id, author_name, featured_image, categories, tags, modified_local, modified_remote, synced, conflict)
-      VALUES (?, ?, NULL, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, NULL, 0, 0)
+      INSERT INTO posts (id, site_id, wp_id, title, content, status, acf, excerpt, slug, date, author_id, author_name, featured_image, categories, tags, modified_local, modified_remote, synced, conflict)
+      VALUES (?, ?, NULL, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 0, 0)
     `).run(
       uuidv4(),
       post.site_id,
       post.title + ' (copy)',
       post.content,
       forkAcfJson,
+      post.excerpt,
+      post.slug,
       post.date,
       post.author_id,
       post.author_name,
@@ -208,17 +212,21 @@ export async function resolveConflict(
     featuredImage = await downloadFeaturedImage(post.site_id, postId, wpPost.featured_media, site.url)
   }
 
+  const excerpt = wpPost.excerpt ? decodeHtmlEntities(wpPost.excerpt.rendered) : ''
+  const remoteSlug = wpPost.slug ?? ''
   const categoriesJson = JSON.stringify(wpPost.categories ?? [])
   const tagsJson = JSON.stringify(wpPost.tags ?? [])
 
   db.prepare(`
-    UPDATE posts SET title = ?, content = ?, status = ?, acf = ?, date = ?, author_id = ?, author_name = ?, featured_image = ?, categories = ?, tags = ?, modified_local = ?, modified_remote = ?, synced = 1, conflict = 0
+    UPDATE posts SET title = ?, content = ?, status = ?, acf = ?, excerpt = ?, slug = ?, date = ?, author_id = ?, author_name = ?, featured_image = ?, categories = ?, tags = ?, modified_local = ?, modified_remote = ?, synced = 1, conflict = 0
     WHERE id = ?
   `).run(
     title,
     content,
     wpPost.status,
     acfJson,
+    excerpt,
+    remoteSlug,
     wpPost.date,
     wpPost.author,
     authorName,

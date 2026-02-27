@@ -1,6 +1,6 @@
 import { ipcMain, app, dialog } from 'electron'
 import { join } from 'path'
-import { copyFileSync } from 'fs'
+import { copyFileSync, readFileSync, writeFileSync } from 'fs'
 import { z } from 'zod'
 import { is } from '@electron-toolkit/utils'
 import { getAllSites, getSiteById, addSite, updateSite, deleteSite } from './site-service'
@@ -20,6 +20,8 @@ import { getMediaLibraryForSite } from './media-library-service'
 import { getTaxonomyTerms } from './taxonomy-service'
 import { getShortcodesForSite } from './shortcode-service'
 import { getSettings, updateSettings } from './settings-service'
+import { htmlToMarkdown, markdownToHtml } from './markdown-service'
+import { getAllTemplates, getTemplateById, createTemplate, updateTemplate, deleteTemplate } from './template-service'
 import { checkForUpdates, downloadUpdate, installUpdate } from './updater'
 import {
   uuidSchema,
@@ -29,7 +31,9 @@ import {
   PostUpdateSchema,
   ConflictStrategySchema,
   TaxonomySchema,
-  AppSettingsSchema
+  AppSettingsSchema,
+  TemplateInputSchema,
+  TemplateUpdateSchema
 } from './ipc-schemas'
 
 export function registerIpcHandlers(): void {
@@ -191,6 +195,55 @@ export function registerIpcHandlers(): void {
 
     copyFileSync(zipPath, filePath)
     return true
+  })
+
+  // ── Markdown ──────────────────────────────────────────────────────────
+
+  ipcMain.handle('markdown:import', async () => {
+    const { canceled, filePaths } = await dialog.showOpenDialog({
+      title: 'Import Markdown',
+      filters: [{ name: 'Markdown', extensions: ['md', 'markdown', 'txt'] }],
+      properties: ['openFile']
+    })
+    if (canceled || filePaths.length === 0) return null
+    const md = readFileSync(filePaths[0], 'utf-8')
+    return markdownToHtml(md)
+  })
+
+  ipcMain.handle('markdown:export', async (_event, html: unknown, name: unknown) => {
+    const htmlStr = z.string().parse(html)
+    const nameStr = z.string().optional().parse(name) || 'post'
+    const md = htmlToMarkdown(htmlStr)
+    const { canceled, filePath } = await dialog.showSaveDialog({
+      title: 'Export as Markdown',
+      defaultPath: join(app.getPath('downloads'), `${nameStr}.md`),
+      filters: [{ name: 'Markdown', extensions: ['md'] }]
+    })
+    if (canceled || !filePath) return false
+    writeFileSync(filePath, md, 'utf-8')
+    return true
+  })
+
+  // ── Templates ──────────────────────────────────────────────────────────
+
+  ipcMain.handle('templates:get-all', () => {
+    return getAllTemplates()
+  })
+
+  ipcMain.handle('templates:get', (_event, id: unknown) => {
+    return getTemplateById(z.string().parse(id))
+  })
+
+  ipcMain.handle('templates:create', (_event, input: unknown) => {
+    return createTemplate(TemplateInputSchema.parse(input))
+  })
+
+  ipcMain.handle('templates:update', (_event, update: unknown) => {
+    return updateTemplate(TemplateUpdateSchema.parse(update))
+  })
+
+  ipcMain.handle('templates:delete', (_event, id: unknown) => {
+    deleteTemplate(z.string().parse(id))
   })
 
   // ── Settings ────────────────────────────────────────────────────────────

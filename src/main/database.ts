@@ -179,6 +179,30 @@ function runMigrations(db: Database.Database): void {
   if (!postColNames.has('tags')) {
     db.exec('ALTER TABLE posts ADD COLUMN tags TEXT')
   }
+
+  if (!postColNames.has('excerpt')) {
+    db.exec("ALTER TABLE posts ADD COLUMN excerpt TEXT NOT NULL DEFAULT ''")
+  }
+  if (!postColNames.has('slug')) {
+    db.exec("ALTER TABLE posts ADD COLUMN slug TEXT NOT NULL DEFAULT ''")
+  }
+
+  // Templates table (global, not per-site)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS templates (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      title_template TEXT NOT NULL DEFAULT '',
+      content TEXT NOT NULL DEFAULT '',
+      excerpt TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'draft',
+      category_names TEXT NOT NULL DEFAULT '[]',
+      tag_names TEXT NOT NULL DEFAULT '[]',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )
+  `)
 }
 
 export function closeDatabase(): void {

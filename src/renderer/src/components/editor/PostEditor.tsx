@@ -12,7 +12,12 @@ import {
   AlertTriangle,
   WifiOff,
   Pencil,
-  Trash2
+  Trash2,
+  Maximize2,
+  Minimize2,
+  MoreHorizontal,
+  FileDown,
+  FileUp
 } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
 import { Input } from '@renderer/components/ui/input'
@@ -98,6 +103,7 @@ export function PostEditor({
   const [pushing, setPushing] = useState(false)
   const [conflictDialogOpen, setConflictDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [focusMode, setFocusMode] = useState(false)
   const [cropTarget, setCropTarget] = useState<{ mediaId: string; src: string } | null>(null)
   const [imageMenu, setImageMenu] = useState<{
     mediaId: string
@@ -114,6 +120,8 @@ export function PostEditor({
   const [acf, setAcf] = useState<Record<string, unknown>>({})
   const [scheduledDate, setScheduledDate] = useState<Date | undefined>()
   const [featuredImage, setFeaturedImage] = useState<string | null>(null)
+  const [excerpt, setExcerpt] = useState('')
+  const [slug, setSlug] = useState('')
   const [categories, setCategories] = useState<number[]>([])
   const [tags, setTags] = useState<number[]>([])
 
@@ -137,6 +145,8 @@ export function PostEditor({
         setAcf(p.acf ?? {})
         setScheduledDate(p.date ? new Date(p.date) : undefined)
         setFeaturedImage(p.featured_image)
+        setExcerpt(p.excerpt ?? '')
+        setSlug(p.slug ?? '')
         setCategories(p.categories ?? [])
         setTags(p.tags ?? [])
         initializedRef.current = true
@@ -150,8 +160,8 @@ export function PostEditor({
     const date = postStatus === 'future' && scheduledDate
       ? scheduledDate.toISOString()
       : post.date
-    return { id: postId, title, content, status: postStatus, acf, date, featured_image: featuredImage, categories, tags }
-  }, [postId, title, content, postStatus, acf, scheduledDate, featuredImage, categories, tags, post])
+    return { id: postId, title, content, status: postStatus, acf, date, featured_image: featuredImage, excerpt, slug, categories, tags }
+  }, [postId, title, content, postStatus, acf, scheduledDate, featuredImage, excerpt, slug, categories, tags, post])
 
   const { status: saveStatus, flush } = useAutoSave(update)
 
@@ -202,6 +212,21 @@ export function PostEditor({
     })
   }, [content, featuredImage, refreshQueue, postId])
 
+  // Focus mode keyboard shortcuts
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent): void {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'f') {
+        e.preventDefault()
+        setFocusMode((prev) => !prev)
+      }
+      if (e.key === 'Escape' && focusMode) {
+        setFocusMode(false)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [focusMode])
+
   const handleAcfChange = useCallback((name: string, value: unknown) => {
     setAcf((prev) => ({ ...prev, [name]: value }))
   }, [])
@@ -249,6 +274,8 @@ export function PostEditor({
       setAcf(p.acf ?? {})
       setScheduledDate(p.date ? new Date(p.date) : undefined)
       setFeaturedImage(p.featured_image)
+      setExcerpt(p.excerpt ?? '')
+      setSlug(p.slug ?? '')
       setCategories(p.categories ?? [])
       setTags(p.tags ?? [])
     }
@@ -296,6 +323,22 @@ export function PostEditor({
     },
     [postId, reloadPost, onPostUpdated, toast]
   )
+
+  const handleImportMarkdown = useCallback(async () => {
+    const html = await window.electronAPI.importMarkdown()
+    if (html && editorRef.current) {
+      editorRef.current.commands.setContent(html)
+      setContent(html)
+      toast({ title: 'Imported', description: 'Markdown content loaded into editor.' })
+    }
+  }, [toast])
+
+  const handleExportMarkdown = useCallback(async () => {
+    const saved = await window.electronAPI.exportMarkdown(content, title || 'post')
+    if (saved) {
+      toast({ title: 'Exported', description: 'Post saved as Markdown.' })
+    }
+  }, [content, title, toast])
 
   const handleBack = useCallback(async () => {
     // If the post is blank (no title, no content), delete it silently
@@ -392,6 +435,50 @@ export function PostEditor({
     return (
       <div className="flex items-center justify-center h-full text-muted-foreground">
         Post not found
+      </div>
+    )
+  }
+
+  if (focusMode) {
+    return (
+      <div className="flex flex-col h-full bg-background">
+        <div className="flex-1 flex flex-col min-h-0 px-4 pb-4">
+          <div className="shrink-0 py-3">
+            <div className="flex items-center gap-2">
+              <Input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Post title"
+                className="border-0 text-xl font-semibold h-auto py-1 px-0 focus-visible:ring-0 focus-visible:ring-offset-0 flex-1"
+              />
+              <SaveIndicator status={saveStatus} />
+            </div>
+          </div>
+          <div className="flex-1 flex flex-col min-h-0">
+            <TipTapEditor
+              key={postId}
+              postId={postId}
+              siteId={siteId}
+              content={content}
+              onChange={setContent}
+              onEditorReady={handleEditorReady}
+              onImageClick={handleImageClick}
+              fontSize={editorFontSize}
+              focusMode
+              onExitFocusMode={() => setFocusMode(false)}
+            />
+          </div>
+        </div>
+
+        {cropTarget && (
+          <ImageCropDialog
+            open={true}
+            src={cropTarget.src}
+            mediaId={cropTarget.mediaId}
+            onApply={handleCropApply}
+            onClose={() => setCropTarget(null)}
+          />
+        )}
       </div>
     )
   }
@@ -549,6 +636,40 @@ export function PostEditor({
             </Popover>
           )}
 
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8" title="More actions">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-48 p-1">
+              <button
+                className="flex items-center gap-2 w-full text-left text-sm px-2 py-1.5 rounded hover:bg-accent hover:text-accent-foreground"
+                onClick={handleImportMarkdown}
+              >
+                <FileUp className="h-3.5 w-3.5" />
+                Import Markdown
+              </button>
+              <button
+                className="flex items-center gap-2 w-full text-left text-sm px-2 py-1.5 rounded hover:bg-accent hover:text-accent-foreground"
+                onClick={handleExportMarkdown}
+              >
+                <FileDown className="h-3.5 w-3.5" />
+                Export as Markdown
+              </button>
+            </PopoverContent>
+          </Popover>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => setFocusMode(true)}
+            title="Focus mode (Cmd+Shift+F)"
+          >
+            <Maximize2 className="h-4 w-4" />
+          </Button>
+
           <Button
             variant="ghost"
             size="icon"
@@ -591,6 +712,7 @@ export function PostEditor({
             onEditorReady={handleEditorReady}
             onImageClick={handleImageClick}
             fontSize={editorFontSize}
+            focusMode={false}
           />
         </div>
       </div>
@@ -605,6 +727,10 @@ export function PostEditor({
             onDateChange={setScheduledDate}
             featuredImage={featuredImage}
             onFeaturedImageChange={setFeaturedImage}
+            excerpt={excerpt}
+            slug={slug}
+            onExcerptChange={setExcerpt}
+            onSlugChange={setSlug}
             categories={categories}
             tags={tags}
             onCategoriesChange={setCategories}

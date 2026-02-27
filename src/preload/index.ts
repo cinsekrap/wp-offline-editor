@@ -43,6 +43,17 @@ const api: ElectronAPI = {
   deleteMedia: (id) => ipcRenderer.invoke('media:delete', id),
   replaceMediaFile: (mediaId, buffer) => ipcRenderer.invoke('media:replace-file', mediaId, buffer),
 
+  // Markdown
+  importMarkdown: () => ipcRenderer.invoke('markdown:import'),
+  exportMarkdown: (html, name) => ipcRenderer.invoke('markdown:export', html, name),
+
+  // Templates
+  getTemplates: () => ipcRenderer.invoke('templates:get-all'),
+  getTemplate: (id) => ipcRenderer.invoke('templates:get', id),
+  createTemplate: (input) => ipcRenderer.invoke('templates:create', input),
+  updateTemplate: (update) => ipcRenderer.invoke('templates:update', update),
+  deleteTemplate: (id) => ipcRenderer.invoke('templates:delete', id),
+
   // Shortcodes
   getShortcodes: (siteId) => ipcRenderer.invoke('shortcodes:get', siteId),
 

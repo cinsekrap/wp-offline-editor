@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid'
 import { join } from 'path'
-import { rmSync } from 'fs'
+import { rmSync, readdirSync, unlinkSync } from 'fs'
 import { app } from 'electron'
 import { getDb } from './database'
 import { storeCredential, deleteCredential } from './credentials'
@@ -74,15 +74,16 @@ export function updateSite(update: SiteUpdate): Site {
   const autoSync = update.auto_sync !== undefined ? (update.auto_sync ? 1 : 0) : (existing.auto_sync ? 1 : 0)
   const pullPublished = update.pull_published ?? existing.pull_published
   const mediaLibraryLimit = update.media_library_limit ?? existing.media_library_limit
+  const wpAuthorId = update.wp_author_id !== undefined ? update.wp_author_id : existing.wp_author_id
 
   if (update.password) {
     storeCredential(existing.keychain_ref, update.password)
   }
 
   db.prepare(`
-    UPDATE sites SET label = ?, url = ?, username = ?, auto_sync = ?, pull_published = ?, media_library_limit = ?, updated_at = ?
+    UPDATE sites SET label = ?, url = ?, username = ?, auto_sync = ?, pull_published = ?, media_library_limit = ?, wp_author_id = ?, updated_at = ?
     WHERE id = ?
-  `).run(label, url, username, autoSync, pullPublished, mediaLibraryLimit, now, update.id)
+  `).run(label, url, username, autoSync, pullPublished, mediaLibraryLimit, wpAuthorId, now, update.id)
 
   return getSiteById(update.id)!
 }
@@ -99,13 +100,57 @@ export function deleteSite(id: string): void {
   try {
     rmSync(join(app.getPath('userData'), 'media-library', id), { recursive: true, force: true })
   } catch { /* ignore */ }
+
+  // Clean up site icon
+  try {
+    const iconDir = join(app.getPath('userData'), 'site-icons')
+    for (const f of readdirSync(iconDir)) {
+      if (f.startsWith(id)) unlinkSync(join(iconDir, f))
+    }
+  } catch { /* ignore */ }
+}
+
+export function clearSiteData(siteId: string): void {
+  const db = getDb()
+  const existing = getSiteById(siteId)
+  if (!existing) return
+
+  deleteCredential(existing.keychain_ref)
+  db.prepare('DELETE FROM sites WHERE id = ?').run(siteId)
+
+  // Clean up local media files
+  try {
+    rmSync(join(app.getPath('userData'), 'media', siteId), { recursive: true, force: true })
+  } catch { /* ignore */ }
+
+  // Clean up cached media library thumbnails
+  try {
+    rmSync(join(app.getPath('userData'), 'media-library', siteId), { recursive: true, force: true })
+  } catch { /* ignore */ }
+
+  // Clean up site icon
+  try {
+    const iconDir = join(app.getPath('userData'), 'site-icons')
+    for (const f of readdirSync(iconDir)) {
+      if (f.startsWith(siteId)) unlinkSync(join(iconDir, f))
+    }
+  } catch { /* ignore */ }
+}
+
+export function updateSiteIconUrl(siteId: string, iconUrl: string | null): void {
+  const db = getDb()
+  db.prepare('UPDATE sites SET site_icon_url = ?, updated_at = ? WHERE id = ?')
+    .run(iconUrl, new Date().toISOString(), siteId)
 }
 
 function normalizeSiteRow(row: Site): Site {
+  const r = row as Record<string, unknown>
   return {
     ...row,
     auto_sync: Boolean(row.auto_sync),
     pull_published: Number(row.pull_published),
-    media_library_limit: Number(row.media_library_limit)
+    media_library_limit: Number(row.media_library_limit),
+    wp_author_id: r.wp_author_id as number ?? null,
+    site_icon_url: (r.site_icon_url as string) || null
   }
 }

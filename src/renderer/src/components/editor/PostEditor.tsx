@@ -8,16 +8,16 @@ import {
   PanelRight,
   ImageIcon,
   Upload,
-  CloudUpload,
   AlertTriangle,
-  WifiOff,
   Pencil,
   Trash2,
   Maximize2,
   Minimize2,
   MoreHorizontal,
   FileDown,
-  FileUp
+  FileUp,
+  Copy,
+  CopyPlus
 } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
 import { Input } from '@renderer/components/ui/input'
@@ -31,11 +31,14 @@ import { AcfPanel } from './acf/AcfPanel'
 import { AcfMediaProvider } from './acf/AcfMediaContext'
 import { ConflictDialog } from './ConflictDialog'
 import { DeletePostDialog } from './DeletePostDialog'
+import { DuplicateToDialog } from './DuplicateToDialog'
 import { ImageCropDialog } from './ImageCropDialog'
 import { useAutoSave, type SaveStatus } from '@renderer/hooks/useAutoSave'
 import { useMediaQueue } from '@renderer/hooks/useMediaQueue'
+import { useAcfSchema } from '@renderer/hooks/useAcfSchema'
 import { useToast } from '@renderer/components/ui/use-toast'
-import type { Post, PostStatus, PostUpdate } from '@shared/types'
+import { cn } from '@renderer/lib/utils'
+import type { Post, PostStatus, PostUpdate, Site } from '@shared/types'
 
 interface PostEditorProps {
   postId: string
@@ -43,8 +46,9 @@ interface PostEditorProps {
   onBack: () => void
   onDelete: () => Promise<void>
   onPostUpdated: () => void
-  online?: boolean
   editorFontSize?: number
+  sites?: Site[]
+  onDuplicate?: (newPostId: string, targetSiteId: string) => void
 }
 
 function SaveIndicator({ status }: { status: SaveStatus }): JSX.Element | null {
@@ -92,17 +96,19 @@ export function PostEditor({
   onBack,
   onDelete,
   onPostUpdated,
-  online = true,
-  editorFontSize
+  editorFontSize,
+  sites = [],
+  onDuplicate
 }: PostEditorProps): JSX.Element {
   const { toast } = useToast()
   const [post, setPost] = useState<Post | null>(null)
   const [loading, setLoading] = useState(true)
   const [rightPanelOpen, setRightPanelOpen] = useState(true)
   const [uploading, setUploading] = useState<string | null>(null)
-  const [pushing, setPushing] = useState(false)
   const [conflictDialogOpen, setConflictDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [duplicateToOpen, setDuplicateToOpen] = useState(false)
+  const [duplicating, setDuplicating] = useState(false)
   const [focusMode, setFocusMode] = useState(false)
   const [cropTarget, setCropTarget] = useState<{ mediaId: string; src: string } | null>(null)
   const [imageMenu, setImageMenu] = useState<{
@@ -132,6 +138,9 @@ export function PostEditor({
   const initializedRef = useRef(false)
 
   const { queue, pending, refresh: refreshQueue, uploadItem, uploadAll } = useMediaQueue(siteId, postId)
+  const { schemas: acfSchemas } = useAcfSchema(siteId)
+  const hasAcf = acfSchemas.some((s) => s.fields.length > 0)
+  const [sidebarTab, setSidebarTab] = useState<'post' | 'acf'>('post')
 
   useEffect(() => {
     initializedRef.current = false
@@ -157,9 +166,7 @@ export function PostEditor({
 
   const update = useMemo<PostUpdate | null>(() => {
     if (!initializedRef.current || !post) return null
-    const date = postStatus === 'future' && scheduledDate
-      ? scheduledDate.toISOString()
-      : post.date
+    const date = scheduledDate ? scheduledDate.toISOString() : post.date
     return { id: postId, title, content, status: postStatus, acf, date, featured_image: featuredImage, excerpt, slug, categories, tags }
   }, [postId, title, content, postStatus, acf, scheduledDate, featuredImage, excerpt, slug, categories, tags, post])
 
@@ -281,39 +288,6 @@ export function PostEditor({
     }
   }, [postId])
 
-  const handlePush = useCallback(async () => {
-    if (!post || pushing) return
-
-    // Flush pending auto-save first
-    flush()
-    // Give auto-save a moment to complete
-    await new Promise((r) => setTimeout(r, 200))
-
-    // Re-fetch to see if conflict flag was set
-    const fresh = await window.electronAPI.getPost(postId)
-    if (fresh?.conflict) {
-      setPost(fresh)
-      setConflictDialogOpen(true)
-      return
-    }
-
-    setPushing(true)
-    try {
-      await window.electronAPI.pushPost(postId)
-      await reloadPost()
-      onPostUpdated()
-      toast({ title: 'Pushed', description: 'Post pushed to WordPress.' })
-    } catch (err) {
-      toast({
-        title: 'Push failed',
-        description: err instanceof Error ? err.message : 'Could not push to WordPress.',
-        variant: 'destructive'
-      })
-    } finally {
-      setPushing(false)
-    }
-  }, [post, pushing, postId, flush, reloadPost, onPostUpdated, toast])
-
   const handleResolveConflict = useCallback(
     async (strategy: 'keep-mine' | 'keep-theirs' | 'fork') => {
       await window.electronAPI.resolveConflict(postId, strategy)
@@ -339,6 +313,30 @@ export function PostEditor({
       toast({ title: 'Exported', description: 'Post saved as Markdown.' })
     }
   }, [content, title, toast])
+
+  const handleDuplicate = useCallback(async (targetSiteId?: string) => {
+    if (!onDuplicate) return
+    setDuplicating(true)
+    try {
+      flush()
+      const newPost = await window.electronAPI.createPost({
+        site_id: targetSiteId ?? siteId,
+        title: (title || 'Untitled') + ' (copy)',
+        content,
+        status: 'draft',
+        acf: Object.keys(acf).length > 0 ? acf : undefined,
+        excerpt,
+        slug
+      })
+      onDuplicate(newPost.id, targetSiteId ?? siteId)
+      setDuplicateToOpen(false)
+      toast({ title: 'Duplicated', description: `Post duplicated as "${newPost.title || 'Untitled'}"` })
+    } catch {
+      toast({ title: 'Duplication failed', variant: 'destructive' })
+    } finally {
+      setDuplicating(false)
+    }
+  }, [onDuplicate, siteId, title, content, acf, excerpt, slug, flush, toast])
 
   const handleBack = useCallback(async () => {
     // If the post is blank (no title, no content), delete it silently
@@ -536,8 +534,8 @@ export function PostEditor({
           </Button>
           <SaveIndicator status={saveStatus} />
 
-          {/* Push / Conflict button */}
-          {post.conflict ? (
+          {/* Conflict button */}
+          {post.conflict && (
             <Button
               variant="outline"
               size="sm"
@@ -546,23 +544,6 @@ export function PostEditor({
             >
               <AlertTriangle className="h-3.5 w-3.5 mr-1" />
               Conflict
-            </Button>
-          ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 text-xs"
-              disabled={pushing || !online || post.synced}
-              onClick={handlePush}
-            >
-              {pushing ? (
-                <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
-              ) : !online ? (
-                <WifiOff className="h-3.5 w-3.5 mr-1" />
-              ) : (
-                <CloudUpload className="h-3.5 w-3.5 mr-1" />
-              )}
-              Push
             </Button>
           )}
 
@@ -657,6 +638,29 @@ export function PostEditor({
                 <FileDown className="h-3.5 w-3.5" />
                 Export as Markdown
               </button>
+              {onDuplicate && (
+                <>
+                  <Separator className="my-1" />
+                  <button
+                    className="flex items-center gap-2 w-full text-left text-sm px-2 py-1.5 rounded hover:bg-accent hover:text-accent-foreground"
+                    onClick={() => handleDuplicate()}
+                    disabled={duplicating}
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                    Duplicate
+                  </button>
+                  {sites.length > 1 && (
+                    <button
+                      className="flex items-center gap-2 w-full text-left text-sm px-2 py-1.5 rounded hover:bg-accent hover:text-accent-foreground"
+                      onClick={() => setDuplicateToOpen(true)}
+                      disabled={duplicating}
+                    >
+                      <CopyPlus className="h-3.5 w-3.5" />
+                      Duplicate to...
+                    </button>
+                  )}
+                </>
+              )}
             </PopoverContent>
           </Popover>
 
@@ -720,29 +724,57 @@ export function PostEditor({
       {/* Right panel */}
       {rightPanelOpen && (
         <div className="w-[320px] border-l flex flex-col shrink-0 overflow-hidden">
-          <PostMeta
-            status={postStatus}
-            scheduledDate={scheduledDate}
-            onStatusChange={setPostStatus}
-            onDateChange={setScheduledDate}
-            featuredImage={featuredImage}
-            onFeaturedImageChange={setFeaturedImage}
-            excerpt={excerpt}
-            slug={slug}
-            onExcerptChange={setExcerpt}
-            onSlugChange={setSlug}
-            categories={categories}
-            tags={tags}
-            onCategoriesChange={setCategories}
-            onTagsChange={setTags}
-            siteId={siteId}
-            postId={postId}
-            mediaItems={queue}
-          />
-          <Separator />
-          <AcfMediaProvider value={{ siteId, postId, mediaItems: queue, refreshMedia: refreshQueue }}>
-            <AcfPanel siteId={siteId} acfData={acf} onChange={handleAcfChange} />
-          </AcfMediaProvider>
+          {hasAcf && (
+            <div className="flex border-b shrink-0">
+              <button
+                className={cn(
+                  'flex-1 text-xs font-medium py-2 transition-colors',
+                  sidebarTab === 'post'
+                    ? 'text-foreground border-b-2 border-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+                onClick={() => setSidebarTab('post')}
+              >
+                Post
+              </button>
+              <button
+                className={cn(
+                  'flex-1 text-xs font-medium py-2 transition-colors',
+                  sidebarTab === 'acf'
+                    ? 'text-foreground border-b-2 border-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+                onClick={() => setSidebarTab('acf')}
+              >
+                Custom Fields
+              </button>
+            </div>
+          )}
+          {sidebarTab === 'post' ? (
+            <PostMeta
+              status={postStatus}
+              scheduledDate={scheduledDate}
+              onStatusChange={setPostStatus}
+              onDateChange={setScheduledDate}
+              featuredImage={featuredImage}
+              onFeaturedImageChange={setFeaturedImage}
+              excerpt={excerpt}
+              slug={slug}
+              onExcerptChange={setExcerpt}
+              onSlugChange={setSlug}
+              categories={categories}
+              tags={tags}
+              onCategoriesChange={setCategories}
+              onTagsChange={setTags}
+              siteId={siteId}
+              postId={postId}
+              mediaItems={queue}
+            />
+          ) : (
+            <AcfMediaProvider value={{ siteId, postId, mediaItems: queue, refreshMedia: refreshQueue }}>
+              <AcfPanel siteId={siteId} acfData={acf} onChange={handleAcfChange} />
+            </AcfMediaProvider>
+          )}
         </div>
       )}
 
@@ -758,6 +790,15 @@ export function PostEditor({
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}
         onConfirm={handleDelete}
+      />
+
+      <DuplicateToDialog
+        open={duplicateToOpen}
+        onOpenChange={setDuplicateToOpen}
+        sites={sites}
+        currentSiteId={siteId}
+        onSelect={(targetSiteId) => handleDuplicate(targetSiteId)}
+        duplicating={duplicating}
       />
 
       {cropTarget && (

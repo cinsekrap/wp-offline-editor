@@ -15,10 +15,12 @@ import { Textarea } from '@renderer/components/ui/textarea'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
 import { Checkbox } from '@renderer/components/ui/checkbox'
 import { Badge } from '@renderer/components/ui/badge'
-import { CalendarIcon, ImageIcon, X, Upload, Loader2 } from 'lucide-react'
+import { CalendarIcon, ImageIcon, X, Upload, Loader2, Lock, Globe, KeyRound, AlertTriangle } from 'lucide-react'
 import { format } from 'date-fns'
 import { cn } from '@renderer/lib/utils'
 import type { PostStatus, Media, TaxonomyTerm } from '@shared/types'
+
+type Visibility = 'public' | 'private' | 'password'
 
 interface PostMetaProps {
   status: PostStatus
@@ -40,13 +42,29 @@ interface PostMetaProps {
   mediaItems: Media[]
 }
 
-const STATUS_OPTIONS: { value: PostStatus; label: string }[] = [
-  { value: 'draft', label: 'Draft' },
-  { value: 'pending', label: 'Pending Review' },
-  { value: 'private', label: 'Private' },
-  { value: 'publish', label: 'Published' },
-  { value: 'future', label: 'Scheduled' }
+const VISIBILITY_OPTIONS: { value: Visibility; label: string; icon: typeof Globe }[] = [
+  { value: 'public', label: 'Public', icon: Globe },
+  { value: 'private', label: 'Private', icon: Lock },
+  { value: 'password', label: 'Password Protected', icon: KeyRound }
 ]
+
+/** Derive visibility from internal PostStatus */
+function toVisibility(status: PostStatus): Visibility {
+  if (status === 'private') return 'private'
+  return 'public'
+}
+
+/** Is this a "published" family status? */
+function isPublished(status: PostStatus): boolean {
+  return status === 'publish' || status === 'future' || status === 'private'
+}
+
+/** Resolve internal PostStatus from visibility + date (for published posts) */
+function resolvePublishedStatus(visibility: Visibility, date: Date | undefined): PostStatus {
+  if (visibility === 'private') return 'private'
+  if (date && date.getTime() > Date.now()) return 'future'
+  return 'publish'
+}
 
 export function PostMeta({
   status,
@@ -70,6 +88,60 @@ export function PostMeta({
   const [pickerOpen, setPickerOpen] = useState(false)
   const [uploading, setUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Derived state
+  const [visibility, setVisibility] = useState<Visibility>(() => toVisibility(status))
+  const [dateExpanded, setDateExpanded] = useState(!!scheduledDate)
+  const [visibilityOpen, setVisibilityOpen] = useState(false)
+  const [publishConfirmOpen, setPublishConfirmOpen] = useState(false)
+
+  const published = isPublished(status)
+
+  // Sync from parent when post loads
+  useEffect(() => {
+    setVisibility(toVisibility(status))
+    setDateExpanded(!!scheduledDate)
+  }, [status, scheduledDate])
+
+  const handleDraftStatusChange = useCallback((newStatus: string) => {
+    onStatusChange(newStatus as PostStatus)
+  }, [onStatusChange])
+
+  const handlePublishImmediately = useCallback(() => {
+    setPublishConfirmOpen(false)
+    onDateChange(undefined)
+    onStatusChange(resolvePublishedStatus(visibility, undefined))
+  }, [visibility, onDateChange, onStatusChange])
+
+  const handlePublishLater = useCallback(() => {
+    setDateExpanded(true)
+    const tomorrow = new Date()
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    tomorrow.setHours(9, 0, 0, 0)
+    onDateChange(tomorrow)
+    onStatusChange(resolvePublishedStatus(visibility, tomorrow))
+  }, [visibility, onDateChange, onStatusChange])
+
+  const handleVisibilityChange = useCallback((newVisibility: Visibility) => {
+    setVisibility(newVisibility)
+    setVisibilityOpen(false)
+    if (published) {
+      onStatusChange(resolvePublishedStatus(newVisibility, scheduledDate))
+    }
+  }, [published, scheduledDate, onStatusChange])
+
+  const handleDateChange = useCallback((date: Date | undefined) => {
+    onDateChange(date)
+    if (published) {
+      onStatusChange(resolvePublishedStatus(visibility, date))
+    }
+  }, [published, visibility, onDateChange, onStatusChange])
+
+  const handleRevertToDraft = useCallback(() => {
+    setDateExpanded(false)
+    onDateChange(undefined)
+    onStatusChange('draft')
+  }, [onDateChange, onStatusChange])
 
   // Taxonomy term caches
   const [categoryTerms, setCategoryTerms] = useState<TaxonomyTerm[]>([])
@@ -116,63 +188,202 @@ export function PostMeta({
 
   return (
     <div className="space-y-4 p-4">
+      {/* Status */}
       <div className="space-y-1.5">
         <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
           Status
         </Label>
-        <Select value={status} onValueChange={(v) => onStatusChange(v as PostStatus)}>
-          <SelectTrigger className="h-8 text-sm">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {STATUS_OPTIONS.map((opt) => (
-              <SelectItem key={opt.value} value={opt.value}>
-                {opt.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {!published ? (
+          <>
+            <Select value={status === 'trash' ? 'draft' : status} onValueChange={handleDraftStatusChange}>
+              <SelectTrigger className="h-8 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="draft">Draft</SelectItem>
+                <SelectItem value="pending">Pending Review</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* Publish actions */}
+            <div className="space-y-1.5 pt-2">
+              <Popover open={publishConfirmOpen} onOpenChange={setPublishConfirmOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="default" size="sm" className="w-full h-8 text-sm">
+                    Publish immediately
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-72 p-3">
+                  <div className="flex gap-2 mb-2">
+                    <AlertTriangle className="h-4 w-4 text-orange-500 shrink-0 mt-0.5" />
+                    <p className="text-sm text-muted-foreground">
+                      This post will go <strong>live on your site</strong> at the next sync. Are you sure?
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 h-7 text-xs"
+                      onClick={() => setPublishConfirmOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      variant="default"
+                      size="sm"
+                      className="flex-1 h-7 text-xs"
+                      onClick={handlePublishImmediately}
+                    >
+                      Publish
+                    </Button>
+                  </div>
+                </PopoverContent>
+              </Popover>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full h-8 text-sm"
+                onClick={handlePublishLater}
+              >
+                <CalendarIcon className="mr-2 h-3.5 w-3.5" />
+                Publish later
+              </Button>
+            </div>
+          </>
+        ) : (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className={cn(
+                'text-xs',
+                status === 'future'
+                  ? 'bg-blue-100 text-blue-800 border-blue-200'
+                  : 'bg-green-100 text-green-800 border-green-200'
+              )}>
+                {status === 'future' ? 'Scheduled' : status === 'private' ? 'Private' : 'Published'}
+              </Badge>
+            </div>
+            {status === 'future' && scheduledDate && (
+              <p className="text-xs text-muted-foreground">
+                {format(scheduledDate, 'PPP')} at {format(scheduledDate, 'p')}
+              </p>
+            )}
+            <button
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              onClick={handleRevertToDraft}
+            >
+              Revert to draft
+            </button>
+          </div>
+        )}
       </div>
 
-      {status === 'future' && (
+      {/* Publish date (only when published with a date or scheduling) */}
+      {published && (
         <div className="space-y-1.5">
           <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
             Publish Date
           </Label>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                className={cn(
-                  'h-8 w-full justify-start text-left text-sm font-normal',
-                  !scheduledDate && 'text-muted-foreground'
-                )}
-              >
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {scheduledDate ? format(scheduledDate, 'PPP') : 'Pick a date'}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar mode="single" selected={scheduledDate} onSelect={onDateChange} />
-            </PopoverContent>
-          </Popover>
-          {scheduledDate && (
-            <div className="flex gap-2">
-              <Input
-                type="time"
-                className="h-8 text-sm"
-                value={format(scheduledDate, 'HH:mm')}
-                onChange={(e) => {
-                  const [hours, minutes] = e.target.value.split(':').map(Number)
-                  const next = new Date(scheduledDate)
-                  next.setHours(hours, minutes)
-                  onDateChange(next)
+          {!dateExpanded && !scheduledDate ? (
+            <button
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+              onClick={() => {
+                setDateExpanded(true)
+                handleDateChange(new Date())
+              }}
+            >
+              Immediately
+              <span className="ml-1.5 text-xs text-primary hover:underline">(change)</span>
+            </button>
+          ) : (
+            <div className="space-y-2">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      'h-8 w-full justify-start text-left text-sm font-normal',
+                      !scheduledDate && 'text-muted-foreground'
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {scheduledDate ? format(scheduledDate, 'PPP') : 'Pick a date'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar mode="single" selected={scheduledDate} onSelect={handleDateChange} />
+                </PopoverContent>
+              </Popover>
+              {scheduledDate && (
+                <Input
+                  type="time"
+                  className="h-8 text-sm"
+                  value={format(scheduledDate, 'HH:mm')}
+                  onChange={(e) => {
+                    const [hours, minutes] = e.target.value.split(':').map(Number)
+                    const next = new Date(scheduledDate)
+                    next.setHours(hours, minutes)
+                    handleDateChange(next)
+                  }}
+                />
+              )}
+              <button
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                onClick={() => {
+                  setDateExpanded(false)
+                  handleDateChange(undefined)
                 }}
-              />
+              >
+                Reset to immediately
+              </button>
             </div>
           )}
         </div>
       )}
+
+      {/* Visibility */}
+      <div className="space-y-1.5">
+        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+          Visibility
+        </Label>
+        <Popover open={visibilityOpen} onOpenChange={setVisibilityOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              className="h-8 w-full justify-start text-left text-sm font-normal"
+            >
+              {(() => {
+                const opt = VISIBILITY_OPTIONS.find((v) => v.value === visibility)!
+                const Icon = opt.icon
+                return (
+                  <>
+                    <Icon className="mr-2 h-3.5 w-3.5" />
+                    {opt.label}
+                  </>
+                )
+              })()}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="start" className="w-52 p-1">
+            {VISIBILITY_OPTIONS.map((opt) => {
+              const Icon = opt.icon
+              return (
+                <button
+                  key={opt.value}
+                  className={cn(
+                    'flex items-center gap-2 w-full text-left text-sm px-2 py-1.5 rounded hover:bg-accent hover:text-accent-foreground',
+                    visibility === opt.value && 'bg-accent'
+                  )}
+                  onClick={() => handleVisibilityChange(opt.value)}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  {opt.label}
+                </button>
+              )
+            })}
+          </PopoverContent>
+        </Popover>
+      </div>
 
       {/* Slug */}
       <div className="space-y-1.5">

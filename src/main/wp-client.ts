@@ -149,6 +149,53 @@ export async function testWpConnection(
   }
 }
 
+// ── Site icon fetching ──────────────────────────────────────────────────
+
+export async function fetchSiteIcon(
+  url: string,
+  username: string,
+  password: string
+): Promise<{ imageBuffer: Buffer; ext: string } | null> {
+  const baseUrl = url.replace(/\/+$/, '')
+  const headers = makeAuthHeaders(username, password)
+
+  try {
+    // WP REST API returns site_icon as a media attachment ID (0 = no icon)
+    const res = await fetch(`${baseUrl}/wp-json/wp/v2/settings`, { headers })
+    if (!res.ok) return null
+
+    const settings = (await res.json()) as { site_icon?: number }
+    if (!settings.site_icon) return null
+
+    // Fetch the actual image URL from the media endpoint
+    const mediaRes = await fetch(
+      `${baseUrl}/wp-json/wp/v2/media/${settings.site_icon}?_fields=source_url,media_details`,
+      { headers }
+    )
+    if (!mediaRes.ok) return null
+
+    const media = (await mediaRes.json()) as {
+      source_url: string
+      media_details?: { sizes?: Record<string, { source_url: string }> }
+    }
+
+    // Prefer a small size if available
+    const sizes = media.media_details?.sizes
+    const imageUrl = sizes?.thumbnail?.source_url || sizes?.medium?.source_url || media.source_url
+    if (!imageUrl) return null
+
+    // Download the image
+    const imgRes = await fetch(imageUrl)
+    if (!imgRes.ok) return null
+
+    const arrayBuf = await imgRes.arrayBuffer()
+    const ext = extname(new URL(imageUrl).pathname) || '.png'
+    return { imageBuffer: Buffer.from(arrayBuf), ext }
+  } catch {
+    return null
+  }
+}
+
 // ── Post fetching ───────────────────────────────────────────────────────
 
 export async function fetchPosts(
@@ -235,6 +282,24 @@ export async function fetchUserNames(
     map.set(u.id, u.name)
   }
   return map
+}
+
+// ── Author fetching ─────────────────────────────────────────────────────
+
+export async function fetchAuthors(
+  url: string,
+  username: string,
+  password: string
+): Promise<{ id: number; name: string }[]> {
+  const baseUrl = url.replace(/\/+$/, '')
+  const headers = makeAuthHeaders(username, password)
+
+  const res = await fetch(`${baseUrl}/wp-json/wp/v2/users?per_page=100&_fields=id,name`, { headers })
+  if (!res.ok) {
+    throw new Error(`Failed to fetch authors: HTTP ${res.status}`)
+  }
+
+  return (await res.json()) as { id: number; name: string }[]
 }
 
 // ── Taxonomy term fetching ───────────────────────────────────────────────

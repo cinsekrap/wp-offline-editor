@@ -190,7 +190,7 @@ async function upsertPost(
 
   const title = decodeHtmlEntities(wpPost.title.rendered)
   let content = sanitizeHtml(wpPost.content.rendered)
-  const excerpt = wpPost.excerpt ? decodeHtmlEntities(wpPost.excerpt.rendered) : ''
+  const excerpt = wpPost.excerpt ? decodeHtmlEntities(wpPost.excerpt.rendered).replace(/<[^>]+>/g, '').trim() : ''
   const slug = wpPost.slug ?? ''
   const status = wpPost.status
   const modifiedRemote = wpPost.modified
@@ -330,6 +330,12 @@ export function createPost(input: PostInput): Post {
   return getPostById(id)!
 }
 
+function computeWordCount(html: string): number {
+  const text = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+  if (!text) return 0
+  return text.split(' ').length
+}
+
 export function updatePost(update: PostUpdate): Post {
   const existing = getPostById(update.id)
   if (!existing) throw new Error(`Post not found: ${update.id}`)
@@ -350,11 +356,20 @@ export function updatePost(update: PostUpdate): Post {
   const tags = update.tags !== undefined ? update.tags : existing.tags
   const categoriesJson = JSON.stringify(categories)
   const tagsJson = JSON.stringify(tags)
+  const wordCount = computeWordCount(content)
+  const today = now.slice(0, 10) // YYYY-MM-DD
 
   db.prepare(`
-    UPDATE posts SET title = ?, content = ?, status = ?, acf = ?, date = ?, featured_image = ?, excerpt = ?, slug = ?, categories = ?, tags = ?, modified_local = ?, synced = 0
+    UPDATE posts SET title = ?, content = ?, status = ?, acf = ?, date = ?, featured_image = ?, excerpt = ?, slug = ?, categories = ?, tags = ?, word_count = ?, modified_local = ?, synced = 0
     WHERE id = ?
-  `).run(title, content, status, acfJson, date, featuredImage, excerpt, slug, categoriesJson, tagsJson, now, update.id)
+  `).run(title, content, status, acfJson, date, featuredImage, excerpt, slug, categoriesJson, tagsJson, wordCount, now, update.id)
+
+  // Upsert daily writing snapshot
+  db.prepare(`
+    INSERT INTO writing_snapshots (site_id, post_id, date, word_count)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(site_id, post_id, date) DO UPDATE SET word_count = excluded.word_count
+  `).run(existing.site_id, update.id, today, wordCount)
 
   return getPostById(update.id)!
 }
@@ -377,6 +392,7 @@ function normalizePostRow(row: Post): Post {
     excerpt: row.excerpt ?? '',
     slug: row.slug ?? '',
     categories: typeof row.categories === 'string' ? JSON.parse(row.categories) : row.categories ?? [],
-    tags: typeof row.tags === 'string' ? JSON.parse(row.tags) : row.tags ?? []
+    tags: typeof row.tags === 'string' ? JSON.parse(row.tags) : row.tags ?? [],
+    word_count: (row as Record<string, unknown>).word_count as number ?? 0
   }
 }

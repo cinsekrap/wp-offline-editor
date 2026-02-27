@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, protocol, net } from 'electron'
+import { app, BrowserWindow, Menu, shell, protocol, net } from 'electron'
 import { join, resolve, normalize } from 'path'
 import { is } from '@electron-toolkit/utils'
 import { initDatabase, closeDatabase } from './database'
@@ -56,6 +56,74 @@ function createWindow(): void {
   }
 }
 
+function buildMenu(): void {
+  const template: Electron.MenuItemConstructorOptions[] = [
+    {
+      label: app.name,
+      submenu: [
+        { role: 'about' },
+        { type: 'separator' },
+        { role: 'services' },
+        { type: 'separator' },
+        { role: 'hide' },
+        { role: 'hideOthers' },
+        { role: 'unhide' },
+        { type: 'separator' },
+        { role: 'quit' }
+      ]
+    },
+    {
+      label: 'File',
+      submenu: [
+        {
+          label: 'New Window',
+          accelerator: 'CmdOrCtrl+N',
+          click: (): void => createWindow()
+        },
+        { type: 'separator' },
+        { role: 'close' }
+      ]
+    },
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'selectAll' }
+      ]
+    },
+    {
+      label: 'View',
+      submenu: [
+        { role: 'reload' },
+        { role: 'forceReload' },
+        { role: 'toggleDevTools' },
+        { type: 'separator' },
+        { role: 'resetZoom' },
+        { role: 'zoomIn' },
+        { role: 'zoomOut' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' }
+      ]
+    },
+    {
+      label: 'Window',
+      submenu: [
+        { role: 'minimize' },
+        { role: 'zoom' },
+        { type: 'separator' },
+        { role: 'front' }
+      ]
+    }
+  ]
+
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template))
+}
+
 // Register media:// protocol for serving local media files in the renderer
 protocol.registerSchemesAsPrivileged([
   { scheme: 'media', privileges: { bypassCSP: true, stream: true, supportFetchAPI: true } }
@@ -69,7 +137,8 @@ app.whenReady().then(() => {
     const userDataDir = app.getPath('userData')
     const allowedPrefixes = [
       join(userDataDir, 'media') + '/',
-      join(userDataDir, 'media-library') + '/'
+      join(userDataDir, 'media-library') + '/',
+      join(userDataDir, 'site-icons') + '/'
     ]
 
     if (!allowedPrefixes.some((prefix) => resolved.startsWith(prefix))) {
@@ -81,6 +150,7 @@ app.whenReady().then(() => {
 
   initDatabase()
   registerIpcHandlers()
+  buildMenu()
   if (!is.dev) initAutoUpdater()
   createWindow()
 

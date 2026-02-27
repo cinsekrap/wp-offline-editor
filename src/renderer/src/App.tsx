@@ -25,7 +25,7 @@ import '@renderer/styles/globals.css'
 type View = 'dashboard' | 'posts' | 'settings' | 'templates'
 
 function App(): JSX.Element {
-  const { sites, addSite, updateSite, deleteSite, testConnection } = useSites()
+  const { sites, loading: sitesLoading, addSite, updateSite, deleteSite, testConnection } = useSites()
   const { toast } = useToast()
   const { online, justReconnected, clearReconnected } = useOnlineStatus()
   const { settings, updateSettings } = useSettings()
@@ -57,6 +57,19 @@ function App(): JSX.Element {
 
   // Effective online: real network AND not force-offline
   const effectiveOnline = online && !settings.forceOffline
+
+  // ── Initial routing: pick first site → dashboard, or settings/sites if none
+  const [initialRouted, setInitialRouted] = useState(false)
+  useEffect(() => {
+    if (sitesLoading || initialRouted) return
+    setInitialRouted(true)
+    if (sites.length > 0) {
+      setSelectedSiteId(sites[0].id)
+      setCurrentView('dashboard')
+    } else {
+      setCurrentView('settings')
+    }
+  }, [sitesLoading, initialRouted, sites])
 
   // ── Theme application ──────────────────────────────────────────────────
   useEffect(() => {
@@ -388,6 +401,7 @@ function App(): JSX.Element {
             settings={settings}
             onUpdateSettings={updateSettings}
             onClose={selectedSiteId ? () => setCurrentView('dashboard') : undefined}
+            initialSection={sites.length === 0 ? 'sites' : undefined}
           />
         )
       case 'dashboard':

@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3-multiple-ciphers'
 import { app } from 'electron'
 import { join } from 'path'
+import { rmSync } from 'fs'
 import { getOrCreateDbKey } from './credentials'
 
 let db: Database.Database | null = null
@@ -186,6 +187,34 @@ function runMigrations(db: Database.Database): void {
   if (!postColNames.has('slug')) {
     db.exec("ALTER TABLE posts ADD COLUMN slug TEXT NOT NULL DEFAULT ''")
   }
+  // word_count column on posts
+  if (!postColNames.has('word_count')) {
+    db.exec('ALTER TABLE posts ADD COLUMN word_count INTEGER NOT NULL DEFAULT 0')
+  }
+
+  // wp_author_id column on sites
+  if (!colNames.has('wp_author_id')) {
+    db.exec('ALTER TABLE sites ADD COLUMN wp_author_id INTEGER')
+  }
+
+  // site_icon_url column on sites
+  if (!colNames.has('site_icon_url')) {
+    db.exec('ALTER TABLE sites ADD COLUMN site_icon_url TEXT')
+  }
+
+  // Writing snapshots table (daily word count per post)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS writing_snapshots (
+      site_id TEXT NOT NULL,
+      post_id TEXT NOT NULL,
+      date TEXT NOT NULL,
+      word_count INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (site_id, post_id, date),
+      FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE,
+      FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_writing_snapshots_site_date ON writing_snapshots(site_id, date);
+  `)
 
   // Templates table (global, not per-site)
   db.exec(`
@@ -203,6 +232,32 @@ function runMigrations(db: Database.Database): void {
       updated_at TEXT NOT NULL
     )
   `)
+}
+
+export function clearAllData(): void {
+  closeDatabase()
+
+  const userData = app.getPath('userData')
+
+  // Delete the database file
+  try {
+    rmSync(join(userData, DB_FILENAME), { force: true })
+  } catch { /* ignore */ }
+
+  // Delete media, media-library, site-icons directories
+  for (const dir of ['media', 'media-library', 'site-icons']) {
+    try {
+      rmSync(join(userData, dir), { recursive: true, force: true })
+    } catch { /* ignore */ }
+  }
+
+  // Delete credentials file (keep db-key.enc.json and settings.json)
+  try {
+    rmSync(join(userData, 'credentials.enc.json'), { force: true })
+  } catch { /* ignore */ }
+
+  // Re-create empty database
+  initDatabase()
 }
 
 export function closeDatabase(): void {

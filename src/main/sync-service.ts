@@ -1,10 +1,13 @@
 import { v4 as uuidv4 } from 'uuid'
+import { join } from 'path'
+import { mkdirSync, writeFileSync } from 'fs'
+import { app } from 'electron'
 import { getDb } from './database'
-import { getSiteById } from './site-service'
+import { getSiteById, updateSiteIconUrl } from './site-service'
 import { getCredential } from './credentials'
 import { getPostById, deletePost, pullPostsForSite, downloadAndRewriteImages, rewriteAcfImageUrls, downloadFeaturedImage } from './post-service'
 import { getMediaForPost, uploadMediaToWp } from './media-service'
-import { pushPost, deleteRemotePost, fetchSinglePost, fetchUserNames } from './wp-client'
+import { pushPost, deleteRemotePost, fetchSinglePost, fetchUserNames, fetchSiteIcon } from './wp-client'
 import { decodeHtmlEntities } from './html-utils'
 import { sanitizeHtml } from './sanitize'
 import { pullAcfSchemaForSite } from './acf-service'
@@ -265,6 +268,24 @@ export async function syncSite(siteId: string): Promise<SyncResult> {
   const mediaLibraryPull = await pullMediaLibraryForSite(siteId)
   await pullTaxonomyTerms(siteId).catch(() => { /* non-critical */ })
 
+  // Refresh site icon (non-critical)
+  try {
+    const site = getSiteById(siteId)
+    const pw = site ? getCredential(site.keychain_ref) : null
+    if (site && pw) {
+      const result = await fetchSiteIcon(site.url, site.username, pw)
+      if (result) {
+        const iconDir = join(app.getPath('userData'), 'site-icons')
+        mkdirSync(iconDir, { recursive: true })
+        const iconPath = join(iconDir, `${siteId}${result.ext}`)
+        writeFileSync(iconPath, result.imageBuffer)
+        updateSiteIconUrl(siteId, iconPath)
+      } else {
+        updateSiteIconUrl(siteId, null)
+      }
+    }
+  } catch { /* non-critical */ }
+
   return { pushed, pushErrors, pull, schemaPull, mediaLibraryPull }
 }
 
@@ -273,5 +294,13 @@ export function getUnsyncedPostCount(siteId: string): number {
   const row = db
     .prepare('SELECT COUNT(*) as count FROM posts WHERE site_id = ? AND synced = 0')
     .get(siteId) as { count: number }
+  return row.count
+}
+
+export function getTotalUnsyncedCount(): number {
+  const db = getDb()
+  const row = db
+    .prepare('SELECT COUNT(*) as count FROM posts WHERE synced = 0')
+    .get() as { count: number }
   return row.count
 }

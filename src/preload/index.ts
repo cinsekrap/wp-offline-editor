@@ -22,6 +22,7 @@ const api: ElectronAPI = {
   resolveConflict: (postId, strategy) =>
     ipcRenderer.invoke('posts:resolve-conflict', postId, strategy),
   getUnsyncedPostCount: (siteId) => ipcRenderer.invoke('posts:unsynced-count', siteId),
+  getTotalUnsyncedCount: () => ipcRenderer.invoke('posts:total-unsynced-count'),
   syncSite: (siteId) => ipcRenderer.invoke('site:sync', siteId),
 
   // ACF Schema
@@ -54,6 +55,10 @@ const api: ElectronAPI = {
   updateTemplate: (update) => ipcRenderer.invoke('templates:update', update),
   deleteTemplate: (id) => ipcRenderer.invoke('templates:delete', id),
 
+  // Writing Stats
+  getWritingStats: (siteId) => ipcRenderer.invoke('stats:get-writing', siteId),
+  getWpAuthors: (siteId) => ipcRenderer.invoke('stats:get-authors', siteId),
+
   // Shortcodes
   getShortcodes: (siteId) => ipcRenderer.invoke('shortcodes:get', siteId),
 
@@ -63,6 +68,10 @@ const api: ElectronAPI = {
 
   // Plugin
   saveCompanionPlugin: () => ipcRenderer.invoke('plugin:save-companion'),
+
+  // Data management
+  clearSiteData: (siteId) => ipcRenderer.invoke('app:clear-site-data', siteId),
+  clearAllData: () => ipcRenderer.invoke('app:clear-all-data'),
 
   // App
   getVersion: () => ipcRenderer.invoke('app:version'),

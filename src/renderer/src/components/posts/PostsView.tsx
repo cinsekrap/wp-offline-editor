@@ -2,7 +2,7 @@ import { useCallback } from 'react'
 import { PostList } from './PostList'
 import type { PostListFilter } from './PostList'
 import { PostEditor } from '@renderer/components/editor/PostEditor'
-import type { Post, PostInput } from '@shared/types'
+import type { Post, PostInput, Site } from '@shared/types'
 
 interface PostsViewProps {
   siteId: string
@@ -18,6 +18,8 @@ interface PostsViewProps {
   refreshPosts: () => Promise<void>
   createPost: (input?: Partial<PostInput>) => Promise<Post>
   deletePost: (id: string) => Promise<void>
+  sites?: Site[]
+  onDuplicate?: (newPostId: string, targetSiteId: string) => void
 }
 
 export function PostsView({
@@ -33,7 +35,9 @@ export function PostsView({
   postsLoading,
   refreshPosts,
   createPost,
-  deletePost
+  deletePost,
+  sites,
+  onDuplicate
 }: PostsViewProps): JSX.Element {
   const handleSelectPost = useCallback((id: string) => {
     onSelectPost(id)
@@ -64,8 +68,9 @@ export function PostsView({
         onBack={onBack ?? (() => onSelectPost(null))}
         onDelete={handleDeletePost}
         onPostUpdated={handlePostUpdated}
-        online={online}
         editorFontSize={editorFontSize}
+        sites={sites}
+        onDuplicate={onDuplicate}
       />
     )
   }

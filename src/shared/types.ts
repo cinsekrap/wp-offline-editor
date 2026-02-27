@@ -13,6 +13,8 @@ export interface Site {
   last_schema_pull_at: string | null
   media_library_limit: number
   last_media_library_pull_at: string | null
+  wp_author_id: number | null
+  site_icon_url: string | null
   created_at: string
   updated_at: string
 }
@@ -36,6 +38,7 @@ export interface SiteUpdate {
   auto_sync?: boolean
   pull_published?: number
   media_library_limit?: number
+  wp_author_id?: number | null
 }
 
 // ── Post ─────────────────────────────────────────────────────────────────
@@ -58,6 +61,7 @@ export interface Post {
   slug: string
   categories: number[]
   tags: number[]
+  word_count: number
   modified_local: string
   modified_remote: string | null
   synced: boolean
@@ -255,6 +259,25 @@ export interface TemplateUpdate {
   tag_names?: string[]
 }
 
+// ── Writing Stats ───────────────────────────────────────────────────────
+
+export interface DailyWordCount {
+  date: string
+  wordCount: number
+}
+
+export interface WritingStats {
+  todayWords: number
+  weekWords: number
+  streak: number
+  dailyCounts: DailyWordCount[] // 30 entries, one per day
+}
+
+export interface WpAuthor {
+  id: number
+  name: string
+}
+
 // ── Push Results ────────────────────────────────────────────────────────
 
 export interface PushResult {
@@ -330,6 +353,7 @@ export interface ElectronAPI {
   pushPost(postId: string): Promise<PushResult>
   resolveConflict(postId: string, strategy: 'keep-mine' | 'keep-theirs' | 'fork'): Promise<void>
   getUnsyncedPostCount(siteId: string): Promise<number>
+  getTotalUnsyncedCount(): Promise<number>
   syncSite(siteId: string): Promise<SyncResult>
 
   // ACF Schema
@@ -366,6 +390,10 @@ export interface ElectronAPI {
   updateTemplate(update: TemplateUpdate): Promise<Template>
   deleteTemplate(id: string): Promise<void>
 
+  // Writing Stats
+  getWritingStats(siteId: string): Promise<WritingStats>
+  getWpAuthors(siteId: string): Promise<WpAuthor[]>
+
   // Shortcodes
   getShortcodes(siteId: string): Promise<string[]>
 
@@ -375,6 +403,10 @@ export interface ElectronAPI {
   // Settings
   getSettings(): Promise<AppSettings>
   updateSettings(patch: Partial<AppSettings>): Promise<AppSettings>
+
+  // Data management
+  clearSiteData(siteId: string): Promise<void>
+  clearAllData(): Promise<void>
 
   // App
   getVersion(): Promise<string>

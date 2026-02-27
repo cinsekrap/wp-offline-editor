@@ -22,7 +22,8 @@ export const SiteUpdateSchema = z.object({
   password: z.string().min(1).optional(),
   auto_sync: z.boolean().optional(),
   pull_published: z.number().int().positive().optional(),
-  media_library_limit: z.number().int().positive().optional()
+  media_library_limit: z.number().int().positive().optional(),
+  wp_author_id: z.number().int().nullable().optional()
 })
 
 export const PostInputSchema = z.object({

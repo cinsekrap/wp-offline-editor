@@ -38,7 +38,7 @@ function SiteFavicon({ site }: { site: Site }): JSX.Element {
   const letter = (site.label || site.url)[0]?.toUpperCase() || '?'
   const colorClass = AVATAR_COLORS[hashCode(site.id) % AVATAR_COLORS.length]
 
-  if (error) {
+  if (!site.site_icon_url || error) {
     return (
       <div
         className={`h-10 w-10 rounded-lg ${colorClass} flex items-center justify-center text-white font-semibold text-lg shrink-0`}
@@ -48,16 +48,15 @@ function SiteFavicon({ site }: { site: Site }): JSX.Element {
     )
   }
 
+  // Serve local icon file via media:// protocol
+  const iconSrc = `media://file${site.site_icon_url}`
+
   return (
     <img
-      src={`${site.url.replace(/\/$/, '')}/favicon.ico`}
+      src={iconSrc}
       alt=""
       className="h-10 w-10 rounded-lg object-contain shrink-0 bg-muted"
       onError={() => setError(true)}
-      onLoad={(e) => {
-        const img = e.currentTarget
-        if (img.naturalWidth === 0 || img.naturalHeight === 0) setError(true)
-      }}
     />
   )
 }

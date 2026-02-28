@@ -33,13 +33,6 @@ jobs:
       - name: Build companion plugin ZIP
         run: pnpm build:plugin
 
-      - name: Upload companion plugin
-        uses: softprops/action-gh-release@v2
-        with:
-          files: resources/wp-offline-editor-companion.zip
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - run: pnpm exec electron-builder --mac --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -47,3 +40,8 @@ jobs:
           # APPLE_ID: ${{ secrets.APPLE_ID }}
           # APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           # APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: Upload companion plugin to release
+        run: gh release upload "v${GITHUB_REF_NAME#v}" resources/wp-offline-editor-companion.zip --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

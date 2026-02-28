@@ -25,6 +25,9 @@ jobs:
       # TODO: restore signing certificate step for v1.0
       # - name: Import signing certificate
 
+      - name: Set version from tag
+        run: node -e "const p=require('./package.json'); p.version='${GITHUB_REF_NAME#v}'; require('fs').writeFileSync('package.json', JSON.stringify(p,null,2)+'\n')"
+
       - run: pnpm build
 
       - name: Build companion plugin ZIP

@@ -1,12 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { Label } from '@renderer/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@renderer/components/ui/select'
 import { Calendar } from '@renderer/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/components/ui/popover'
 import { Button } from '@renderer/components/ui/button'
@@ -95,17 +88,18 @@ export function PostMeta({
   const [visibilityOpen, setVisibilityOpen] = useState(false)
   const [publishConfirmOpen, setPublishConfirmOpen] = useState(false)
 
+  // "Publish later" staging: pick a date before committing to scheduled status
+  const [scheduling, setScheduling] = useState(false)
+  const [pendingDate, setPendingDate] = useState<Date | undefined>(undefined)
+
   const published = isPublished(status)
 
   // Sync from parent when post loads
   useEffect(() => {
     setVisibility(toVisibility(status))
     setDateExpanded(!!scheduledDate)
+    setScheduling(false)
   }, [status, scheduledDate])
-
-  const handleDraftStatusChange = useCallback((newStatus: string) => {
-    onStatusChange(newStatus as PostStatus)
-  }, [onStatusChange])
 
   const handlePublishImmediately = useCallback(() => {
     setPublishConfirmOpen(false)
@@ -114,13 +108,24 @@ export function PostMeta({
   }, [visibility, onDateChange, onStatusChange])
 
   const handlePublishLater = useCallback(() => {
-    setDateExpanded(true)
     const tomorrow = new Date()
     tomorrow.setDate(tomorrow.getDate() + 1)
     tomorrow.setHours(9, 0, 0, 0)
-    onDateChange(tomorrow)
-    onStatusChange(resolvePublishedStatus(visibility, tomorrow))
-  }, [visibility, onDateChange, onStatusChange])
+    setPendingDate(tomorrow)
+    setScheduling(true)
+  }, [])
+
+  const handleConfirmSchedule = useCallback(() => {
+    if (!pendingDate) return
+    onDateChange(pendingDate)
+    onStatusChange(resolvePublishedStatus(visibility, pendingDate))
+    setScheduling(false)
+  }, [pendingDate, visibility, onDateChange, onStatusChange])
+
+  const handleCancelSchedule = useCallback(() => {
+    setScheduling(false)
+    setPendingDate(undefined)
+  }, [])
 
   const handleVisibilityChange = useCallback((newVisibility: Visibility) => {
     setVisibility(newVisibility)
@@ -190,90 +195,151 @@ export function PostMeta({
     <div className="space-y-4 p-4">
       {/* Status */}
       <div className="space-y-1.5">
-        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-          Status
-        </Label>
         {!published ? (
           <>
-            <Select value={status === 'trash' ? 'draft' : status} onValueChange={handleDraftStatusChange}>
-              <SelectTrigger className="h-8 text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="draft">Draft</SelectItem>
-                <SelectItem value="pending">Pending Review</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="w-full h-8 flex items-center justify-center rounded-md border text-sm">
+              <Badge variant="outline" className="text-xs bg-yellow-100 text-yellow-800 border-yellow-200 border-0">
+                Draft
+              </Badge>
+            </div>
 
             {/* Publish actions */}
-            <div className="space-y-1.5 pt-2">
-              <Popover open={publishConfirmOpen} onOpenChange={setPublishConfirmOpen}>
-                <PopoverTrigger asChild>
-                  <Button variant="default" size="sm" className="w-full h-8 text-sm">
-                    Publish immediately
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent align="start" className="w-72 p-3">
-                  <div className="flex gap-2 mb-2">
-                    <AlertTriangle className="h-4 w-4 text-orange-500 shrink-0 mt-0.5" />
-                    <p className="text-sm text-muted-foreground">
-                      This post will go <strong>live on your site</strong> at the next sync. Are you sure?
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
+            <div className="space-y-1.5">
+              {!scheduling && (
+                <Popover open={publishConfirmOpen} onOpenChange={setPublishConfirmOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="default" size="sm" className="w-full h-8 text-sm">
+                      Publish immediately
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" className="w-72 p-3">
+                    <div className="flex gap-2 mb-2">
+                      <AlertTriangle className="h-4 w-4 text-orange-500 shrink-0 mt-0.5" />
+                      <p className="text-sm text-muted-foreground">
+                        This post will go <strong>live on your site</strong> at the next sync. Are you sure?
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 h-7 text-xs"
+                        onClick={() => setPublishConfirmOpen(false)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        variant="default"
+                        size="sm"
+                        className="flex-1 h-7 text-xs"
+                        onClick={handlePublishImmediately}
+                      >
+                        Publish
+                      </Button>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              )}
+              {!scheduling && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full h-8 text-sm"
+                  onClick={handlePublishLater}
+                >
+                  <CalendarIcon className="mr-2 h-3.5 w-3.5" />
+                  Publish later
+                </Button>
+              )}
+            </div>
+
+            {/* Schedule date picker (shown before committing) */}
+            {scheduling && pendingDate && (
+              <div className="space-y-2 border rounded-md p-3">
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Schedule for
+                </Label>
+                <Popover>
+                  <PopoverTrigger asChild>
                     <Button
                       variant="outline"
-                      size="sm"
-                      className="flex-1 h-7 text-xs"
-                      onClick={() => setPublishConfirmOpen(false)}
+                      className="h-8 w-full justify-start text-left text-sm font-normal"
                     >
-                      Cancel
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {format(pendingDate, 'PPP')}
                     </Button>
-                    <Button
-                      variant="default"
-                      size="sm"
-                      className="flex-1 h-7 text-xs"
-                      onClick={handlePublishImmediately}
-                    >
-                      Publish
-                    </Button>
-                  </div>
-                </PopoverContent>
-              </Popover>
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full h-8 text-sm"
-                onClick={handlePublishLater}
-              >
-                <CalendarIcon className="mr-2 h-3.5 w-3.5" />
-                Publish later
-              </Button>
-            </div>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={pendingDate}
+                      onSelect={(d) => d && setPendingDate(prev => {
+                        const next = new Date(d)
+                        if (prev) {
+                          next.setHours(prev.getHours(), prev.getMinutes())
+                        }
+                        return next
+                      })}
+                    />
+                  </PopoverContent>
+                </Popover>
+                <Input
+                  type="time"
+                  className="h-8 text-sm"
+                  value={format(pendingDate, 'HH:mm')}
+                  onChange={(e) => {
+                    const [hours, minutes] = e.target.value.split(':').map(Number)
+                    const next = new Date(pendingDate)
+                    next.setHours(hours, minutes)
+                    setPendingDate(next)
+                  }}
+                />
+                <div className="flex gap-2 pt-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 h-7 text-xs"
+                    onClick={handleCancelSchedule}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="default"
+                    size="sm"
+                    className="flex-1 h-7 text-xs"
+                    onClick={handleConfirmSchedule}
+                  >
+                    Schedule
+                  </Button>
+                </div>
+              </div>
+            )}
           </>
         ) : (
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
+          <div className="space-y-1.5">
+            <div className="w-full h-8 flex items-center justify-center rounded-md border text-sm">
               <Badge variant="outline" className={cn(
-                'text-xs',
+                'text-xs border-0',
                 status === 'future'
-                  ? 'bg-blue-100 text-blue-800 border-blue-200'
-                  : 'bg-green-100 text-green-800 border-green-200'
+                  ? 'bg-blue-100 text-blue-800'
+                  : 'bg-green-100 text-green-800'
               )}>
                 {status === 'future' ? 'Scheduled' : status === 'private' ? 'Private' : 'Published'}
               </Badge>
             </div>
             {status === 'future' && scheduledDate && (
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground text-center">
                 {format(scheduledDate, 'PPP')} at {format(scheduledDate, 'p')}
               </p>
             )}
-            <button
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full h-8 text-sm"
               onClick={handleRevertToDraft}
             >
               Revert to draft
-            </button>
+            </Button>
           </div>
         )}
       </div>
@@ -327,15 +393,17 @@ export function PostMeta({
                   }}
                 />
               )}
-              <button
-                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full h-8 text-sm"
                 onClick={() => {
                   setDateExpanded(false)
                   handleDateChange(undefined)
                 }}
               >
                 Reset to immediately
-              </button>
+              </Button>
             </div>
           )}
         </div>

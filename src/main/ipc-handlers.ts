@@ -3,10 +3,11 @@ import { join } from 'path'
 import { copyFileSync, readFileSync, writeFileSync } from 'fs'
 import { z } from 'zod'
 import { is } from '@electron-toolkit/utils'
-import { getAllSites, getSiteById, addSite, updateSite, deleteSite } from './site-service'
-import { testWpConnection } from './wp-client'
+import { getAllSites, getSiteById, addSite, updateSite, deleteSite, clearSiteData } from './site-service'
+import { testWpConnection, fetchAuthors } from './wp-client'
+import { getCredential } from './credentials'
 import { pullPostsForSite, getAllPostsForSite, getPostById, createPost, updatePost } from './post-service'
-import { pushPostToWp, deletePostFromWp, resolveConflict, getUnsyncedPostCount, syncSite } from './sync-service'
+import { pushPostToWp, deletePostFromWp, resolveConflict, getUnsyncedPostCount, getTotalUnsyncedCount, syncSite } from './sync-service'
 import { pullAcfSchemaForSite, getAcfSchemasForSite } from './acf-service'
 import {
   saveMediaLocally,
@@ -22,6 +23,8 @@ import { getShortcodesForSite } from './shortcode-service'
 import { getSettings, updateSettings } from './settings-service'
 import { htmlToMarkdown, markdownToHtml } from './markdown-service'
 import { getAllTemplates, getTemplateById, createTemplate, updateTemplate, deleteTemplate } from './template-service'
+import { getWritingStats } from './stats-service'
+import { clearAllData } from './database'
 import { checkForUpdates, downloadUpdate, installUpdate } from './updater'
 import {
   uuidSchema,
@@ -109,6 +112,10 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('posts:unsynced-count', (_event, siteId: unknown) => {
     return getUnsyncedPostCount(uuidSchema.parse(siteId))
+  })
+
+  ipcMain.handle('posts:total-unsynced-count', () => {
+    return getTotalUnsyncedCount()
   })
 
   ipcMain.handle('site:sync', (_event, siteId: unknown) => {
@@ -244,6 +251,31 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('templates:delete', (_event, id: unknown) => {
     deleteTemplate(z.string().parse(id))
+  })
+
+  // ── Writing Stats ──────────────────────────────────────────────────────
+
+  ipcMain.handle('stats:get-writing', (_event, siteId: unknown) => {
+    return getWritingStats(uuidSchema.parse(siteId))
+  })
+
+  ipcMain.handle('stats:get-authors', async (_event, siteId: unknown) => {
+    const id = uuidSchema.parse(siteId)
+    const site = getSiteById(id)
+    if (!site) throw new Error(`Site not found: ${id}`)
+    const password = getCredential(site.keychain_ref)
+    if (!password) throw new Error('Missing credentials for site')
+    return fetchAuthors(site.url, site.username, password)
+  })
+
+  // ── Data management ──────────────────────────────────────────────────────
+
+  ipcMain.handle('app:clear-site-data', (_event, siteId: unknown) => {
+    clearSiteData(uuidSchema.parse(siteId))
+  })
+
+  ipcMain.handle('app:clear-all-data', () => {
+    clearAllData()
   })
 
   // ── Settings ────────────────────────────────────────────────────────────

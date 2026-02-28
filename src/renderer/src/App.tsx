@@ -415,6 +415,7 @@ function App(): JSX.Element {
         }
         return (
           <SiteDashboard
+            siteId={selectedSiteId}
             posts={posts}
             loading={(postsLoading || syncing) && posts.length === 0}
             onSelectPost={handleDashboardSelectPost}

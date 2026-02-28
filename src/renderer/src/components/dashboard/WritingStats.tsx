@@ -49,8 +49,8 @@ export function WritingStats({ siteId, compact }: WritingStatsProps): JSX.Elemen
     try {
       const s = await window.electronAPI.getWritingStats(siteId)
       setStats(s)
-    } catch {
-      // Stats are non-critical
+    } catch (err) {
+      console.error('[WritingStats] Failed to load stats:', err)
     }
   }, [siteId])
 

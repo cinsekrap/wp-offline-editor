@@ -2,7 +2,7 @@ import { useCallback } from 'react'
 import { PostList } from './PostList'
 import type { PostListFilter } from './PostList'
 import { PostEditor } from '@renderer/components/editor/PostEditor'
-import type { Post, PostInput, Site } from '@shared/types'
+import type { Post, PostInput, PostStatus, Site } from '@shared/types'
 
 interface PostsViewProps {
   siteId: string
@@ -50,6 +50,16 @@ export function PostsView({
     refreshPosts()
   }, [selectedPostId, deletePost, onSelectPost, refreshPosts])
 
+  const handleBulkStatus = useCallback(async (postIds: string[], status: PostStatus) => {
+    await window.electronAPI.bulkUpdateStatus(postIds, status)
+    await refreshPosts()
+  }, [refreshPosts])
+
+  const handleBulkDelete = useCallback(async (postIds: string[]) => {
+    await window.electronAPI.bulkDeletePosts(postIds)
+    await refreshPosts()
+  }, [refreshPosts])
+
   if (selectedPostId) {
     return (
       <PostEditor
@@ -70,9 +80,12 @@ export function PostsView({
     <PostList
       posts={posts}
       loading={postsLoading || !!pulling}
+      siteId={siteId}
       onSelectPost={onSelectPost}
       onNewPost={handleNewPost}
       initialFilter={initialFilter}
+      onBulkStatus={handleBulkStatus}
+      onBulkDelete={handleBulkDelete}
     />
   )
 }

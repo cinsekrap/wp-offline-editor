@@ -9,6 +9,8 @@ import { sanitizeHtml } from './sanitize'
 import { saveMediaFromWp } from './media-service'
 import { net } from 'electron'
 import { existsSync } from 'fs'
+import { indexPost, removePostFromIndex } from './search-service'
+import { captureRevision } from './revision-service'
 import type { Post, PostInput, PostUpdate, PullResult, WpPostRaw } from '@shared/types'
 
 async function downloadBuffer(url: string): Promise<Buffer | null> {
@@ -224,6 +226,7 @@ async function upsertPost(
       UPDATE posts SET content = ?, acf = ?, featured_image = ?
       WHERE id = ?
     `).run(content, acfJson, featuredImage, postLocalId)
+    indexPost(postLocalId, siteId, title, content, excerpt)
     return 'created'
   }
 
@@ -293,6 +296,7 @@ async function upsertPost(
       UPDATE posts SET title = ?, content = ?, status = ?, acf = ?, excerpt = ?, slug = ?, date = ?, author_id = ?, author_name = ?, featured_image = ?, categories = ?, tags = ?, modified_local = ?, modified_remote = ?, synced = 1, conflict = 0
       WHERE id = ?
     `).run(title, content, status, acfJson, excerpt, slug, wpDate, authorId, authorName, featuredImage, categoriesJson, tagsJson, now, modifiedRemote, existing.id)
+    indexPost(existing.id, siteId, title, content, excerpt)
     return 'updated'
   }
 
@@ -327,6 +331,7 @@ export function createPost(input: PostInput): Post {
     VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, NULL, 0, 0)
   `).run(id, input.site_id, input.title ?? '', input.content ?? '', input.status ?? 'draft', acfJson, input.excerpt ?? '', input.slug ?? '', now)
 
+  indexPost(id, input.site_id, input.title ?? '', input.content ?? '', input.excerpt ?? '')
   return getPostById(id)!
 }
 
@@ -371,12 +376,43 @@ export function updatePost(update: PostUpdate): Post {
     ON CONFLICT(site_id, post_id, date) DO UPDATE SET word_count = excluded.word_count
   `).run(existing.site_id, update.id, today, wordCount)
 
+  indexPost(update.id, existing.site_id, title, content, excerpt)
+  captureRevision(update.id, title, content, excerpt, wordCount)
+
   return getPostById(update.id)!
 }
 
 export function deletePost(id: string): void {
   const db = getDb()
+  removePostFromIndex(id)
   db.prepare('DELETE FROM posts WHERE id = ?').run(id)
+}
+
+export function bulkUpdateStatus(postIds: string[], status: string): number {
+  const db = getDb()
+  const now = new Date().toISOString()
+  const update = db.prepare('UPDATE posts SET status = ?, modified_local = ?, synced = 0 WHERE id = ?')
+  const tx = db.transaction(() => {
+    let count = 0
+    for (const id of postIds) {
+      const result = update.run(status, now, id)
+      count += result.changes
+    }
+    return count
+  })
+  return tx()
+}
+
+export function bulkDeletePosts(postIds: string[]): void {
+  const db = getDb()
+  const del = db.prepare('DELETE FROM posts WHERE id = ?')
+  const tx = db.transaction(() => {
+    for (const id of postIds) {
+      removePostFromIndex(id)
+      del.run(id)
+    }
+  })
+  tx()
 }
 
 /** Raw shape from SQLite — booleans are integers, JSON columns are strings */

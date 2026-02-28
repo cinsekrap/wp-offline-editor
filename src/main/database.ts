@@ -223,6 +223,42 @@ const migrations: Array<(db: Database.Database) => void> = [
       CREATE UNIQUE INDEX IF NOT EXISTS idx_scratchpads_site_wp ON scratchpads(site_id, wp_id);
     `)
     safeAddColumn(db, 'posts', 'scratchpad_id', 'TEXT DEFAULT NULL')
+  },
+
+  // ── v3: revisions table + FTS5 virtual table ──
+  (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS revisions (
+        id TEXT PRIMARY KEY,
+        post_id TEXT NOT NULL,
+        title TEXT NOT NULL DEFAULT '',
+        content TEXT NOT NULL DEFAULT '',
+        excerpt TEXT NOT NULL DEFAULT '',
+        word_count INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS idx_revisions_post_id ON revisions(post_id);
+      CREATE INDEX IF NOT EXISTS idx_revisions_created_at ON revisions(post_id, created_at);
+    `)
+
+    db.exec(`
+      CREATE VIRTUAL TABLE IF NOT EXISTS posts_fts USING fts5(
+        post_id UNINDEXED, site_id UNINDEXED,
+        title, content, excerpt,
+        tokenize='porter unicode61'
+      );
+    `)
+
+    // Populate FTS from existing posts (strip HTML tags from content)
+    const posts = db.prepare('SELECT id, site_id, title, content, excerpt FROM posts').all() as {
+      id: string; site_id: string; title: string; content: string; excerpt: string
+    }[]
+    const insert = db.prepare('INSERT INTO posts_fts (post_id, site_id, title, content, excerpt) VALUES (?, ?, ?, ?, ?)')
+    for (const p of posts) {
+      const plainContent = p.content.replace(/<[^>]*>/g, ' ').replace(/&[^;]+;/g, ' ').replace(/\s+/g, ' ').trim()
+      insert.run(p.id, p.site_id, p.title, plainContent, p.excerpt)
+    }
   }
 ]
 

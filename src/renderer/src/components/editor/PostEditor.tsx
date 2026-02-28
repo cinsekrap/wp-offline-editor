@@ -8,7 +8,8 @@ import {
   PanelRight,
   AlertTriangle,
   Trash2,
-  Maximize2
+  Maximize2,
+  Clock
 } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
 import { Input } from '@renderer/components/ui/input'
@@ -17,6 +18,7 @@ import { PostMeta } from './PostMeta'
 import { AcfPanel } from './acf/AcfPanel'
 import { AcfMediaProvider } from './acf/AcfMediaContext'
 import { ScratchpadPanel } from './ScratchpadPanel'
+import { RevisionHistory } from './RevisionHistory'
 import { ConflictDialog } from './ConflictDialog'
 import { DeletePostDialog } from './DeletePostDialog'
 import { DuplicateToDialog } from './DuplicateToDialog'
@@ -131,7 +133,7 @@ export function PostEditor({
   const { queue, pending, refresh: refreshQueue, uploadItem, uploadAll } = useMediaQueue(siteId, postId)
   const { schemas: acfSchemas } = useAcfSchema(siteId)
   const hasAcf = acfSchemas.some((s) => s.fields.length > 0)
-  const [sidebarTab, setSidebarTab] = useState<'post' | 'acf' | 'scratchpad'>('post')
+  const [sidebarTab, setSidebarTab] = useState<'post' | 'acf' | 'scratchpad' | 'history'>('post')
 
   useEffect(() => {
     initializedRef.current = false
@@ -163,12 +165,14 @@ export function PostEditor({
 
   const { status: saveStatus, flush } = useAutoSave(update)
 
-  // Flush on unmount or post switch
+  // Flush on unmount or post switch, then checkpoint a revision
   const flushRef = useRef(flush)
   flushRef.current = flush
   useEffect(() => {
+    const id = postId
     return () => {
       flushRef.current()
+      window.electronAPI.captureRevision(id)
     }
   }, [postId])
 
@@ -327,6 +331,17 @@ export function PostEditor({
       setDuplicating(false)
     }
   }, [onDuplicate, siteId, title, content, acf, excerpt, slug, flush, toast])
+
+  const handleRevisionRestore = useCallback((restored: { title: string; content: string; excerpt: string }) => {
+    setTitle(restored.title)
+    setContent(restored.content)
+    setExcerpt(restored.excerpt)
+    if (editorRef.current) {
+      editorRef.current.commands.setContent(restored.content)
+    }
+    onPostUpdated()
+    toast({ title: 'Revision restored' })
+  }, [onPostUpdated, toast])
 
   const handleBack = useCallback(async () => {
     // If the post is blank (no title, no content), delete it silently
@@ -543,6 +558,23 @@ export function PostEditor({
           <Button
             variant="ghost"
             size="icon"
+            className={cn('h-8 w-8', sidebarTab === 'history' && 'bg-accent')}
+            onClick={() => {
+              if (sidebarTab === 'history') {
+                setSidebarTab('post')
+              } else {
+                setSidebarTab('history')
+                setRightPanelOpen(true)
+              }
+            }}
+            title="Revision history"
+          >
+            <Clock className="h-4 w-4" />
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="icon"
             className="h-8 w-8 text-muted-foreground hover:text-destructive"
             onClick={() => setDeleteDialogOpen(true)}
             title="Delete post"
@@ -655,6 +687,9 @@ export function PostEditor({
           )}
           {sidebarTab === 'scratchpad' && (
             <ScratchpadPanel siteId={siteId} postId={postId} />
+          )}
+          {sidebarTab === 'history' && (
+            <RevisionHistory postId={postId} onRestore={handleRevisionRestore} />
           )}
         </div>
       )}

@@ -89,6 +89,20 @@ export const ScratchpadUpdateSchema = z.object({
   content: z.string().optional()
 })
 
+export const BulkStatusSchema = z.object({
+  postIds: z.array(z.string().uuid()).min(1),
+  status: z.enum(['draft', 'publish', 'pending', 'private', 'future', 'trash'])
+})
+
+export const BulkDeleteSchema = z.object({
+  postIds: z.array(z.string().uuid()).min(1)
+})
+
+export const SearchQuerySchema = z.object({
+  query: z.string().min(1),
+  siteId: z.string().uuid()
+})
+
 export const AppSettingsSchema = z.object({
   theme: z.enum(['light', 'dark', 'system']).optional(),
   editorFontSize: z.number().int().min(8).max(32).optional(),

@@ -68,6 +68,18 @@ const api: ElectronAPI = {
   getWritingStats: (siteId) => ipcRenderer.invoke('stats:get-writing', siteId),
   getWpAuthors: (siteId) => ipcRenderer.invoke('stats:get-authors', siteId),
 
+  // Search
+  searchPosts: (query, siteId) => ipcRenderer.invoke('posts:search', query, siteId),
+
+  // Revisions
+  getRevisions: (postId) => ipcRenderer.invoke('revisions:get-all', postId),
+  captureRevision: (postId) => ipcRenderer.invoke('revisions:capture', postId),
+  restoreRevision: (revisionId) => ipcRenderer.invoke('revisions:restore', revisionId),
+
+  // Bulk operations
+  bulkUpdateStatus: (postIds, status) => ipcRenderer.invoke('posts:bulk-status', { postIds, status }),
+  bulkDeletePosts: (postIds) => ipcRenderer.invoke('posts:bulk-delete', { postIds }),
+
   // Shortcodes
   getShortcodes: (siteId) => ipcRenderer.invoke('shortcodes:get', siteId),
 

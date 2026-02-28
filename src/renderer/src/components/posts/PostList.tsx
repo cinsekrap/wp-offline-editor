@@ -1,11 +1,15 @@
-import { useState, useMemo, useEffect, useRef } from 'react'
-import { Plus, Loader2, AlertTriangle, CheckCircle, CloudUpload, Filter, ArrowUpDown } from 'lucide-react'
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
+import {
+  Plus, Loader2, AlertTriangle, CheckCircle, CloudUpload,
+  Filter, ArrowUpDown, Search, X, CheckSquare
+} from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
 import { Badge } from '@renderer/components/ui/badge'
+import { Input } from '@renderer/components/ui/input'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/components/ui/popover'
 import { cn } from '@renderer/lib/utils'
-import type { Post, PostStatus } from '@shared/types'
+import type { Post, PostStatus, SearchResult } from '@shared/types'
 
 const STATUS_COLORS: Record<string, string> = {
   publish: 'bg-green-100 text-green-800 border-green-200',
@@ -63,22 +67,81 @@ export type PostListFilter = 'drafts-unsynced' | 'published' | 'scheduled'
 interface PostListProps {
   posts: Post[]
   loading: boolean
+  siteId: string
   onSelectPost: (id: string) => void
   onNewPost: () => void
   initialFilter?: PostListFilter | null
+  onBulkStatus?: (postIds: string[], status: PostStatus) => Promise<void>
+  onBulkDelete?: (postIds: string[]) => Promise<void>
 }
 
 export function PostList({
   posts,
   loading,
+  siteId,
   onSelectPost,
   onNewPost,
-  initialFilter
+  initialFilter,
+  onBulkStatus,
+  onBulkDelete
 }: PostListProps): JSX.Element {
   const [activeFilters, setActiveFilters] = useState<Set<PostStatus>>(new Set())
   const [activeAuthorFilters, setActiveAuthorFilters] = useState<Set<number>>(new Set())
   const [syncFilter, setSyncFilter] = useState<'all' | 'synced' | 'unsynced'>('all')
   const [sortBy, setSortBy] = useState<SortOption>('date')
+
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<SearchResult[] | null>(null)
+  const [searching, setSearching] = useState(false)
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout>>()
+
+  // Multi-select state
+  const [selectMode, setSelectMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkAction, setBulkAction] = useState<'publish' | 'delete' | null>(null)
+  const [bulkLoading, setBulkLoading] = useState(false)
+
+  // Debounced search
+  useEffect(() => {
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
+    if (!searchQuery.trim()) {
+      setSearchResults(null)
+      setSearching(false)
+      return
+    }
+    setSearching(true)
+    searchTimerRef.current = setTimeout(async () => {
+      try {
+        const results = await window.electronAPI.searchPosts(searchQuery.trim(), siteId)
+        setSearchResults(results)
+      } catch {
+        setSearchResults([])
+      } finally {
+        setSearching(false)
+      }
+    }, 300)
+    return () => {
+      if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
+    }
+  }, [searchQuery, siteId])
+
+  // Exit select mode clears selection
+  const toggleSelectMode = useCallback(() => {
+    setSelectMode((prev) => {
+      if (prev) setSelectedIds(new Set())
+      return !prev
+    })
+  }, [])
+
+  const toggleSelected = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }, [])
 
   // Apply initial filter from dashboard navigation
   const appliedFilterRef = useRef<PostListFilter | null | undefined>(undefined)
@@ -190,12 +253,66 @@ export function PostList({
     setSyncFilter('all')
   }
 
+  const allSelected = selectMode && filteredAndSorted.length > 0 && filteredAndSorted.every((p) => selectedIds.has(p.id))
+
+  function toggleSelectAll(): void {
+    if (allSelected) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(filteredAndSorted.map((p) => p.id)))
+    }
+  }
+
+  async function handleBulkDraft(): Promise<void> {
+    if (!onBulkStatus || selectedIds.size === 0) return
+    setBulkLoading(true)
+    try {
+      await onBulkStatus([...selectedIds], 'draft')
+      setSelectedIds(new Set())
+      setSelectMode(false)
+    } finally {
+      setBulkLoading(false)
+    }
+  }
+
+  async function handleBulkConfirm(): Promise<void> {
+    if (selectedIds.size === 0) return
+    setBulkLoading(true)
+    try {
+      if (bulkAction === 'publish' && onBulkStatus) {
+        await onBulkStatus([...selectedIds], 'publish')
+      } else if (bulkAction === 'delete' && onBulkDelete) {
+        await onBulkDelete([...selectedIds])
+      }
+      setSelectedIds(new Set())
+      setSelectMode(false)
+    } finally {
+      setBulkLoading(false)
+      setBulkAction(null)
+    }
+  }
+
+  // Render search results
+  const isSearching = searchQuery.trim().length > 0
+  const showSearchResults = isSearching && searchResults !== null
+
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col relative">
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-3 border-b shrink-0">
         <h2 className="text-lg font-semibold">Posts</h2>
         <div className="flex items-center gap-1">
+          {/* Select mode toggle */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className={cn('h-8 w-8', selectMode && 'bg-accent')}
+            onClick={toggleSelectMode}
+            title={selectMode ? 'Exit select mode' : 'Select posts'}
+          >
+            <CheckSquare className="h-4 w-4" />
+          </Button>
+
           {/* Filter popover */}
           <Popover>
             <PopoverTrigger asChild>
@@ -306,9 +423,85 @@ export function PostList({
         </div>
       </div>
 
+      {/* Search bar */}
+      <div className="px-6 py-2 border-b shrink-0">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search posts..."
+            className="pl-8 pr-8 h-8 text-sm"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Select-all bar */}
+      {selectMode && !isSearching && (
+        <div className="flex items-center gap-2 px-6 py-1.5 border-b shrink-0 bg-accent/30">
+          <button
+            onClick={toggleSelectAll}
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+          >
+            <div className={cn(
+              'h-4 w-4 rounded border flex items-center justify-center',
+              allSelected ? 'bg-foreground border-foreground' : 'border-border'
+            )}>
+              {allSelected && <CheckSquare className="h-3 w-3 text-background" />}
+            </div>
+            {allSelected ? 'Deselect all' : 'Select all'}
+          </button>
+          {selectedIds.size > 0 && (
+            <span className="text-xs text-muted-foreground">{selectedIds.size} selected</span>
+          )}
+        </div>
+      )}
+
       {/* List */}
       <ScrollArea className="flex-1">
         {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : showSearchResults ? (
+          // Search results
+          searching ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : searchResults!.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <p className="text-sm">No results for &ldquo;{searchQuery}&rdquo;</p>
+            </div>
+          ) : (
+            <div className="max-w-2xl mx-auto py-2">
+              {searchResults!.map((result) => (
+                <button
+                  key={result.post_id}
+                  onClick={() => onSelectPost(result.post_id)}
+                  className="w-full text-left px-6 py-3 transition-colors hover:bg-accent/50"
+                >
+                  <p
+                    className="text-sm font-medium truncate [&_mark]:bg-yellow-200 [&_mark]:text-foreground dark:[&_mark]:bg-yellow-800"
+                    dangerouslySetInnerHTML={{ __html: result.title }}
+                  />
+                  <p
+                    className="text-xs text-muted-foreground mt-1 line-clamp-2 [&_mark]:bg-yellow-200 [&_mark]:text-foreground dark:[&_mark]:bg-yellow-800"
+                    dangerouslySetInnerHTML={{ __html: result.snippet }}
+                  />
+                </button>
+              ))}
+            </div>
+          )
+        ) : isSearching && searching ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           </div>
@@ -334,10 +527,36 @@ export function PostList({
             {filteredAndSorted.map((post) => (
               <button
                 key={post.id}
-                onClick={() => onSelectPost(post.id)}
-                className="w-full text-left px-6 py-3 transition-colors hover:bg-accent/50"
+                onClick={() => {
+                  if (selectMode) {
+                    toggleSelected(post.id)
+                  } else {
+                    onSelectPost(post.id)
+                  }
+                }}
+                className={cn(
+                  'w-full text-left px-6 py-3 transition-colors hover:bg-accent/50',
+                  selectMode && selectedIds.has(post.id) && 'bg-accent/40'
+                )}
               >
                 <div className="flex items-center gap-2 min-w-0">
+                  {selectMode && (
+                    <div
+                      className={cn(
+                        'h-4 w-4 rounded border shrink-0 flex items-center justify-center',
+                        selectedIds.has(post.id)
+                          ? 'bg-foreground border-foreground'
+                          : 'border-border'
+                      )}
+                      onClick={(e) => { e.stopPropagation(); toggleSelected(post.id) }}
+                    >
+                      {selectedIds.has(post.id) && (
+                        <svg className="h-3 w-3 text-background" viewBox="0 0 16 16" fill="none">
+                          <path d="M3 8l3.5 3.5L13 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      )}
+                    </div>
+                  )}
                   <p className="text-sm font-medium truncate flex-1">
                     {post.title || '(Untitled)'}
                   </p>
@@ -351,7 +570,7 @@ export function PostList({
                     <CheckCircle className="h-3.5 w-3.5 text-green-500 shrink-0" />
                   )}
                 </div>
-                <div className="flex items-center gap-2 mt-1">
+                <div className={cn('flex items-center gap-2 mt-1', selectMode && 'ml-6')}>
                   <Badge className={cn('text-[10px] px-1.5 py-0', STATUS_COLORS[post.status] || '')} variant="outline">
                     {STATUS_LABELS[post.status] || post.status}
                   </Badge>
@@ -364,6 +583,53 @@ export function PostList({
           </div>
         )}
       </ScrollArea>
+
+      {/* Bulk action bar */}
+      {selectMode && selectedIds.size > 0 && !bulkAction && (
+        <div className="absolute bottom-4 left-4 right-4 rounded-lg shadow-lg bg-background border p-3 flex items-center gap-2 z-10">
+          <span className="text-sm font-medium flex-1">{selectedIds.size} selected</span>
+          <Button size="sm" variant="outline" onClick={handleBulkDraft} disabled={bulkLoading}>
+            Draft
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => setBulkAction('publish')} disabled={bulkLoading}>
+            Publish
+          </Button>
+          <Button size="sm" variant="destructive" onClick={() => setBulkAction('delete')} disabled={bulkLoading}>
+            Delete
+          </Button>
+          <button
+            onClick={() => { setSelectedIds(new Set()); setSelectMode(false) }}
+            className="text-muted-foreground hover:text-foreground ml-1"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Bulk confirmation bar */}
+      {bulkAction && (
+        <div className="absolute bottom-4 left-4 right-4 rounded-lg shadow-lg bg-background border p-3 z-10">
+          <p className="text-sm mb-2">
+            {bulkAction === 'publish'
+              ? `Publish ${selectedIds.size} post${selectedIds.size > 1 ? 's' : ''}? They will be pushed to WordPress on next sync.`
+              : `Delete ${selectedIds.size} post${selectedIds.size > 1 ? 's' : ''}? Remote copies will be deleted on next sync.`}
+          </p>
+          <div className="flex items-center gap-2 justify-end">
+            <Button size="sm" variant="outline" onClick={() => setBulkAction(null)} disabled={bulkLoading}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              variant={bulkAction === 'delete' ? 'destructive' : 'default'}
+              onClick={handleBulkConfirm}
+              disabled={bulkLoading}
+            >
+              {bulkLoading && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
+              {bulkAction === 'publish' ? 'Publish' : 'Delete'}
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -6,7 +6,7 @@ import { is } from '@electron-toolkit/utils'
 import { getAllSites, getSiteById, addSite, updateSite, deleteSite, clearSiteData } from './site-service'
 import { testWpConnection, fetchAuthors } from './wp-client'
 import { getCredential } from './credentials'
-import { pullPostsForSite, getAllPostsForSite, getPostById, createPost, updatePost } from './post-service'
+import { pullPostsForSite, getAllPostsForSite, getPostById, createPost, updatePost, bulkUpdateStatus, bulkDeletePosts } from './post-service'
 import { pushPostToWp, deletePostFromWp, resolveConflict, getUnsyncedPostCount, getTotalUnsyncedCount, syncSite } from './sync-service'
 import { pullAcfSchemaForSite, getAcfSchemasForSite } from './acf-service'
 import {
@@ -32,6 +32,8 @@ import {
   linkScratchpadToPost,
   unlinkScratchpadFromPost
 } from './scratchpad-service'
+import { searchPosts, indexPost } from './search-service'
+import { getRevisionsForPost, restoreRevision, captureRevisionForPost } from './revision-service'
 import { getWritingStats } from './stats-service'
 import { clearAllData } from './database'
 import { checkForUpdates, downloadUpdate, installUpdate } from './updater'
@@ -47,7 +49,10 @@ import {
   TemplateInputSchema,
   TemplateUpdateSchema,
   ScratchpadInputSchema,
-  ScratchpadUpdateSchema
+  ScratchpadUpdateSchema,
+  BulkStatusSchema,
+  BulkDeleteSchema,
+  SearchQuerySchema
 } from './ipc-schemas'
 
 /** Notify all renderer windows to refresh badge counts (unsynced posts, pending media). */
@@ -148,6 +153,50 @@ export function registerIpcHandlers(): void {
     const result = await syncSite(uuidSchema.parse(siteId))
     notifyCountsChanged()
     return result
+  })
+
+  // ── Search ──────────────────────────────────────────────────────────────
+
+  ipcMain.handle('posts:search', (_event, query: unknown, siteId: unknown) => {
+    return searchPosts(
+      z.string().min(1).parse(query),
+      uuidSchema.parse(siteId)
+    )
+  })
+
+  // ── Revisions ───────────────────────────────────────────────────────────
+
+  ipcMain.handle('revisions:get-all', (_event, postId: unknown) => {
+    return getRevisionsForPost(uuidSchema.parse(postId))
+  })
+
+  ipcMain.handle('revisions:capture', (_event, postId: unknown) => {
+    captureRevisionForPost(uuidSchema.parse(postId))
+  })
+
+  ipcMain.handle('revisions:restore', (_event, revisionId: unknown) => {
+    const postId = restoreRevision(uuidSchema.parse(revisionId))
+    const post = getPostById(postId)
+    if (post) {
+      indexPost(post.id, post.site_id, post.title, post.content, post.excerpt)
+    }
+    notifyCountsChanged()
+    return post
+  })
+
+  // ── Bulk Operations ─────────────────────────────────────────────────────
+
+  ipcMain.handle('posts:bulk-status', (_event, input: unknown) => {
+    const { postIds, status } = BulkStatusSchema.parse(input)
+    const count = bulkUpdateStatus(postIds, status)
+    notifyCountsChanged()
+    return count
+  })
+
+  ipcMain.handle('posts:bulk-delete', (_event, input: unknown) => {
+    const { postIds } = BulkDeleteSchema.parse(input)
+    bulkDeletePosts(postIds)
+    notifyCountsChanged()
   })
 
   // ── ACF Schema ──────────────────────────────────────────────────────────

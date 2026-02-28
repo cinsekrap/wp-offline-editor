@@ -6,6 +6,7 @@ import { getDb } from './database'
 import { getSiteById, updateSiteIconUrl } from './site-service'
 import { getCredential } from './credentials'
 import { getPostById, deletePost, pullPostsForSite, downloadAndRewriteImages, rewriteAcfImageUrls, downloadFeaturedImage } from './post-service'
+import { indexPost } from './search-service'
 import { getMediaForPost, uploadMediaToWp } from './media-service'
 import { pushPost, deleteRemotePost, fetchSinglePost, fetchUserNames, fetchSiteIcon, fetchScratchpads, pushScratchpad as pushScratchpadToWp, updatePostScratchpadMeta, fetchPluginVersion } from './wp-client'
 import { isPluginVersionMismatch, pluginMismatchMessage } from '@shared/version-utils'
@@ -242,6 +243,7 @@ export async function resolveConflict(
     wpPost.modified,
     postId
   )
+  indexPost(postId, post.site_id, title, content, excerpt)
 }
 
 async function pushScratchpadsForSite(siteId: string): Promise<void> {

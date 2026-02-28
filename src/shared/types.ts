@@ -312,6 +312,28 @@ export interface WpAuthor {
   name: string
 }
 
+// ── Search ──────────────────────────────────────────────────────────────
+
+export interface SearchResult {
+  post_id: string
+  site_id: string
+  title: string
+  snippet: string
+  rank: number
+}
+
+// ── Revisions ───────────────────────────────────────────────────────────
+
+export interface Revision {
+  id: string
+  post_id: string
+  title: string
+  content: string
+  excerpt: string
+  word_count: number
+  created_at: string
+}
+
 // ── Push Results ────────────────────────────────────────────────────────
 
 export interface PushResult {
@@ -438,6 +460,18 @@ export interface ElectronAPI {
   // Writing Stats
   getWritingStats(siteId: string): Promise<WritingStats>
   getWpAuthors(siteId: string): Promise<WpAuthor[]>
+
+  // Search
+  searchPosts(query: string, siteId: string): Promise<SearchResult[]>
+
+  // Revisions
+  getRevisions(postId: string): Promise<Revision[]>
+  captureRevision(postId: string): Promise<void>
+  restoreRevision(revisionId: string): Promise<Post>
+
+  // Bulk operations
+  bulkUpdateStatus(postIds: string[], status: PostStatus): Promise<number>
+  bulkDeletePosts(postIds: string[]): Promise<void>
 
   // Shortcodes
   getShortcodes(siteId: string): Promise<string[]>

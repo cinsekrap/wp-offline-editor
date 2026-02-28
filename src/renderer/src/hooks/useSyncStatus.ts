@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 type ToastFn = (opts: {
   title: string
   description?: string
-  variant?: 'default' | 'destructive'
+  variant?: 'default' | 'destructive' | 'warning'
 }) => void
 
 interface UseSyncStatusParams {
@@ -95,6 +95,14 @@ export function useSyncStatus({
         toast({
           title: 'Sync complete',
           description: parts.length > 0 ? parts.join(', ') : 'Everything up to date'
+        })
+      }
+
+      if (result.pluginVersionWarning) {
+        toast({
+          title: 'Plugin update available',
+          description: result.pluginVersionWarning,
+          variant: 'warning'
         })
       }
     } catch {

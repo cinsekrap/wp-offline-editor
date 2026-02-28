@@ -7,7 +7,7 @@ import { getSiteById, updateSiteIconUrl } from './site-service'
 import { getCredential } from './credentials'
 import { getPostById, deletePost, pullPostsForSite, downloadAndRewriteImages, rewriteAcfImageUrls, downloadFeaturedImage } from './post-service'
 import { getMediaForPost, uploadMediaToWp } from './media-service'
-import { pushPost, deleteRemotePost, fetchSinglePost, fetchUserNames, fetchSiteIcon, fetchScratchpads, pushScratchpad as pushScratchpadToWp, updatePostScratchpadMeta } from './wp-client'
+import { pushPost, deleteRemotePost, fetchSinglePost, fetchUserNames, fetchSiteIcon, fetchScratchpads, pushScratchpad as pushScratchpadToWp, updatePostScratchpadMeta, fetchPluginVersion, getMinorVersion } from './wp-client'
 import { decodeHtmlEntities } from './html-utils'
 import { sanitizeHtml } from './sanitize'
 import { pullAcfSchemaForSite } from './acf-service'
@@ -419,7 +419,25 @@ export async function syncSite(siteId: string): Promise<SyncResult> {
     console.warn('[sync] Failed to refresh site icon:', err instanceof Error ? err.message : err)
   }
 
-  return { pushed, pushErrors, pull, schemaPull, mediaLibraryPull }
+  // Check companion plugin version
+  let pluginVersionWarning: string | undefined
+  try {
+    const site = getSiteById(siteId)
+    const pw = site ? getCredential(site.keychain_ref) : null
+    if (site && pw) {
+      const pluginVersion = await fetchPluginVersion(site.url, site.username, pw)
+      if (pluginVersion) {
+        const appVersion = app.getVersion()
+        if (getMinorVersion(pluginVersion) !== getMinorVersion(appVersion)) {
+          pluginVersionWarning = `Plugin is outdated (latest is v${getMinorVersion(appVersion)}). Update the companion plugin or some elements may not sync with your WordPress site.`
+        }
+      }
+    }
+  } catch {
+    // Non-critical
+  }
+
+  return { pushed, pushErrors, pull, schemaPull, mediaLibraryPull, pluginVersionWarning }
 }
 
 export function getUnsyncedPostCount(siteId: string): number {

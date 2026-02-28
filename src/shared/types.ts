@@ -344,6 +344,7 @@ export interface SyncResult {
   pull: PullResult
   schemaPull: AcfPullResult
   mediaLibraryPull: MediaLibraryPullResult
+  pluginVersionWarning?: string
 }
 
 // ── WP Connection ────────────────────────────────────────────────────────
@@ -354,6 +355,7 @@ export interface WpConnectionResult {
   wpVersion?: string
   acfActive?: boolean
   wpoePluginActive?: boolean
+  wpoePluginVersion?: string
   error?: string
 }
 

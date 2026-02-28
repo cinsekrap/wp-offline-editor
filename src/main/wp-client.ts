@@ -86,12 +86,15 @@ export async function testWpConnection(
     // Detect ACF: check namespace first, then companion plugin status, then post schema
     let acfActive = namespaces.some((ns: string) => ns.startsWith('acf/'))
 
-    if (!acfActive && wpoePluginActive) {
+    // Always fetch plugin status when active (for version + ACF detection)
+    let wpoePluginVersion: string | undefined
+    if (wpoePluginActive) {
       try {
-        const statusRes = await fetch(`${base}/wpoe/v1/status`)
+        const statusRes = await fetch(`${base}/wpoe/v1/status`, { headers })
         if (statusRes.ok) {
-          const status = (await statusRes.json()) as { acf?: boolean }
-          acfActive = !!status.acf
+          const status = (await statusRes.json()) as { acf?: boolean; version?: string }
+          acfActive = acfActive || !!status.acf
+          wpoePluginVersion = status.version
         }
       } catch {
         // Non-critical
@@ -115,7 +118,8 @@ export async function testWpConnection(
       siteName: decodeHtmlEntities(root.name || cleanUrl),
       wpVersion,
       acfActive,
-      wpoePluginActive
+      wpoePluginActive,
+      wpoePluginVersion
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
@@ -131,6 +135,33 @@ export async function testWpConnection(
     }
 
     return { success: false, error: `Connection failed: ${message}` }
+  }
+}
+
+// ── Version helpers ─────────────────────────────────────────────────────
+
+/** Extract major.minor from a semver-like string (e.g. "0.7.5-build.4" → "0.7") */
+export function getMinorVersion(version: string): string {
+  const match = version.match(/^(\d+\.\d+)/)
+  return match ? match[1] : version
+}
+
+/** Lightweight plugin version fetch for use during sync */
+export async function fetchPluginVersion(
+  url: string,
+  username: string,
+  password: string
+): Promise<string | null> {
+  const base = apiBase(url)
+  const headers = makeAuthHeaders(username, password)
+
+  try {
+    const res = await fetch(`${base}/wpoe/v1/status`, { headers })
+    if (!res.ok) return null
+    const status = (await res.json()) as { version?: string }
+    return status.version ?? null
+  } catch {
+    return null
   }
 }
 

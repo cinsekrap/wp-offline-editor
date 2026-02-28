@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -42,6 +42,11 @@ export function AddSiteDialog({
   const [testing, setTesting] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [appVersion, setAppVersion] = useState('')
+
+  useEffect(() => {
+    window.electronAPI.getVersion().then(setAppVersion)
+  }, [])
 
   const isLocalDomain = url.toLowerCase().includes('.local')
   const isHttpWarning = url.startsWith('http://') && !isLocalDomain
@@ -228,6 +233,33 @@ export function AddSiteDialog({
                 <p className="text-xs text-yellow-600 dark:text-yellow-500">
                   Install via WP Admin &rarr; Plugins &rarr; Add New &rarr; Upload Plugin, then
                   re-test the connection.
+                </p>
+              </div>
+            )}
+
+            {testResult.wpoePluginActive && testResult.wpoePluginVersion && appVersion &&
+              testResult.wpoePluginVersion.match(/^(\d+\.\d+)/)?.[1] !== appVersion.match(/^(\d+\.\d+)/)?.[1] && (
+              <div className="p-3 rounded-md bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-900">
+                <div className="flex items-center gap-2 text-orange-700 dark:text-orange-400 text-sm font-medium mb-2">
+                  <AlertTriangle className="h-4 w-4" />
+                  Companion plugin is outdated
+                </div>
+                <p className="text-xs text-orange-600 dark:text-orange-500 mb-2">
+                  Plugin is outdated (latest is v{appVersion.match(/^(\d+\.\d+)/)?.[1]}). Update the
+                  companion plugin or some elements may not sync with your WordPress site.
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mb-2"
+                  onClick={() => window.electronAPI.saveCompanionPlugin()}
+                >
+                  <Download className="mr-2 h-3 w-3" />
+                  Download Latest Plugin
+                </Button>
+                <p className="text-xs text-orange-600 dark:text-orange-500">
+                  Replace the existing plugin ZIP via WP Admin &rarr; Plugins &rarr; Add New &rarr;
+                  Upload Plugin, then re-test the connection.
                 </p>
               </div>
             )}

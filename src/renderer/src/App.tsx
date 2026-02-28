@@ -18,60 +18,108 @@ import { useOnlineStatus } from '@renderer/hooks/useOnlineStatus'
 import { useAutoSync } from '@renderer/hooks/useAutoSync'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useTemplates } from '@renderer/hooks/useTemplates'
-import type { Site, Template, TaxonomyTerm } from '@shared/types'
-import type { PostListFilter } from '@renderer/components/posts/PostList'
+import { useNavigation } from '@renderer/hooks/useNavigation'
+import { useSyncStatus } from '@renderer/hooks/useSyncStatus'
+import { useSiteDialogs } from '@renderer/hooks/useSiteDialogs'
+import { useTemplateActions } from '@renderer/hooks/useTemplateActions'
+import type { Site } from '@shared/types'
 import '@renderer/styles/globals.css'
-
-type View = 'dashboard' | 'posts' | 'settings' | 'templates'
 
 function App(): JSX.Element {
   const { sites, loading: sitesLoading, addSite, updateSite, deleteSite, testConnection } = useSites()
   const { toast } = useToast()
   const { online, justReconnected, clearReconnected } = useOnlineStatus()
   const { settings, updateSettings } = useSettings()
+  const {
+    templates,
+    loading: templatesLoading,
+    create: createTemplate,
+    update: updateTemplate,
+    remove: removeTemplate,
+    refresh: refreshTemplates
+  } = useTemplates()
 
-  const [currentView, setCurrentView] = useState<View>('settings')
-  const [previousView, setPreviousView] = useState<View>('dashboard')
+  // Selected site stays here — usePosts depends on it as a parameter
   const [selectedSiteId, setSelectedSiteId] = useState<string | null>(null)
-  const [syncing, setSyncing] = useState(false)
-
-  const [pendingMediaCount, setPendingMediaCount] = useState(0)
-  const [unsyncedPostCount, setUnsyncedPostCount] = useState(0)
-
-  const [selectedPostId, setSelectedPostId] = useState<string | null>(null)
-  const [initialPostFilter, setInitialPostFilter] = useState<PostListFilter | null>(null)
-
-  const [addDialogOpen, setAddDialogOpen] = useState(false)
-  const [editSite, setEditSite] = useState<Site | null>(null)
-  const [deletingSite, setDeletingSite] = useState<Site | null>(null)
-
-  // Templates
-  const { templates, loading: templatesLoading, create: createTemplateRaw, update: updateTemplateRaw, remove: removeTemplate, refresh: refreshTemplates } = useTemplates()
-  const [editingTemplate, setEditingTemplate] = useState<Template | null>(null)
-  const [templatePickerOpen, setTemplatePickerOpen] = useState(false)
-
   const selectedSite = sites.find((s) => s.id === selectedSiteId) ?? null
-
-  // Posts data — shared between dashboard and posts view
-  const { posts, loading: postsLoading, refresh: refreshPosts, createPost, deletePost } = usePosts(selectedSiteId)
-
-  // Effective online: real network AND not force-offline
   const effectiveOnline = online && !settings.forceOffline
 
-  // ── Initial routing: pick first site → dashboard, or settings/sites if none
-  const [initialRouted, setInitialRouted] = useState(false)
-  useEffect(() => {
-    if (sitesLoading || initialRouted) return
-    setInitialRouted(true)
-    if (sites.length > 0) {
-      setSelectedSiteId(sites[0].id)
-      setCurrentView('dashboard')
-    } else {
-      setCurrentView('settings')
-    }
-  }, [sitesLoading, initialRouted, sites])
+  // Posts — shared between dashboard and posts view
+  const { posts, loading: postsLoading, refresh: refreshPosts, createPost, deletePost } = usePosts(selectedSiteId)
 
-  // ── Theme application ──────────────────────────────────────────────────
+  // ── Extracted hooks ─────────────────────────────────────────────────────
+
+  const nav = useNavigation({ sites, sitesLoading, onSelectSiteId: setSelectedSiteId })
+
+  const sync = useSyncStatus({ selectedSiteId, toast, refreshPosts })
+
+  const handleSiteAdded = useCallback(
+    async (site: Site) => {
+      setSelectedSiteId(site.id)
+      nav.goToDashboard()
+      try {
+        sync.setSyncing(true)
+        const [postResult, schemaResult] = await Promise.all([
+          window.electronAPI.pullPosts(site.id),
+          window.electronAPI.pullAcfSchema(site.id)
+        ])
+        if (schemaResult.errors.length > 0) {
+          toast({
+            title: 'Initial sync complete with warnings',
+            description: schemaResult.errors[0],
+            variant: 'destructive'
+          })
+        } else {
+          toast({
+            title: 'Initial sync complete',
+            description: `Posts: ${postResult.created} new, ${postResult.updated} updated. Schema: ${schemaResult.groupsUpdated} updated.`
+          })
+        }
+      } catch {
+        toast({
+          title: 'Initial sync failed',
+          description: 'Could not sync with WordPress.',
+          variant: 'destructive'
+        })
+      } finally {
+        sync.setSyncing(false)
+        await refreshPosts()
+      }
+    },
+    [nav, sync, toast, refreshPosts]
+  )
+
+  const dialogs = useSiteDialogs({
+    sites,
+    addSite,
+    updateSite,
+    deleteSite,
+    testConnection,
+    selectedSiteId,
+    toast,
+    onSiteAdded: handleSiteAdded,
+    onSiteDeleted: useCallback(() => setSelectedSiteId(null), [])
+  })
+
+  const tmpl = useTemplateActions({
+    templates,
+    createTemplate,
+    updateTemplate,
+    removeTemplate,
+    refreshTemplates,
+    selectedSiteId,
+    createPost,
+    toast,
+    onPostCreated: useCallback(
+      (postId: string) => {
+        refreshPosts()
+        nav.navigateToNewPost(postId)
+      },
+      [refreshPosts, nav]
+    )
+  })
+
+  // ── Theme ───────────────────────────────────────────────────────────────
   useEffect(() => {
     const root = document.documentElement
 
@@ -100,307 +148,40 @@ function App(): JSX.Element {
     return () => mq.removeEventListener('change', handler)
   }, [settings.theme])
 
-  // ── Pending media / unsynced counts ────────────────────────────────────
-  const refreshPendingMedia = useCallback(async () => {
-    if (!selectedSiteId) {
-      setPendingMediaCount(0)
-      return
-    }
-    try {
-      const queue = await window.electronAPI.getMediaQueue(selectedSiteId)
-      setPendingMediaCount(queue.length)
-    } catch {
-      setPendingMediaCount(0)
-    }
-  }, [selectedSiteId])
-
-  const refreshUnsyncedCount = useCallback(async () => {
-    if (!selectedSiteId) {
-      setUnsyncedPostCount(0)
-      return
-    }
-    try {
-      const count = await window.electronAPI.getUnsyncedPostCount(selectedSiteId)
-      setUnsyncedPostCount(count)
-    } catch {
-      setUnsyncedPostCount(0)
-    }
-  }, [selectedSiteId])
-
-  useEffect(() => {
-    refreshPendingMedia()
-    refreshUnsyncedCount()
-    const cleanup = window.electronAPI.onCountsChanged(() => {
-      refreshPendingMedia()
-      refreshUnsyncedCount()
-    })
-    return cleanup
-  }, [refreshPendingMedia, refreshUnsyncedCount])
-
-  // ── Site handlers ──────────────────────────────────────────────────────
-  async function handleAddSite(input: Parameters<typeof addSite>[0]): Promise<void> {
-    const site = await addSite(input)
-    toast({ title: 'Site added', description: `${input.label || 'Site'} has been added.` })
-
-    // Auto-pull posts + schema for the new site
-    setSelectedSiteId(site.id)
-    setSelectedPostId(null)
-    setInitialPostFilter(null)
-    setCurrentView('dashboard')
-    try {
-      setSyncing(true)
-      const [postResult, schemaResult] = await Promise.all([
-        window.electronAPI.pullPosts(site.id),
-        window.electronAPI.pullAcfSchema(site.id)
-      ])
-      if (schemaResult.errors.length > 0) {
-        toast({
-          title: 'Initial sync complete with warnings',
-          description: schemaResult.errors[0],
-          variant: 'destructive'
-        })
-      } else {
-        toast({
-          title: 'Initial sync complete',
-          description: `Posts: ${postResult.created} new, ${postResult.updated} updated. Schema: ${schemaResult.groupsUpdated} updated.`
-        })
-      }
-    } catch {
-      toast({ title: 'Initial sync failed', description: 'Could not sync with WordPress.', variant: 'destructive' })
-    } finally {
-      setSyncing(false)
-      await refreshPosts()
-    }
-  }
-
-  async function handleUpdateSite(update: Parameters<typeof updateSite>[0]): Promise<void> {
-    await updateSite(update)
-    toast({ title: 'Site updated', description: 'Site settings have been saved.' })
-  }
-
-  async function handleDeleteSite(id: string): Promise<void> {
-    const site = sites.find((s) => s.id === id)
-    await deleteSite(id)
-    if (selectedSiteId === id) setSelectedSiteId(null)
-    toast({
-      title: 'Site deleted',
-      description: `${site?.label || 'Site'} has been removed.`
-    })
-  }
-
-  // ── Template handlers ────────────────────────────────────────────────
-  const handleNewTemplate = useCallback(async () => {
-    const t = await createTemplateRaw({ name: 'Untitled Template' })
-    setEditingTemplate(t)
-  }, [createTemplateRaw])
-
-  const handleTemplateBack = useCallback(async () => {
-    // Delete the template if it's still blank (user never edited it)
-    if (editingTemplate) {
-      const fresh = await window.electronAPI.getTemplate(editingTemplate.id)
-      if (fresh && fresh.name === 'Untitled Template' && !fresh.title_template && !fresh.content && !fresh.excerpt && !fresh.description) {
-        await removeTemplate(fresh.id)
-      }
-    }
-    setEditingTemplate(null)
-    refreshTemplates()
-  }, [editingTemplate, removeTemplate, refreshTemplates])
-
-  const handleNewPostFromTemplate = useCallback(async (template: Template) => {
-    if (!selectedSiteId) return
-
-    // Resolve category/tag names → IDs against current site's terms
-    let resolvedCategories: number[] = []
-    let resolvedTags: number[] = []
-    try {
-      if (template.category_names.length > 0) {
-        const catTerms = await window.electronAPI.getTaxonomyTerms(selectedSiteId, 'category') as TaxonomyTerm[]
-        const nameMap = new Map(catTerms.map((t) => [t.name.toLowerCase(), t.id]))
-        resolvedCategories = template.category_names
-          .map((n) => nameMap.get(n.toLowerCase()))
-          .filter((id): id is number => id !== undefined)
-        const skipped = template.category_names.length - resolvedCategories.length
-        if (skipped > 0) {
-          toast({ title: 'Note', description: `${skipped} category name(s) not found on this site — skipped.` })
-        }
-      }
-      if (template.tag_names.length > 0) {
-        const tagTerms = await window.electronAPI.getTaxonomyTerms(selectedSiteId, 'post_tag') as TaxonomyTerm[]
-        const nameMap = new Map(tagTerms.map((t) => [t.name.toLowerCase(), t.id]))
-        resolvedTags = template.tag_names
-          .map((n) => nameMap.get(n.toLowerCase()))
-          .filter((id): id is number => id !== undefined)
-        const skipped = template.tag_names.length - resolvedTags.length
-        if (skipped > 0) {
-          toast({ title: 'Note', description: `${skipped} tag name(s) not found on this site — skipped.` })
-        }
-      }
-    } catch {
-      // non-critical: proceed without resolved terms
-    }
-
-    const post = await window.electronAPI.createPost({
-      site_id: selectedSiteId,
-      title: template.title_template,
-      content: template.content,
-      status: template.status as 'draft',
-      excerpt: template.excerpt
-    })
-
-    // Update with categories, tags if resolved
-    if (resolvedCategories.length > 0 || resolvedTags.length > 0) {
-      await window.electronAPI.updatePost({
-        id: post.id,
-        categories: resolvedCategories,
-        tags: resolvedTags
-      })
-    }
-
-    await refreshPosts()
-    setPreviousView('dashboard')
-    setSelectedPostId(post.id)
-    setInitialPostFilter(null)
-    setCurrentView('posts')
-  }, [selectedSiteId, refreshPosts, toast])
-
-  const handleToolbarSync = useCallback(async (): Promise<void> => {
-    if (!selectedSiteId) return
-    try {
-      setSyncing(true)
-      const result = await window.electronAPI.syncSite(selectedSiteId)
-
-      const parts: string[] = []
-      if (result.pushed > 0) parts.push(`pushed ${result.pushed}`)
-      if (result.pull.created > 0) parts.push(`pulled ${result.pull.created} new`)
-      if (result.pull.updated > 0) parts.push(`${result.pull.updated} updated`)
-      if (result.schemaPull.groupsUpdated > 0) parts.push(`${result.schemaPull.groupsUpdated} schema updated`)
-
-      const allErrors = [...result.pushErrors, ...result.pull.errors, ...result.schemaPull.errors]
-
-      if (allErrors.length > 0) {
-        toast({
-          title: 'Sync complete with warnings',
-          description: allErrors[0],
-          variant: 'destructive'
-        })
-      } else {
-        toast({
-          title: 'Sync complete',
-          description: parts.length > 0 ? parts.join(', ') : 'Everything up to date'
-        })
-      }
-    } catch {
-      toast({ title: 'Sync failed', description: 'Could not sync with WordPress.', variant: 'destructive' })
-    } finally {
-      setSyncing(false)
-      refreshUnsyncedCount()
-      refreshPosts()
-    }
-  }, [selectedSiteId, toast, refreshUnsyncedCount, refreshPosts])
-
-  // Reconnect toast
+  // ── Reconnect toast ─────────────────────────────────────────────────────
   useEffect(() => {
     if (justReconnected && selectedSiteId) {
       toast({
         title: 'Back online',
         description: 'Your internet connection has been restored.',
         action: (
-          <ToastAction altText="Sync now" onClick={handleToolbarSync}>
+          <ToastAction altText="Sync now" onClick={sync.handleSync}>
             Sync now
           </ToastAction>
         )
       })
       clearReconnected()
     }
-  }, [justReconnected, selectedSiteId, toast, handleToolbarSync, clearReconnected])
-
-  // ── Cmd+, keyboard shortcut for settings ────────────────────────────────
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent): void {
-      if ((e.metaKey || e.ctrlKey) && e.key === ',') {
-        e.preventDefault()
-        setCurrentView('settings')
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [])
+  }, [justReconnected, selectedSiteId, toast, sync.handleSync, clearReconnected])
 
   // Auto-sync
-  useAutoSync(selectedSite?.auto_sync ?? false, effectiveOnline, handleToolbarSync, settings.autoSyncInterval)
+  useAutoSync(selectedSite?.auto_sync ?? false, effectiveOnline, sync.handleSync, settings.autoSyncInterval)
 
-  function handleSelectSite(site: Site): void {
-    setSelectedSiteId(site.id)
-    setSelectedPostId(null)
-    setInitialPostFilter(null)
-    setCurrentView('dashboard')
-  }
-
-  const handleDashboardSelectPost = useCallback((id: string) => {
-    setPreviousView('dashboard')
-    setSelectedPostId(id)
-    setInitialPostFilter(null)
-    setCurrentView('posts')
-  }, [])
-
-  const handleDashboardNewPost = useCallback(async () => {
-    if (templates.length > 0) {
-      setTemplatePickerOpen(true)
-      return
-    }
-    setPreviousView('dashboard')
-    const post = await createPost()
-    setSelectedPostId(post.id)
-    setInitialPostFilter(null)
-    setCurrentView('posts')
-  }, [createPost, templates])
-
-  const handleBlankPost = useCallback(async () => {
-    setPreviousView('dashboard')
-    const post = await createPost()
-    setSelectedPostId(post.id)
-    setInitialPostFilter(null)
-    setCurrentView('posts')
-  }, [createPost])
-
-  const handleDashboardSeeAll = useCallback((filter?: PostListFilter) => {
-    setPreviousView('dashboard')
-    setSelectedPostId(null)
-    setInitialPostFilter(filter ?? null)
-    setCurrentView('posts')
-  }, [])
-
-  const handleBackToDashboard = useCallback(() => {
-    setSelectedPostId(null)
-    setInitialPostFilter(null)
-    setCurrentView('dashboard')
-  }, [])
-
-  const handlePostListSelectPost = useCallback((id: string | null) => {
-    if (id !== null) setPreviousView('posts')
-    setSelectedPostId(id)
-  }, [])
-
-  const handlePostBack = useCallback(() => {
-    setSelectedPostId(null)
-    if (previousView === 'dashboard') {
-      setCurrentView('dashboard')
-    }
-  }, [previousView])
+  // ── View rendering ──────────────────────────────────────────────────────
 
   function renderContent(): JSX.Element {
-    switch (currentView) {
+    switch (nav.currentView) {
       case 'settings':
         return (
           <SettingsView
             sites={sites}
-            onAddSite={() => setAddDialogOpen(true)}
-            onEditSite={(site) => setEditSite(site)}
-            onDeleteSite={(site) => setDeletingSite(site)}
-            onSelectSite={handleSelectSite}
+            onAddSite={() => dialogs.setAddDialogOpen(true)}
+            onEditSite={(site) => dialogs.setEditSite(site)}
+            onDeleteSite={(site) => dialogs.setDeletingSite(site)}
+            onSelectSite={nav.handleSelectSite}
             settings={settings}
             onUpdateSettings={updateSettings}
-            onClose={selectedSiteId ? () => setCurrentView('dashboard') : undefined}
+            onClose={selectedSiteId ? nav.goToDashboard : undefined}
             initialSection={sites.length === 0 ? 'sites' : undefined}
           />
         )
@@ -417,10 +198,10 @@ function App(): JSX.Element {
           <SiteDashboard
             siteId={selectedSiteId}
             posts={posts}
-            loading={(postsLoading || syncing) && posts.length === 0}
-            onSelectPost={handleDashboardSelectPost}
-            onNewPost={handleDashboardNewPost}
-            onSeeAllPosts={handleDashboardSeeAll}
+            loading={(postsLoading || sync.syncing) && posts.length === 0}
+            onSelectPost={nav.selectPostFromDashboard}
+            onNewPost={tmpl.handleNewPost}
+            onSeeAllPosts={nav.seeAllFromDashboard}
           />
         )
       case 'posts':
@@ -435,13 +216,13 @@ function App(): JSX.Element {
         return (
           <PostsView
             siteId={selectedSiteId}
-            pulling={syncing}
+            pulling={sync.syncing}
             online={effectiveOnline}
             editorFontSize={settings.editorFontSize}
-            selectedPostId={selectedPostId}
-            onSelectPost={handlePostListSelectPost}
-            onBack={handlePostBack}
-            initialFilter={initialPostFilter}
+            selectedPostId={nav.selectedPostId}
+            onSelectPost={nav.selectPostFromList}
+            onBack={nav.backFromPost}
+            initialFilter={nav.initialPostFilter}
             posts={posts}
             postsLoading={postsLoading}
             refreshPosts={refreshPosts}
@@ -450,12 +231,12 @@ function App(): JSX.Element {
           />
         )
       case 'templates':
-        if (editingTemplate) {
+        if (tmpl.editingTemplate) {
           return (
             <TemplateEditor
-              template={editingTemplate}
-              onBack={handleTemplateBack}
-              onSave={async (upd) => { const t = await updateTemplateRaw(upd); setEditingTemplate(t) }}
+              template={tmpl.editingTemplate}
+              onBack={tmpl.handleTemplateBack}
+              onSave={tmpl.handleSaveTemplate}
             />
           )
         }
@@ -463,9 +244,9 @@ function App(): JSX.Element {
           <TemplateList
             templates={templates}
             loading={templatesLoading}
-            onNew={handleNewTemplate}
-            onSelect={(t) => setEditingTemplate(t)}
-            onDelete={async (id) => { await removeTemplate(id); if (editingTemplate?.id === id) setEditingTemplate(null) }}
+            onNew={tmpl.handleNewTemplate}
+            onSelect={(t) => tmpl.setEditingTemplate(t)}
+            onDelete={tmpl.handleDeleteTemplate}
           />
         )
       default:
@@ -473,59 +254,70 @@ function App(): JSX.Element {
     }
   }
 
+  const notSettings = nav.currentView !== 'settings'
+
   return (
     <>
       <AppShell
-        onSettingsClick={() => setCurrentView('settings')}
-        onPostsClick={selectedSiteId && currentView !== 'settings' ? () => { setSelectedPostId(null); setInitialPostFilter(null); setCurrentView('posts') } : undefined}
-        onTemplatesClick={selectedSiteId && currentView !== 'settings' ? () => { setEditingTemplate(null); setCurrentView('templates') } : undefined}
-        onSyncClick={handleToolbarSync}
-        syncing={syncing}
-        showSync={currentView !== 'settings' && !!selectedSiteId}
-        siteName={currentView !== 'settings' ? selectedSite?.label : undefined}
-        onSiteNameClick={currentView !== 'settings' && currentView !== 'dashboard' ? handleBackToDashboard : undefined}
-        activeView={currentView !== 'settings' ? currentView : undefined}
-        pendingMediaCount={currentView !== 'settings' ? pendingMediaCount : 0}
+        onSettingsClick={nav.goToSettings}
+        onPostsClick={selectedSiteId && notSettings ? nav.goToPosts : undefined}
+        onTemplatesClick={
+          selectedSiteId && notSettings
+            ? () => {
+                tmpl.setEditingTemplate(null)
+                nav.goToTemplates()
+              }
+            : undefined
+        }
+        onSyncClick={sync.handleSync}
+        syncing={sync.syncing}
+        showSync={notSettings && !!selectedSiteId}
+        siteName={notSettings ? selectedSite?.label : undefined}
+        onSiteNameClick={
+          notSettings && nav.currentView !== 'dashboard' ? nav.backToDashboard : undefined
+        }
+        activeView={notSettings ? nav.currentView : undefined}
+        pendingMediaCount={notSettings ? sync.pendingMediaCount : 0}
         online={effectiveOnline}
-        unsyncedPostCount={currentView !== 'settings' ? unsyncedPostCount : 0}
+        unsyncedPostCount={notSettings ? sync.unsyncedPostCount : 0}
         sites={sites}
         selectedSiteId={selectedSiteId}
-        onSwitchSite={currentView !== 'settings' ? handleSelectSite : undefined}
+        onSwitchSite={notSettings ? nav.handleSelectSite : undefined}
       >
         {renderContent()}
       </AppShell>
 
       <AddSiteDialog
-        open={addDialogOpen}
-        onOpenChange={setAddDialogOpen}
-        onSave={handleAddSite}
-        onTestConnection={testConnection}
+        open={dialogs.addDialogOpen}
+        onOpenChange={dialogs.setAddDialogOpen}
+        onSave={dialogs.handleAddSite}
+        onTestConnection={dialogs.testConnection}
       />
 
       <EditSiteDialog
-        site={editSite}
-        open={editSite !== null}
+        site={dialogs.editSite}
+        open={dialogs.editSite !== null}
         onOpenChange={(open) => {
-          if (!open) setEditSite(null)
+          if (!open) dialogs.setEditSite(null)
         }}
-        onSave={handleUpdateSite}
+        onSave={dialogs.handleUpdateSite}
       />
 
       <DeleteSiteDialog
-        site={deletingSite}
-        open={deletingSite !== null}
+        site={dialogs.deletingSite}
+        open={dialogs.deletingSite !== null}
         onOpenChange={(open) => {
-          if (!open) setDeletingSite(null)
+          if (!open) dialogs.setDeletingSite(null)
         }}
-        onConfirm={handleDeleteSite}
+        onConfirm={dialogs.handleDeleteSite}
       />
 
       <TemplatePickerDialog
-        open={templatePickerOpen}
-        onOpenChange={setTemplatePickerOpen}
+        open={tmpl.templatePickerOpen}
+        onOpenChange={tmpl.setTemplatePickerOpen}
         templates={templates}
-        onBlank={handleBlankPost}
-        onSelect={handleNewPostFromTemplate}
+        onBlank={tmpl.handleBlankPost}
+        onSelect={tmpl.handleNewPostFromTemplate}
       />
 
       <Toaster />

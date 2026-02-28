@@ -25,6 +25,9 @@ Thumbs.db
 # Signing docs
 CODE_SIGNING.md
 
+# Build number (auto-incremented)
+.buildnum
+
 # Debug
 *.log
 npm-debug.log*

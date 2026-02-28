@@ -1,6 +1,6 @@
 {
   "name": "wp-offline-editor",
-  "version": "0.3.0",
+  "version": "0.3.0+build.2",
   "description": "Offline Post Editor",
   "main": "./out/main/index.js",
   "author": "",
@@ -13,7 +13,7 @@
     "postinstall": "electron-builder install-app-deps",
     "build:unpack": "pnpm build && electron-builder --dir",
     "build:plugin": "cd wordpress-plugin && zip -r ../resources/wp-offline-editor-companion.zip wp-offline-editor-companion/",
-    "build:mac": "pnpm build && electron-builder --mac"
+    "build:mac": "node scripts/bump-build.js && pnpm build && electron-builder --mac"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

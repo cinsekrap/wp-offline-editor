@@ -306,13 +306,13 @@ async function upsertPost(
 
 export function getAllPostsForSite(siteId: string): Post[] {
   const db = getDb()
-  const rows = db.prepare('SELECT * FROM posts WHERE site_id = ? ORDER BY modified_local DESC').all(siteId) as Post[]
+  const rows = db.prepare('SELECT * FROM posts WHERE site_id = ? ORDER BY modified_local DESC').all(siteId) as PostRow[]
   return rows.map(normalizePostRow)
 }
 
 export function getPostById(id: string): Post | null {
   const db = getDb()
-  const row = db.prepare('SELECT * FROM posts WHERE id = ?').get(id) as Post | undefined
+  const row = db.prepare('SELECT * FROM posts WHERE id = ?').get(id) as PostRow | undefined
   return row ? normalizePostRow(row) : null
 }
 
@@ -379,12 +379,39 @@ export function deletePost(id: string): void {
   db.prepare('DELETE FROM posts WHERE id = ?').run(id)
 }
 
-function normalizePostRow(row: Post): Post {
+/** Raw shape from SQLite — booleans are integers, JSON columns are strings */
+interface PostRow {
+  id: string
+  site_id: string
+  wp_id: number | null
+  title: string
+  content: string
+  status: string
+  acf: string | Record<string, unknown> | null
+  date: string | null
+  author_id: number | null
+  author_name: string | null
+  featured_image: string | null
+  excerpt: string | null
+  slug: string | null
+  categories: string | number[] | null
+  tags: string | number[] | null
+  word_count: number | null
+  modified_local: string
+  modified_remote: string | null
+  synced: number
+  conflict: number
+}
+
+function normalizePostRow(row: PostRow): Post {
   return {
-    ...row,
-    synced: Boolean(row.synced),
-    conflict: Boolean(row.conflict),
-    acf: typeof row.acf === 'string' ? JSON.parse(row.acf) : row.acf,
+    id: row.id,
+    site_id: row.site_id,
+    wp_id: row.wp_id,
+    title: row.title,
+    content: row.content,
+    status: row.status as Post['status'],
+    acf: typeof row.acf === 'string' ? JSON.parse(row.acf) : row.acf ?? null,
     date: row.date ?? null,
     author_id: row.author_id ?? null,
     author_name: row.author_name ?? null,
@@ -393,6 +420,10 @@ function normalizePostRow(row: Post): Post {
     slug: row.slug ?? '',
     categories: typeof row.categories === 'string' ? JSON.parse(row.categories) : row.categories ?? [],
     tags: typeof row.tags === 'string' ? JSON.parse(row.tags) : row.tags ?? [],
-    word_count: (row as Record<string, unknown>).word_count as number ?? 0
+    word_count: row.word_count ?? 0,
+    modified_local: row.modified_local,
+    modified_remote: row.modified_remote,
+    synced: Boolean(row.synced),
+    conflict: Boolean(row.conflict)
   }
 }

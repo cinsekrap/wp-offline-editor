@@ -4,23 +4,8 @@ import { rmSync, readdirSync, unlinkSync } from 'fs'
 import { app } from 'electron'
 import { getDb } from './database'
 import { storeCredential, deleteCredential } from './credentials'
+import { isLocalUrl } from './url-utils'
 import type { Site, SiteInput, SiteUpdate } from '@shared/types'
-
-function isLocalUrl(url: string): boolean {
-  try {
-    const { hostname } = new URL(url)
-    return (
-      hostname === 'localhost' ||
-      hostname === '127.0.0.1' ||
-      hostname === '::1' ||
-      hostname.endsWith('.local') ||
-      hostname.endsWith('.test') ||
-      hostname.endsWith('.localhost')
-    )
-  } catch {
-    return false
-  }
-}
 
 function enforceHttps(url: string): string {
   if (isLocalUrl(url)) return url
@@ -32,13 +17,13 @@ function enforceHttps(url: string): string {
 
 export function getAllSites(): Site[] {
   const db = getDb()
-  const rows = db.prepare('SELECT * FROM sites ORDER BY label ASC').all() as Site[]
+  const rows = db.prepare('SELECT * FROM sites ORDER BY label ASC').all() as SiteRow[]
   return rows.map(normalizeSiteRow)
 }
 
 export function getSiteById(id: string): Site | null {
   const db = getDb()
-  const row = db.prepare('SELECT * FROM sites WHERE id = ?').get(id) as Site | undefined
+  const row = db.prepare('SELECT * FROM sites WHERE id = ?').get(id) as SiteRow | undefined
   return row ? normalizeSiteRow(row) : null
 }
 
@@ -88,29 +73,8 @@ export function updateSite(update: SiteUpdate): Site {
   return getSiteById(update.id)!
 }
 
-export function deleteSite(id: string): void {
-  const db = getDb()
-  const existing = getSiteById(id)
-  if (!existing) return
-
-  deleteCredential(existing.keychain_ref)
-  db.prepare('DELETE FROM sites WHERE id = ?').run(id)
-
-  // Clean up cached media library thumbnails
-  try {
-    rmSync(join(app.getPath('userData'), 'media-library', id), { recursive: true, force: true })
-  } catch { /* ignore */ }
-
-  // Clean up site icon
-  try {
-    const iconDir = join(app.getPath('userData'), 'site-icons')
-    for (const f of readdirSync(iconDir)) {
-      if (f.startsWith(id)) unlinkSync(join(iconDir, f))
-    }
-  } catch { /* ignore */ }
-}
-
-export function clearSiteData(siteId: string): void {
+/** Shared cleanup: remove credential, DB row, and on-disk assets for a site */
+function removeSiteAndAssets(siteId: string): void {
   const db = getDb()
   const existing = getSiteById(siteId)
   if (!existing) return
@@ -118,23 +82,33 @@ export function clearSiteData(siteId: string): void {
   deleteCredential(existing.keychain_ref)
   db.prepare('DELETE FROM sites WHERE id = ?').run(siteId)
 
+  const userData = app.getPath('userData')
+
   // Clean up local media files
   try {
-    rmSync(join(app.getPath('userData'), 'media', siteId), { recursive: true, force: true })
+    rmSync(join(userData, 'media', siteId), { recursive: true, force: true })
   } catch { /* ignore */ }
 
   // Clean up cached media library thumbnails
   try {
-    rmSync(join(app.getPath('userData'), 'media-library', siteId), { recursive: true, force: true })
+    rmSync(join(userData, 'media-library', siteId), { recursive: true, force: true })
   } catch { /* ignore */ }
 
   // Clean up site icon
   try {
-    const iconDir = join(app.getPath('userData'), 'site-icons')
+    const iconDir = join(userData, 'site-icons')
     for (const f of readdirSync(iconDir)) {
       if (f.startsWith(siteId)) unlinkSync(join(iconDir, f))
     }
   } catch { /* ignore */ }
+}
+
+export function deleteSite(id: string): void {
+  removeSiteAndAssets(id)
+}
+
+export function clearSiteData(siteId: string): void {
+  removeSiteAndAssets(siteId)
 }
 
 export function updateSiteIconUrl(siteId: string, iconUrl: string | null): void {
@@ -143,14 +117,41 @@ export function updateSiteIconUrl(siteId: string, iconUrl: string | null): void 
     .run(iconUrl, new Date().toISOString(), siteId)
 }
 
-function normalizeSiteRow(row: Site): Site {
-  const r = row as Record<string, unknown>
+/** Raw shape from SQLite — booleans are integers, nullable columns may be undefined */
+interface SiteRow {
+  id: string
+  label: string
+  url: string
+  username: string
+  keychain_ref: string
+  auto_sync: number
+  pull_published: number
+  last_post_pull_at: string | null
+  last_schema_pull_at: string | null
+  media_library_limit: number
+  last_media_library_pull_at: string | null
+  wp_author_id: number | null
+  site_icon_url: string | null
+  created_at: string
+  updated_at: string
+}
+
+function normalizeSiteRow(row: SiteRow): Site {
   return {
-    ...row,
+    id: row.id,
+    label: row.label,
+    url: row.url,
+    username: row.username,
+    keychain_ref: row.keychain_ref,
     auto_sync: Boolean(row.auto_sync),
     pull_published: Number(row.pull_published),
+    last_post_pull_at: row.last_post_pull_at ?? null,
+    last_schema_pull_at: row.last_schema_pull_at ?? null,
     media_library_limit: Number(row.media_library_limit),
-    wp_author_id: r.wp_author_id as number ?? null,
-    site_icon_url: (r.site_icon_url as string) || null
+    last_media_library_pull_at: row.last_media_library_pull_at ?? null,
+    wp_author_id: row.wp_author_id ?? null,
+    site_icon_url: row.site_icon_url || null,
+    created_at: row.created_at,
+    updated_at: row.updated_at
   }
 }

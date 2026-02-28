@@ -18,6 +18,7 @@ export function initDatabase(): void {
   const key = getOrCreateDbKey()
 
   db = new Database(dbPath)
+  // key is a hex string generated internally by getOrCreateDbKey() — safe to interpolate
   db.pragma(`key='${key}'`)
   db.pragma('journal_mode=WAL')
   db.pragma('foreign_keys=ON')

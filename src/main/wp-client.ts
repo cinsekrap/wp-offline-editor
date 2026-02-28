@@ -1,6 +1,7 @@
 import { readFileSync } from 'fs'
 import { basename, extname } from 'path'
 import { decodeHtmlEntities } from './html-utils'
+import { isLocalUrl } from './url-utils'
 import type {
   WpConnectionResult,
   WpPostRaw,
@@ -25,20 +26,9 @@ function makeAuthHeaders(username: string, password: string): Record<string, str
   }
 }
 
-function isLocalUrl(url: string): boolean {
-  try {
-    const { hostname } = new URL(url)
-    return (
-      hostname === 'localhost' ||
-      hostname === '127.0.0.1' ||
-      hostname === '::1' ||
-      hostname.endsWith('.local') ||
-      hostname.endsWith('.test') ||
-      hostname.endsWith('.localhost')
-    )
-  } catch {
-    return false
-  }
+/** Strip trailing slashes once so callers don't repeat this */
+function apiBase(url: string): string {
+  return `${url.replace(/\/+$/, '')}/wp-json`
 }
 
 export async function testWpConnection(
@@ -46,19 +36,18 @@ export async function testWpConnection(
   username: string,
   password: string
 ): Promise<WpConnectionResult> {
-  const baseUrl = url.replace(/\/+$/, '')
+  const cleanUrl = url.replace(/\/+$/, '')
 
-  if (baseUrl.startsWith('http://') && !isLocalUrl(baseUrl)) {
+  if (cleanUrl.startsWith('http://') && !isLocalUrl(cleanUrl)) {
     return { success: false, error: 'Non-local sites must use HTTPS. Change the URL to https://.' }
   }
 
-  const apiBase = `${baseUrl}/wp-json`
+  const base = apiBase(url)
+  const headers = makeAuthHeaders(username, password)
 
   try {
     // Test basic WP REST API availability
-    const rootRes = await fetch(apiBase, {
-      headers: makeAuthHeaders(username, password)
-    })
+    const rootRes = await fetch(base, { headers })
 
     if (!rootRes.ok) {
       if (rootRes.status === 401 || rootRes.status === 403) {
@@ -75,11 +64,8 @@ export async function testWpConnection(
     // Get WP version from the wp/v2 users/me endpoint (requires auth)
     let wpVersion = 'Unknown'
     try {
-      const meRes = await fetch(`${apiBase}/wp/v2/users/me?context=edit`, {
-        headers: makeAuthHeaders(username, password)
-      })
+      const meRes = await fetch(`${base}/wp/v2/users/me?context=edit`, { headers })
       if (meRes.ok) {
-        // The WP version is typically in the response headers
         wpVersion = meRes.headers.get('x-wp-version') || 'Unknown'
       }
     } catch {
@@ -101,7 +87,7 @@ export async function testWpConnection(
 
     if (!acfActive && wpoePluginActive) {
       try {
-        const statusRes = await fetch(`${apiBase}/wpoe/v1/status`)
+        const statusRes = await fetch(`${base}/wpoe/v1/status`)
         if (statusRes.ok) {
           const status = (await statusRes.json()) as { acf?: boolean }
           acfActive = !!status.acf
@@ -113,9 +99,7 @@ export async function testWpConnection(
 
     if (!acfActive) {
       try {
-        const schemaRes = await fetch(`${apiBase}/wp/v2/posts?per_page=1&_fields=acf`, {
-          headers: makeAuthHeaders(username, password)
-        })
+        const schemaRes = await fetch(`${base}/wp/v2/posts?per_page=1&_fields=acf`, { headers })
         if (schemaRes.ok) {
           const posts = (await schemaRes.json()) as Record<string, unknown>[]
           acfActive = posts.length > 0 && 'acf' in posts[0]
@@ -127,7 +111,7 @@ export async function testWpConnection(
 
     return {
       success: true,
-      siteName: decodeHtmlEntities(root.name || baseUrl),
+      siteName: decodeHtmlEntities(root.name || cleanUrl),
       wpVersion,
       acfActive,
       wpoePluginActive
@@ -156,12 +140,12 @@ export async function fetchSiteIcon(
   username: string,
   password: string
 ): Promise<{ imageBuffer: Buffer; ext: string } | null> {
-  const baseUrl = url.replace(/\/+$/, '')
+  const base = apiBase(url)
   const headers = makeAuthHeaders(username, password)
 
   try {
     // WP REST API returns site_icon as a media attachment ID (0 = no icon)
-    const res = await fetch(`${baseUrl}/wp-json/wp/v2/settings`, { headers })
+    const res = await fetch(`${base}/wp/v2/settings`, { headers })
     if (!res.ok) return null
 
     const settings = (await res.json()) as { site_icon?: number }
@@ -169,7 +153,7 @@ export async function fetchSiteIcon(
 
     // Fetch the actual image URL from the media endpoint
     const mediaRes = await fetch(
-      `${baseUrl}/wp-json/wp/v2/media/${settings.site_icon}?_fields=source_url,media_details`,
+      `${base}/wp/v2/media/${settings.site_icon}?_fields=source_url,media_details`,
       { headers }
     )
     if (!mediaRes.ok) return null
@@ -205,7 +189,7 @@ export async function fetchPosts(
   statuses: string[],
   maxPublished: number
 ): Promise<{ posts: WpPostRaw[]; total: number }> {
-  const baseUrl = url.replace(/\/+$/, '')
+  const base = apiBase(url)
   const headers = makeAuthHeaders(username, password)
   const fields = 'id,title,content,excerpt,slug,status,modified,date,author,featured_media,categories,tags,acf'
   const allPosts: WpPostRaw[] = []
@@ -224,7 +208,7 @@ export async function fetchPosts(
         _fields: fields
       })
 
-      const res = await fetch(`${baseUrl}/wp-json/wp/v2/posts?${params}`, { headers })
+      const res = await fetch(`${base}/wp/v2/posts?${params}`, { headers })
 
       if (!res.ok) {
         // 400 often means "no posts with this status" — skip silently
@@ -265,7 +249,7 @@ export async function fetchUserNames(
   const map = new Map<number, string>()
   if (userIds.length === 0) return map
 
-  const baseUrl = url.replace(/\/+$/, '')
+  const base = apiBase(url)
   const headers = makeAuthHeaders(username, password)
 
   const params = new URLSearchParams({
@@ -274,7 +258,7 @@ export async function fetchUserNames(
     per_page: '100'
   })
 
-  const res = await fetch(`${baseUrl}/wp-json/wp/v2/users?${params}`, { headers })
+  const res = await fetch(`${base}/wp/v2/users?${params}`, { headers })
   if (!res.ok) return map
 
   const users = (await res.json()) as { id: number; name: string }[]
@@ -291,10 +275,10 @@ export async function fetchAuthors(
   username: string,
   password: string
 ): Promise<{ id: number; name: string }[]> {
-  const baseUrl = url.replace(/\/+$/, '')
+  const base = apiBase(url)
   const headers = makeAuthHeaders(username, password)
 
-  const res = await fetch(`${baseUrl}/wp-json/wp/v2/users?per_page=100&_fields=id,name`, { headers })
+  const res = await fetch(`${base}/wp/v2/users?per_page=100&_fields=id,name`, { headers })
   if (!res.ok) {
     throw new Error(`Failed to fetch authors: HTTP ${res.status}`)
   }
@@ -317,7 +301,7 @@ export async function fetchTaxonomyTerms(
   password: string,
   taxonomy: 'categories' | 'tags'
 ): Promise<WpTaxonomyTermRaw[]> {
-  const baseUrl = url.replace(/\/+$/, '')
+  const base = apiBase(url)
   const headers = makeAuthHeaders(username, password)
   const allTerms: WpTaxonomyTermRaw[] = []
 
@@ -331,7 +315,7 @@ export async function fetchTaxonomyTerms(
       _fields: 'id,name,slug,parent'
     })
 
-    const res = await fetch(`${baseUrl}/wp-json/wp/v2/${taxonomy}?${params}`, { headers })
+    const res = await fetch(`${base}/wp/v2/${taxonomy}?${params}`, { headers })
 
     if (!res.ok) {
       if (res.status === 400) break
@@ -354,10 +338,10 @@ export async function fetchAcfFieldGroups(
   username: string,
   password: string
 ): Promise<WpAcfFieldGroupRaw[]> {
-  const baseUrl = url.replace(/\/+$/, '')
+  const base = apiBase(url)
   const headers = makeAuthHeaders(username, password)
 
-  const res = await fetch(`${baseUrl}/wp-json/wpoe/v1/field-groups`, { headers })
+  const res = await fetch(`${base}/wpoe/v1/field-groups`, { headers })
   if (!res.ok) {
     throw new Error(`Failed to fetch ACF field groups: HTTP ${res.status}`)
   }
@@ -372,10 +356,10 @@ export async function fetchAcfFieldGroupFields(
   password: string,
   groupKey: string
 ): Promise<WpAcfFieldRaw[]> {
-  const baseUrl = url.replace(/\/+$/, '')
+  const base = apiBase(url)
   const headers = makeAuthHeaders(username, password)
 
-  const res = await fetch(`${baseUrl}/wp-json/wpoe/v1/field-groups/${groupKey}/fields`, { headers })
+  const res = await fetch(`${base}/wpoe/v1/field-groups/${groupKey}/fields`, { headers })
   if (!res.ok) {
     throw new Error(`Failed to fetch fields for group ${groupKey}: HTTP ${res.status}`)
   }
@@ -390,10 +374,10 @@ export async function fetchShortcodes(
   username: string,
   password: string
 ): Promise<{ tag: string }[]> {
-  const baseUrl = url.replace(/\/+$/, '')
+  const base = apiBase(url)
   const headers = makeAuthHeaders(username, password)
 
-  const res = await fetch(`${baseUrl}/wp-json/wpoe/v1/shortcodes`, { headers })
+  const res = await fetch(`${base}/wpoe/v1/shortcodes`, { headers })
   if (!res.ok) {
     throw new Error(`Failed to fetch shortcodes: HTTP ${res.status}`)
   }
@@ -409,12 +393,12 @@ export async function fetchAttachmentUrl(
   password: string,
   attachmentId: number
 ): Promise<string | null> {
-  const baseUrl = url.replace(/\/+$/, '')
+  const base = apiBase(url)
   const headers = makeAuthHeaders(username, password)
 
   try {
     const res = await fetch(
-      `${baseUrl}/wp-json/wp/v2/media/${attachmentId}?_fields=source_url`,
+      `${base}/wp/v2/media/${attachmentId}?_fields=source_url`,
       { headers }
     )
     if (!res.ok) return null
@@ -434,7 +418,7 @@ export async function pushPost(
   wpId: number | null,
   data: { title: string; content: string; status: string; date?: string | null; acf?: Record<string, unknown> | null; featured_media?: number; excerpt?: string; slug?: string; categories?: number[]; tags?: number[] }
 ): Promise<{ id: number; modified: string }> {
-  const baseUrl = url.replace(/\/+$/, '')
+  const base = apiBase(url)
   const headers = {
     ...makeAuthHeaders(username, password),
     'Content-Type': 'application/json'
@@ -454,8 +438,8 @@ export async function pushPost(
   if (data.tags) body.tags = data.tags
 
   const endpoint = wpId
-    ? `${baseUrl}/wp-json/wp/v2/posts/${wpId}`
-    : `${baseUrl}/wp-json/wp/v2/posts`
+    ? `${base}/wp/v2/posts/${wpId}`
+    : `${base}/wp/v2/posts`
 
   const res = await fetch(endpoint, {
     method: wpId ? 'PUT' : 'POST',
@@ -480,10 +464,10 @@ export async function deleteRemotePost(
   password: string,
   wpId: number
 ): Promise<void> {
-  const baseUrl = url.replace(/\/+$/, '')
+  const base = apiBase(url)
   const headers = makeAuthHeaders(username, password)
 
-  const res = await fetch(`${baseUrl}/wp-json/wp/v2/posts/${wpId}?force=true`, {
+  const res = await fetch(`${base}/wp/v2/posts/${wpId}?force=true`, {
     method: 'DELETE',
     headers
   })
@@ -502,11 +486,11 @@ export async function fetchSinglePost(
   password: string,
   wpId: number
 ): Promise<WpPostRaw> {
-  const baseUrl = url.replace(/\/+$/, '')
+  const base = apiBase(url)
   const headers = makeAuthHeaders(username, password)
 
   const res = await fetch(
-    `${baseUrl}/wp-json/wp/v2/posts/${wpId}?_fields=id,title,content,excerpt,slug,status,modified,date,author,featured_media,categories,tags,acf`,
+    `${base}/wp/v2/posts/${wpId}?_fields=id,title,content,excerpt,slug,status,modified,date,author,featured_media,categories,tags,acf`,
     { headers }
   )
 
@@ -540,7 +524,7 @@ export async function fetchMediaLibrary(
   password: string,
   limit: number
 ): Promise<{ items: WpMediaItemRaw[]; total: number }> {
-  const baseUrl = url.replace(/\/+$/, '')
+  const base = apiBase(url)
   const headers = makeAuthHeaders(username, password)
   const allItems: WpMediaItemRaw[] = []
 
@@ -558,7 +542,7 @@ export async function fetchMediaLibrary(
       _fields: 'id,title,mime_type,alt_text,source_url,media_details,date'
     })
 
-    const res = await fetch(`${baseUrl}/wp-json/wp/v2/media?${params}`, { headers })
+    const res = await fetch(`${base}/wp/v2/media?${params}`, { headers })
 
     if (!res.ok) {
       if (res.status === 400) break
@@ -588,8 +572,8 @@ export async function uploadMedia(
   filePath: string,
   filename: string
 ): Promise<WpMediaUploadResult> {
-  const baseUrl = url.replace(/\/+$/, '')
-  const authHeaders = makeAuthHeaders(username, password)
+  const base = apiBase(url)
+  const headers = makeAuthHeaders(username, password)
 
   const fileBuffer = readFileSync(filePath)
   const ext = extname(filename).toLowerCase()
@@ -599,9 +583,9 @@ export async function uploadMedia(
   const form = new FormData()
   form.append('file', blob, basename(filename))
 
-  const res = await fetch(`${baseUrl}/wp-json/wp/v2/media`, {
+  const res = await fetch(`${base}/wp/v2/media`, {
     method: 'POST',
-    headers: authHeaders,
+    headers,
     body: form
   })
 

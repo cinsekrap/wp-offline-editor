@@ -36,7 +36,8 @@ export function useAutoSave(update: PostUpdate | null, delay = 1000): UseAutoSav
       await window.electronAPI.updatePost(data)
       lastSavedRef.current = serialized
       setStatus('saved')
-    } catch {
+    } catch (err) {
+      console.error('[autoSave] Failed to save post:', err instanceof Error ? err.message : err)
       setStatus('error')
     }
   }, [])

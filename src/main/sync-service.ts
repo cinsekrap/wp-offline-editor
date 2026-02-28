@@ -266,7 +266,9 @@ export async function syncSite(siteId: string): Promise<SyncResult> {
   const pull = await pullPostsForSite(siteId)
   const schemaPull = await pullAcfSchemaForSite(siteId)
   const mediaLibraryPull = await pullMediaLibraryForSite(siteId)
-  await pullTaxonomyTerms(siteId).catch(() => { /* non-critical */ })
+  await pullTaxonomyTerms(siteId).catch((err) => {
+    console.warn('[sync] Failed to pull taxonomy terms:', err instanceof Error ? err.message : err)
+  })
 
   // Refresh site icon (non-critical)
   try {
@@ -284,7 +286,9 @@ export async function syncSite(siteId: string): Promise<SyncResult> {
         updateSiteIconUrl(siteId, null)
       }
     }
-  } catch { /* non-critical */ }
+  } catch (err) {
+    console.warn('[sync] Failed to refresh site icon:', err instanceof Error ? err.message : err)
+  }
 
   return { pushed, pushErrors, pull, schemaPull, mediaLibraryPull }
 }

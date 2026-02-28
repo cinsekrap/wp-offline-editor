@@ -25,7 +25,6 @@ interface PostsViewProps {
 export function PostsView({
   siteId,
   pulling,
-  online,
   editorFontSize,
   selectedPostId,
   onSelectPost,
@@ -39,10 +38,6 @@ export function PostsView({
   sites,
   onDuplicate
 }: PostsViewProps): JSX.Element {
-  const handleSelectPost = useCallback((id: string) => {
-    onSelectPost(id)
-  }, [onSelectPost])
-
   const handleNewPost = useCallback(async () => {
     const post = await createPost()
     onSelectPost(post.id)
@@ -55,10 +50,6 @@ export function PostsView({
     refreshPosts()
   }, [selectedPostId, deletePost, onSelectPost, refreshPosts])
 
-  const handlePostUpdated = useCallback(() => {
-    refreshPosts()
-  }, [refreshPosts])
-
   if (selectedPostId) {
     return (
       <PostEditor
@@ -67,7 +58,7 @@ export function PostsView({
         siteId={siteId}
         onBack={onBack ?? (() => onSelectPost(null))}
         onDelete={handleDeletePost}
-        onPostUpdated={handlePostUpdated}
+        onPostUpdated={refreshPosts}
         editorFontSize={editorFontSize}
         sites={sites}
         onDuplicate={onDuplicate}
@@ -79,7 +70,7 @@ export function PostsView({
     <PostList
       posts={posts}
       loading={postsLoading || !!pulling}
-      onSelectPost={handleSelectPost}
+      onSelectPost={onSelectPost}
       onNewPost={handleNewPost}
       initialFilter={initialFilter}
     />

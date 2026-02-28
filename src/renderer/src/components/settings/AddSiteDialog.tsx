@@ -225,7 +225,7 @@ export function AddSiteDialog({
                   Companion plugin not detected
                 </div>
                 <p className="text-xs text-yellow-600 dark:text-yellow-500 mb-2">
-                  Code-registered ACF field groups require the WP Offline Editor Companion plugin
+                  Code-registered ACF field groups require the NP Presspad Companion plugin
                   for schema discovery. Posts will sync fine without it.
                 </p>
                 <Button

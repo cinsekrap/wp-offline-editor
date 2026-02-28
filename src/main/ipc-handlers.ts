@@ -227,7 +227,7 @@ export function registerIpcHandlers(): void {
 
     const { canceled, filePath } = await dialog.showSaveDialog({
       title: 'Save Companion Plugin',
-      defaultPath: join(app.getPath('downloads'), 'wp-offline-editor-companion.zip'),
+      defaultPath: join(app.getPath('downloads'), 'np-presspad-companion.zip'),
       filters: [{ name: 'ZIP Archive', extensions: ['zip'] }]
     })
 

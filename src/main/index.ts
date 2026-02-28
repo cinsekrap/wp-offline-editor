@@ -5,7 +5,9 @@ import { initDatabase, closeDatabase } from './database'
 import { registerIpcHandlers } from './ipc-handlers'
 import { initAutoUpdater } from './updater'
 
-// Keep userData path stable (based on package name), but show friendly name in macOS menu bar
+// Keep userData path stable (based on package name).
+// safeStorage uses app.name for the macOS Keychain service — keep the old name until
+// after database init so existing encrypted data can be decrypted, then rename for UI.
 app.setPath('userData', join(app.getPath('appData'), 'wp-offline-editor'))
 app.name = 'Offline Post Editor'
 
@@ -213,6 +215,9 @@ app.whenReady().then(() => {
 
   initDatabase()
   registerIpcHandlers()
+
+  // Now that safeStorage has initialized with the old Keychain entry, rename for UI
+  app.name = 'NP Presspad'
 
   // Scratchpad pop-out window (registered here to avoid circular imports with ipc-handlers)
   ipcMain.handle('scratchpad-window:open', (_event, scratchpadId: unknown) => {

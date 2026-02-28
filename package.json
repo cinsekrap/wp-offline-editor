@@ -1,7 +1,7 @@
 {
-  "name": "wp-offline-editor",
-  "version": "0.7.5-build.0",
-  "description": "Offline Post Editor",
+  "name": "np-presspad",
+  "version": "0.7.5-build.9",
+  "description": "NP Presspad",
   "main": "./out/main/index.js",
   "author": "",
   "license": "MIT",

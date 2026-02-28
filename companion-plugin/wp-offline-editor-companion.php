@@ -1,7 +1,7 @@
 <?php
 /**
- * Plugin Name: WP Offline Editor Companion
- * Description: Exposes ACF field groups and fields via REST API for WP Offline Editor schema discovery, including code-registered field groups.
+ * Plugin Name: NP Presspad Companion
+ * Description: Exposes ACF field groups and fields via REST API for NP Presspad schema discovery, including code-registered field groups.
  * Version: 0.7.5
  * Author: Nic Chambers-Parkes
  * Author URI: https://www.nicparkes.com

@@ -22,7 +22,7 @@ export async function pullAcfSchemaForSite(siteId: string): Promise<AcfPullResul
         groupsFound: 0,
         groupsUpdated: 0,
         groupsUnchanged: 0,
-        errors: ['ACF REST API not available. Install the WP Offline Editor Companion plugin.']
+        errors: ['ACF REST API not available. Install the NP Presspad Companion plugin.']
       }
     }
     throw err

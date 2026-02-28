@@ -1,5 +1,5 @@
-appId: com.wp-offline-editor.app
-productName: Offline Post Editor
+appId: com.np-presspad.app
+productName: NP Presspad
 directories:
   buildResources: resources
   output: dist

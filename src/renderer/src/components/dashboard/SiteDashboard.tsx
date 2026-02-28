@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Plus, CloudUpload, CheckCircle, ChevronRight } from 'lucide-react'
+import { Plus, CloudUpload, CheckCircle, ChevronRight, AlertTriangle } from 'lucide-react'
 import { Badge } from '@renderer/components/ui/badge'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
 import { cn } from '@renderer/lib/utils'
@@ -44,16 +44,32 @@ function formatRelativeDate(dateStr: string | null): string {
   return date.toLocaleDateString()
 }
 
+function formatFutureDate(dateStr: string): string {
+  const date = new Date(dateStr)
+  const now = new Date()
+  const diffMs = date.getTime() - now.getTime()
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+
+  const time = date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+
+  if (diffDays === 0) return `Today at ${time}`
+  if (diffDays === 1) return `Tomorrow at ${time}`
+  if (diffDays < 7) return `${date.toLocaleDateString(undefined, { weekday: 'long' })} at ${time}`
+  return `${date.toLocaleDateString()} at ${time}`
+}
+
 function PostCard({
   post,
   pillLabel,
   pillColor,
-  onClick
+  onClick,
+  subtitle
 }: {
   post: Post
   pillLabel: string
   pillColor: string
   onClick: () => void
+  subtitle?: string
 }): JSX.Element {
   return (
     <button
@@ -78,7 +94,7 @@ function PostCard({
           {pillLabel}
         </Badge>
         <span className="text-xs text-muted-foreground">
-          {formatRelativeDate(post.date ?? post.modified_local)}
+          {subtitle ?? formatRelativeDate(post.date ?? post.modified_local)}
         </span>
       </div>
     </button>
@@ -93,12 +109,15 @@ export function SiteDashboard({
   onNewPost,
   onSeeAllPosts
 }: SiteDashboardProps): JSX.Element {
-  const { pickBackUp, pickBackUpTotal } = useMemo(() => {
+  const { pickBackUp, pickBackUpTotal, scheduledPosts, scheduledCount, hasUnsyncedScheduled } = useMemo(() => {
     const pick: Post[] = []
+    const scheduled: Post[] = []
 
     for (const post of posts) {
       if (post.status === 'trash') continue
-      if (post.status === 'draft' || !post.synced) {
+      if (post.status === 'future') {
+        scheduled.push(post)
+      } else if (post.status === 'draft' || !post.synced) {
         pick.push(post)
       }
     }
@@ -106,9 +125,15 @@ export function SiteDashboard({
     // Sort pick-back-up by modified_local desc
     pick.sort((a, b) => new Date(b.modified_local).getTime() - new Date(a.modified_local).getTime())
 
+    // Sort scheduled by date asc (soonest first)
+    scheduled.sort((a, b) => new Date(a.date ?? '').getTime() - new Date(b.date ?? '').getTime())
+
     return {
       pickBackUp: pick.slice(0, 6),
-      pickBackUpTotal: pick.length
+      pickBackUpTotal: pick.length,
+      scheduledPosts: scheduled.slice(0, 3),
+      scheduledCount: scheduled.length,
+      hasUnsyncedScheduled: scheduled.some((p) => !p.synced)
     }
   }, [posts])
 
@@ -146,6 +171,28 @@ export function SiteDashboard({
         {/* Writing Stats */}
         <WritingStats siteId={siteId} compact={compact} />
 
+        {/* Quick actions */}
+        <section className={compact ? 'mb-3' : 'mb-5'}>
+          <div className="flex gap-2.5">
+            <button
+              onClick={onNewPost}
+              className="border-2 border-dashed border-green-400/50 rounded-lg p-4 hover:border-green-500 hover:bg-green-50 dark:hover:bg-green-950/20 transition-colors cursor-pointer flex items-center justify-center gap-2 flex-1"
+            >
+              <Plus className="h-5 w-5 text-green-600 dark:text-green-500" />
+              <span className="text-sm font-medium text-green-600 dark:text-green-500">New post</span>
+            </button>
+            {posts.length > 0 && (
+              <button
+                onClick={() => onSeeAllPosts()}
+                className="border rounded-lg p-4 hover:bg-accent/30 transition-colors cursor-pointer flex items-center justify-center gap-2 flex-1"
+              >
+                <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                <span className="text-sm font-medium text-muted-foreground">See all posts</span>
+              </button>
+            )}
+          </div>
+        </section>
+
         {/* Pick back up */}
         {visibleCards.length > 0 && (
           <section className={compact ? 'mb-3' : 'mb-5'}>
@@ -178,26 +225,53 @@ export function SiteDashboard({
           </section>
         )}
 
-        {/* Quick actions */}
+        {/* Publishing soon */}
         <section className={compact ? 'mb-3' : 'mb-5'}>
-          <div className="flex gap-2.5">
-            <button
-              onClick={onNewPost}
-              className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-4 hover:border-muted-foreground/50 hover:bg-accent/30 transition-colors cursor-pointer flex items-center justify-center gap-2 flex-1"
-            >
-              <Plus className="h-5 w-5 text-muted-foreground" />
-              <span className="text-sm font-medium text-muted-foreground">New post</span>
-            </button>
-            {posts.length > 0 && (
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-sm font-medium text-muted-foreground">Publishing soon</h2>
+            {scheduledCount > 0 ? (
               <button
-                onClick={() => onSeeAllPosts()}
-                className="border rounded-lg p-4 hover:bg-accent/30 transition-colors cursor-pointer flex items-center justify-center gap-2 flex-1"
+                onClick={() => onSeeAllPosts('scheduled')}
+                className="flex items-center gap-0.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
               >
-                <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                <span className="text-sm font-medium text-muted-foreground">See all posts</span>
+                See all
+                <ChevronRight className="h-3 w-3" />
               </button>
+            ) : (
+              <span className="flex items-center gap-0.5 text-xs text-muted-foreground/50">
+                See all
+                <ChevronRight className="h-3 w-3" />
+              </span>
             )}
           </div>
+          {scheduledPosts.length > 0 ? (
+            <>
+              {hasUnsyncedScheduled && (
+                <div className="flex items-start gap-2 mb-2 rounded-md border border-orange-200 bg-orange-50 dark:border-orange-800 dark:bg-orange-950/30 p-2.5">
+                  <AlertTriangle className="h-3.5 w-3.5 text-orange-500 shrink-0 mt-0.5" />
+                  <p className="text-xs text-orange-700 dark:text-orange-400">
+                    There are unsynchronized scheduled posts. They may not go live as scheduled.
+                  </p>
+                </div>
+              )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                {scheduledPosts.map((post) => (
+                  <PostCard
+                    key={post.id}
+                    post={post}
+                    pillLabel="Scheduled"
+                    pillColor={STATUS_COLORS.future}
+                    onClick={() => onSelectPost(post.id)}
+                    subtitle={post.date ? formatFutureDate(post.date) : undefined}
+                  />
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="border border-dashed rounded-lg p-4 text-center">
+              <p className="text-xs text-muted-foreground">No scheduled posts</p>
+            </div>
+          )}
         </section>
 
         {/* Empty state */}

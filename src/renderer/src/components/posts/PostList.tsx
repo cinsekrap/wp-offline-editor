@@ -58,7 +58,7 @@ function formatRelativeDate(dateStr: string | null): string {
   return date.toLocaleDateString()
 }
 
-export type PostListFilter = 'drafts-unsynced' | 'published'
+export type PostListFilter = 'drafts-unsynced' | 'published' | 'scheduled'
 
 interface PostListProps {
   posts: Post[]
@@ -91,6 +91,10 @@ export function PostList({
         setSortBy('modified_local')
       } else if (initialFilter === 'published') {
         setActiveFilters(new Set<PostStatus>(['publish', 'pending', 'private', 'future']))
+        setSyncFilter('all')
+        setSortBy('date')
+      } else if (initialFilter === 'scheduled') {
+        setActiveFilters(new Set<PostStatus>(['future']))
         setSyncFilter('all')
         setSortBy('date')
       }

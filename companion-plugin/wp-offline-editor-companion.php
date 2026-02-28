@@ -14,6 +14,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+define( 'WPOE_VERSION', '0.7.5' );
+
 require_once plugin_dir_path( __FILE__ ) . 'plugin-update-checker/plugin-update-checker.php';
 $wpoeUpdateChecker = YahnisElsts\PluginUpdateChecker\v5\PucFactory::buildUpdateChecker(
 	'https://github.com/cinsekrap/wp-offline-editor/',
@@ -50,7 +52,7 @@ add_action( 'rest_api_init', function () {
 		'callback'            => function () {
 			return [
 				'active'  => true,
-				'version' => '0.7.5',
+				'version' => WPOE_VERSION,
 				'acf'     => function_exists( 'acf_get_field_groups' ),
 			];
 		},

@@ -1,11 +1,6 @@
 import { useState, useCallback } from 'react'
 import type { Template, TemplateInput, TemplateUpdate, TaxonomyTerm } from '@shared/types'
-
-type ToastFn = (opts: {
-  title: string
-  description?: string
-  variant?: 'default' | 'destructive'
-}) => void
+import type { ToastFn } from '@renderer/lib/types'
 
 interface UseTemplateActionsParams {
   templates: Template[]

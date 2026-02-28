@@ -14,6 +14,7 @@ import { Switch } from '@renderer/components/ui/switch'
 import { Badge } from '@renderer/components/ui/badge'
 import { AlertTriangle, CheckCircle, Download, Loader2, XCircle } from 'lucide-react'
 import type { SiteInput, WpConnectionResult } from '@shared/types'
+import { isPluginVersionMismatch, pluginMismatchMessage } from '@shared/version-utils'
 
 interface AddSiteDialogProps {
   open: boolean
@@ -45,11 +46,17 @@ export function AddSiteDialog({
   const [appVersion, setAppVersion] = useState('')
 
   useEffect(() => {
-    window.electronAPI.getVersion().then(setAppVersion)
-  }, [])
+    if (open) window.electronAPI.getVersion().then(setAppVersion)
+  }, [open])
 
   const isLocalDomain = url.toLowerCase().includes('.local')
   const isHttpWarning = url.startsWith('http://') && !isLocalDomain
+  const pluginMismatch = !!(
+    testResult?.wpoePluginActive &&
+    testResult.wpoePluginVersion &&
+    appVersion &&
+    isPluginVersionMismatch(testResult.wpoePluginVersion, appVersion)
+  )
 
   function reset(): void {
     setStep('credentials')
@@ -237,16 +244,14 @@ export function AddSiteDialog({
               </div>
             )}
 
-            {testResult.wpoePluginActive && testResult.wpoePluginVersion && appVersion &&
-              testResult.wpoePluginVersion.match(/^(\d+\.\d+)/)?.[1] !== appVersion.match(/^(\d+\.\d+)/)?.[1] && (
+            {pluginMismatch && (
               <div className="p-3 rounded-md bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-900">
                 <div className="flex items-center gap-2 text-orange-700 dark:text-orange-400 text-sm font-medium mb-2">
                   <AlertTriangle className="h-4 w-4" />
-                  Companion plugin is outdated
+                  Companion plugin version mismatch
                 </div>
                 <p className="text-xs text-orange-600 dark:text-orange-500 mb-2">
-                  Plugin is outdated (latest is v{appVersion.match(/^(\d+\.\d+)/)?.[1]}). Update the
-                  companion plugin or some elements may not sync with your WordPress site.
+                  {pluginMismatchMessage(appVersion)}
                 </p>
                 <Button
                   variant="outline"

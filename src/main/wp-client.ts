@@ -140,12 +140,6 @@ export async function testWpConnection(
 
 // ── Version helpers ─────────────────────────────────────────────────────
 
-/** Extract major.minor from a semver-like string (e.g. "0.7.5-build.4" → "0.7") */
-export function getMinorVersion(version: string): string {
-  const match = version.match(/^(\d+\.\d+)/)
-  return match ? match[1] : version
-}
-
 /** Lightweight plugin version fetch for use during sync */
 export async function fetchPluginVersion(
   url: string,

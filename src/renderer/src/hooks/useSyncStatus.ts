@@ -1,10 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-
-type ToastFn = (opts: {
-  title: string
-  description?: string
-  variant?: 'default' | 'destructive' | 'warning'
-}) => void
+import type { ToastFn } from '@renderer/lib/types'
 
 interface UseSyncStatusParams {
   selectedSiteId: string | null

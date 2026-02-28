@@ -2,7 +2,7 @@
 /**
  * Plugin Name: NP Presspad Companion
  * Description: Exposes ACF field groups and fields via REST API for NP Presspad schema discovery, including code-registered field groups.
- * Version: 0.7.5
+ * Version: 0.8.0
  * Author: Nic Chambers-Parkes
  * Author URI: https://www.nicparkes.com
  * License: MIT
@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WPOE_VERSION', '0.7.5' );
+define( 'WPOE_VERSION', '0.8.0' );
 
 require_once plugin_dir_path( __FILE__ ) . 'plugin-update-checker/plugin-update-checker.php';
 $wpoeUpdateChecker = YahnisElsts\PluginUpdateChecker\v5\PucFactory::buildUpdateChecker(

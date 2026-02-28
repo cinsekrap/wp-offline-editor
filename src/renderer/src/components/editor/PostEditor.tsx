@@ -16,6 +16,7 @@ import { TipTapEditor } from './TipTapEditor'
 import { PostMeta } from './PostMeta'
 import { AcfPanel } from './acf/AcfPanel'
 import { AcfMediaProvider } from './acf/AcfMediaContext'
+import { ScratchpadPanel } from './ScratchpadPanel'
 import { ConflictDialog } from './ConflictDialog'
 import { DeletePostDialog } from './DeletePostDialog'
 import { DuplicateToDialog } from './DuplicateToDialog'
@@ -130,7 +131,7 @@ export function PostEditor({
   const { queue, pending, refresh: refreshQueue, uploadItem, uploadAll } = useMediaQueue(siteId, postId)
   const { schemas: acfSchemas } = useAcfSchema(siteId)
   const hasAcf = acfSchemas.some((s) => s.fields.length > 0)
-  const [sidebarTab, setSidebarTab] = useState<'post' | 'acf'>('post')
+  const [sidebarTab, setSidebarTab] = useState<'post' | 'acf' | 'scratchpad'>('post')
 
   useEffect(() => {
     initializedRef.current = false
@@ -589,19 +590,19 @@ export function PostEditor({
       {/* Right panel */}
       {rightPanelOpen && (
         <div className="w-[320px] border-l flex flex-col shrink-0 overflow-hidden">
-          {hasAcf && (
-            <div className="flex border-b shrink-0">
-              <button
-                className={cn(
-                  'flex-1 text-xs font-medium py-2 transition-colors',
-                  sidebarTab === 'post'
-                    ? 'text-foreground border-b-2 border-foreground'
-                    : 'text-muted-foreground hover:text-foreground'
-                )}
-                onClick={() => setSidebarTab('post')}
-              >
-                Post
-              </button>
+          <div className="flex border-b shrink-0">
+            <button
+              className={cn(
+                'flex-1 text-xs font-medium py-2 transition-colors',
+                sidebarTab === 'post'
+                  ? 'text-foreground border-b-2 border-foreground'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+              onClick={() => setSidebarTab('post')}
+            >
+              Post
+            </button>
+            {hasAcf && (
               <button
                 className={cn(
                   'flex-1 text-xs font-medium py-2 transition-colors',
@@ -613,9 +614,20 @@ export function PostEditor({
               >
                 Custom Fields
               </button>
-            </div>
-          )}
-          {sidebarTab === 'post' ? (
+            )}
+            <button
+              className={cn(
+                'flex-1 text-xs font-medium py-2 transition-colors',
+                sidebarTab === 'scratchpad'
+                  ? 'text-foreground border-b-2 border-foreground'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+              onClick={() => setSidebarTab('scratchpad')}
+            >
+              Scratchpad
+            </button>
+          </div>
+          {sidebarTab === 'post' && (
             <PostMeta
               status={postStatus}
               scheduledDate={scheduledDate}
@@ -635,10 +647,14 @@ export function PostEditor({
               postId={postId}
               mediaItems={queue}
             />
-          ) : (
+          )}
+          {sidebarTab === 'acf' && (
             <AcfMediaProvider value={{ siteId, postId, mediaItems: queue, refreshMedia: refreshQueue }}>
               <AcfPanel siteId={siteId} acfData={acf} onChange={handleAcfChange} />
             </AcfMediaProvider>
+          )}
+          {sidebarTab === 'scratchpad' && (
+            <ScratchpadPanel siteId={siteId} postId={postId} />
           )}
         </div>
       )}

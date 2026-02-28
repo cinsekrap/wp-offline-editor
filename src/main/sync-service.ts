@@ -7,12 +7,13 @@ import { getSiteById, updateSiteIconUrl } from './site-service'
 import { getCredential } from './credentials'
 import { getPostById, deletePost, pullPostsForSite, downloadAndRewriteImages, rewriteAcfImageUrls, downloadFeaturedImage } from './post-service'
 import { getMediaForPost, uploadMediaToWp } from './media-service'
-import { pushPost, deleteRemotePost, fetchSinglePost, fetchUserNames, fetchSiteIcon } from './wp-client'
+import { pushPost, deleteRemotePost, fetchSinglePost, fetchUserNames, fetchSiteIcon, fetchScratchpads, pushScratchpad as pushScratchpadToWp, updatePostScratchpadMeta } from './wp-client'
 import { decodeHtmlEntities } from './html-utils'
 import { sanitizeHtml } from './sanitize'
 import { pullAcfSchemaForSite } from './acf-service'
 import { pullMediaLibraryForSite } from './media-library-service'
 import { pullTaxonomyTerms } from './taxonomy-service'
+import { getScratchpadsForSite, getScratchpadById } from './scratchpad-service'
 import type { PushResult, SyncResult } from '@shared/types'
 
 export async function pushPostToWp(postId: string): Promise<PushResult> {
@@ -242,8 +243,129 @@ export async function resolveConflict(
   )
 }
 
+async function pushScratchpadsForSite(siteId: string): Promise<void> {
+  const db = getDb()
+  const site = getSiteById(siteId)
+  if (!site) return
+
+  const password = getCredential(site.keychain_ref)
+  if (!password) return
+
+  const unsynced = db
+    .prepare('SELECT id FROM scratchpads WHERE site_id = ? AND synced = 0')
+    .all(siteId) as { id: string }[]
+
+  for (const row of unsynced) {
+    const sp = getScratchpadById(row.id)
+    if (!sp) continue
+
+    try {
+      const result = await pushScratchpadToWp(site.url, site.username, password, sp.wp_id, {
+        title: sp.title,
+        content: sp.content
+      })
+
+      db.prepare(`
+        UPDATE scratchpads SET wp_id = ?, modified_remote = ?, synced = 1
+        WHERE id = ?
+      `).run(result.id, result.modified, sp.id)
+
+      // Sync _scratchpad_id meta on linked posts (best-effort)
+      const linkedPosts = db
+        .prepare('SELECT wp_id FROM posts WHERE scratchpad_id = ? AND wp_id IS NOT NULL')
+        .all(sp.id) as { wp_id: number }[]
+
+      for (const lp of linkedPosts) {
+        try {
+          await updatePostScratchpadMeta(site.url, site.username, password, lp.wp_id, result.id)
+        } catch (err) {
+          console.warn('[sync] Failed to update scratchpad meta on post:', err instanceof Error ? err.message : err)
+        }
+      }
+    } catch (err) {
+      console.warn('[sync] Failed to push scratchpad:', err instanceof Error ? err.message : err)
+    }
+  }
+}
+
+/**
+ * Strip basic HTML tags to recover plain text/markdown from WP content.
+ * WP wraps content in <p> tags; this reverses that for scratchpad markdown.
+ */
+function stripBasicHtml(html: string): string {
+  return html
+    .replace(/<p>/gi, '')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#039;/g, "'")
+    .trim()
+}
+
+async function pullScratchpadsForSite(siteId: string): Promise<void> {
+  const db = getDb()
+  const site = getSiteById(siteId)
+  if (!site) return
+
+  const password = getCredential(site.keychain_ref)
+  if (!password) return
+
+  let remote
+  try {
+    remote = await fetchScratchpads(site.url, site.username, password)
+  } catch {
+    return // Old plugin — gracefully skip
+  }
+
+  if (remote.length === 0) return
+
+  for (const wp of remote) {
+    const title = decodeHtmlEntities(wp.title.rendered)
+    const content = stripBasicHtml(wp.content.rendered)
+    const modifiedRemote = wp.modified
+
+    const existing = db
+      .prepare('SELECT id, modified_remote, synced FROM scratchpads WHERE site_id = ? AND wp_id = ?')
+      .get(siteId, wp.id) as { id: string; modified_remote: string | null; synced: number } | undefined
+
+    if (!existing) {
+      // New remote scratchpad — insert locally
+      const id = uuidv4()
+      const now = new Date().toISOString()
+      db.prepare(`
+        INSERT INTO scratchpads (id, site_id, wp_id, title, content, modified_local, modified_remote, synced)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+      `).run(id, siteId, wp.id, title, content, now, modifiedRemote)
+      continue
+    }
+
+    // Same timestamp → skip
+    if (existing.modified_remote === modifiedRemote) continue
+
+    // Remote changed, local synced=1 → overwrite
+    if (existing.synced === 1) {
+      const now = new Date().toISOString()
+      db.prepare(`
+        UPDATE scratchpads SET title = ?, content = ?, modified_local = ?, modified_remote = ?, synced = 1
+        WHERE id = ?
+      `).run(title, content, now, modifiedRemote, existing.id)
+    }
+    // synced=0 → local wins, skip (no conflict UI in Part 1)
+  }
+}
+
 export async function syncSite(siteId: string): Promise<SyncResult> {
   const db = getDb()
+
+  // Push scratchpads first (before posts, so wp_id is available for meta sync)
+  try {
+    await pushScratchpadsForSite(siteId)
+  } catch (err) {
+    console.warn('[sync] Failed to push scratchpads:', err instanceof Error ? err.message : err)
+  }
 
   // Get all unsynced, non-conflict posts for this site
   const unsyncedPosts = db
@@ -269,6 +391,13 @@ export async function syncSite(siteId: string): Promise<SyncResult> {
   await pullTaxonomyTerms(siteId).catch((err) => {
     console.warn('[sync] Failed to pull taxonomy terms:', err instanceof Error ? err.message : err)
   })
+
+  // Pull scratchpads after posts
+  try {
+    await pullScratchpadsForSite(siteId)
+  } catch (err) {
+    console.warn('[sync] Failed to pull scratchpads:', err instanceof Error ? err.message : err)
+  }
 
   // Refresh site icon (non-critical)
   try {

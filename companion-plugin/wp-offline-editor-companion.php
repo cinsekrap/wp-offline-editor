@@ -2,7 +2,7 @@
 /**
  * Plugin Name: WP Offline Editor Companion
  * Description: Exposes ACF field groups and fields via REST API for WP Offline Editor schema discovery, including code-registered field groups.
- * Version: 0.6.3
+ * Version: 0.7.0
  * Author: Nic Chambers-Parkes
  * Author URI: https://www.nicparkes.com
  * License: MIT
@@ -22,6 +22,26 @@ $wpoeUpdateChecker = YahnisElsts\PluginUpdateChecker\v5\PucFactory::buildUpdateC
 );
 $wpoeUpdateChecker->getVcsApi()->enableReleaseAssets( '/wp-offline-editor-companion\.zip/' );
 
+add_action( 'init', function () {
+	register_post_type( 'scratchpad', [
+		'label'           => 'Scratchpads',
+		'public'          => false,
+		'show_ui'         => false,
+		'show_in_rest'    => true,
+		'rest_base'       => 'scratchpads',
+		'supports'        => [ 'title', 'editor', 'custom-fields' ],
+		'capability_type' => 'post',
+		'map_meta_cap'    => true,
+	] );
+
+	register_post_meta( 'post', '_scratchpad_id', [
+		'type'          => 'integer',
+		'single'        => true,
+		'show_in_rest'  => true,
+		'auth_callback' => function () { return current_user_can( 'edit_posts' ); },
+	] );
+} );
+
 add_action( 'rest_api_init', function () {
 
 	// GET wpoe/v1/status — unauthenticated, used for namespace detection.
@@ -30,7 +50,7 @@ add_action( 'rest_api_init', function () {
 		'callback'            => function () {
 			return [
 				'active'  => true,
-				'version' => '0.6.3',
+				'version' => '0.7.0',
 				'acf'     => function_exists( 'acf_get_field_groups' ),
 			];
 		},

@@ -397,6 +397,7 @@ interface PostRow {
   categories: string | number[] | null
   tags: string | number[] | null
   word_count: number | null
+  scratchpad_id: string | null
   modified_local: string
   modified_remote: string | null
   synced: number
@@ -421,6 +422,7 @@ function normalizePostRow(row: PostRow): Post {
     categories: typeof row.categories === 'string' ? JSON.parse(row.categories) : row.categories ?? [],
     tags: typeof row.tags === 'string' ? JSON.parse(row.tags) : row.tags ?? [],
     word_count: row.word_count ?? 0,
+    scratchpad_id: row.scratchpad_id ?? null,
     modified_local: row.modified_local,
     modified_remote: row.modified_remote,
     synced: Boolean(row.synced),

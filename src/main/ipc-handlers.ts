@@ -23,6 +23,15 @@ import { getShortcodesForSite } from './shortcode-service'
 import { getSettings, updateSettings } from './settings-service'
 import { htmlToMarkdown, markdownToHtml } from './markdown-service'
 import { getAllTemplates, getTemplateById, createTemplate, updateTemplate, deleteTemplate } from './template-service'
+import {
+  getScratchpadsForSite,
+  getScratchpadById,
+  createScratchpad,
+  updateScratchpad,
+  deleteScratchpad,
+  linkScratchpadToPost,
+  unlinkScratchpadFromPost
+} from './scratchpad-service'
 import { getWritingStats } from './stats-service'
 import { clearAllData } from './database'
 import { checkForUpdates, downloadUpdate, installUpdate } from './updater'
@@ -36,7 +45,9 @@ import {
   TaxonomySchema,
   AppSettingsSchema,
   TemplateInputSchema,
-  TemplateUpdateSchema
+  TemplateUpdateSchema,
+  ScratchpadInputSchema,
+  ScratchpadUpdateSchema
 } from './ipc-schemas'
 
 /** Notify all renderer windows to refresh badge counts (unsynced posts, pending media). */
@@ -273,6 +284,36 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('templates:delete', (_event, id: unknown) => {
     deleteTemplate(z.string().parse(id))
+  })
+
+  // ── Scratchpads ──────────────────────────────────────────────────────
+
+  ipcMain.handle('scratchpads:get-all', (_event, siteId: unknown) => {
+    return getScratchpadsForSite(uuidSchema.parse(siteId))
+  })
+
+  ipcMain.handle('scratchpads:get', (_event, id: unknown) => {
+    return getScratchpadById(uuidSchema.parse(id))
+  })
+
+  ipcMain.handle('scratchpads:create', (_event, input: unknown) => {
+    return createScratchpad(ScratchpadInputSchema.parse(input))
+  })
+
+  ipcMain.handle('scratchpads:update', (_event, update: unknown) => {
+    return updateScratchpad(ScratchpadUpdateSchema.parse(update))
+  })
+
+  ipcMain.handle('scratchpads:delete', (_event, id: unknown) => {
+    deleteScratchpad(uuidSchema.parse(id))
+  })
+
+  ipcMain.handle('scratchpads:link', (_event, postId: unknown, scratchpadId: unknown) => {
+    linkScratchpadToPost(uuidSchema.parse(postId), uuidSchema.parse(scratchpadId))
+  })
+
+  ipcMain.handle('scratchpads:unlink', (_event, postId: unknown) => {
+    unlinkScratchpadFromPost(uuidSchema.parse(postId))
   })
 
   // ── Writing Stats ──────────────────────────────────────────────────────

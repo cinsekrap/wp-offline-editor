@@ -77,6 +77,18 @@ export const TemplateUpdateSchema = z.object({
   tag_names: z.array(z.string()).optional()
 })
 
+export const ScratchpadInputSchema = z.object({
+  site_id: uuidSchema,
+  title: z.string().min(1),
+  content: z.string().optional()
+})
+
+export const ScratchpadUpdateSchema = z.object({
+  id: uuidSchema,
+  title: z.string().optional(),
+  content: z.string().optional()
+})
+
 export const AppSettingsSchema = z.object({
   theme: z.enum(['light', 'dark', 'system']).optional(),
   editorFontSize: z.number().int().min(8).max(32).optional(),

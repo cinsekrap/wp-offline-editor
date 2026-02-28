@@ -62,6 +62,7 @@ export interface Post {
   categories: number[]
   tags: number[]
   word_count: number
+  scratchpad_id: string | null
   modified_local: string
   modified_remote: string | null
   synced: boolean
@@ -259,6 +260,39 @@ export interface TemplateUpdate {
   tag_names?: string[]
 }
 
+// ── Scratchpads ─────────────────────────────────────────────────────────
+
+export interface Scratchpad {
+  id: string
+  site_id: string
+  wp_id: number | null
+  title: string
+  content: string // markdown
+  modified_local: string
+  modified_remote: string | null
+  synced: boolean
+}
+
+export interface ScratchpadInput {
+  site_id: string
+  title: string
+  content?: string
+}
+
+export interface ScratchpadUpdate {
+  id: string
+  title?: string
+  content?: string
+}
+
+export interface WpScratchpadRaw {
+  id: number
+  title: { rendered: string }
+  content: { rendered: string }
+  modified: string
+  status: string
+}
+
 // ── Writing Stats ───────────────────────────────────────────────────────
 
 export interface DailyWordCount {
@@ -389,6 +423,15 @@ export interface ElectronAPI {
   createTemplate(input: TemplateInput): Promise<Template>
   updateTemplate(update: TemplateUpdate): Promise<Template>
   deleteTemplate(id: string): Promise<void>
+
+  // Scratchpads
+  getScratchpads(siteId: string): Promise<Scratchpad[]>
+  getScratchpad(id: string): Promise<Scratchpad | null>
+  createScratchpad(input: ScratchpadInput): Promise<Scratchpad>
+  updateScratchpad(update: ScratchpadUpdate): Promise<Scratchpad>
+  deleteScratchpad(id: string): Promise<void>
+  linkScratchpad(postId: string, scratchpadId: string): Promise<void>
+  unlinkScratchpad(postId: string): Promise<void>
 
   // Writing Stats
   getWritingStats(siteId: string): Promise<WritingStats>

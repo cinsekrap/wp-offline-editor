@@ -203,10 +203,27 @@ const migrations: Array<(db: Database.Database) => void> = [
         updated_at TEXT NOT NULL
       )
     `)
-  }
+  },
 
-  // ── Future migrations go here ──
-  // (db) => { db.exec('ALTER TABLE posts ADD COLUMN new_col TEXT') },
+  // ── v2: scratchpads table + posts.scratchpad_id ──
+  (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS scratchpads (
+        id TEXT PRIMARY KEY,
+        site_id TEXT NOT NULL,
+        wp_id INTEGER,
+        title TEXT NOT NULL DEFAULT '',
+        content TEXT NOT NULL DEFAULT '',
+        modified_local TEXT NOT NULL DEFAULT (datetime('now')),
+        modified_remote TEXT,
+        synced INTEGER NOT NULL DEFAULT 0,
+        FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS idx_scratchpads_site_id ON scratchpads(site_id);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_scratchpads_site_wp ON scratchpads(site_id, wp_id);
+    `)
+    safeAddColumn(db, 'posts', 'scratchpad_id', 'TEXT DEFAULT NULL')
+  }
 ]
 
 function runMigrations(db: Database.Database): void {

@@ -55,6 +55,15 @@ const api: ElectronAPI = {
   updateTemplate: (update) => ipcRenderer.invoke('templates:update', update),
   deleteTemplate: (id) => ipcRenderer.invoke('templates:delete', id),
 
+  // Scratchpads
+  getScratchpads: (siteId) => ipcRenderer.invoke('scratchpads:get-all', siteId),
+  getScratchpad: (id) => ipcRenderer.invoke('scratchpads:get', id),
+  createScratchpad: (input) => ipcRenderer.invoke('scratchpads:create', input),
+  updateScratchpad: (update) => ipcRenderer.invoke('scratchpads:update', update),
+  deleteScratchpad: (id) => ipcRenderer.invoke('scratchpads:delete', id),
+  linkScratchpad: (postId, scratchpadId) => ipcRenderer.invoke('scratchpads:link', postId, scratchpadId),
+  unlinkScratchpad: (postId) => ipcRenderer.invoke('scratchpads:unlink', postId),
+
   // Writing Stats
   getWritingStats: (siteId) => ipcRenderer.invoke('stats:get-writing', siteId),
   getWpAuthors: (siteId) => ipcRenderer.invoke('stats:get-authors', siteId),

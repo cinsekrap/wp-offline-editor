@@ -7,7 +7,8 @@ import type {
   WpPostRaw,
   WpAcfFieldGroupRaw,
   WpAcfFieldRaw,
-  WpMediaUploadResult
+  WpMediaUploadResult,
+  WpScratchpadRaw
 } from '@shared/types'
 
 const MIME_TYPES: Record<string, string> = {
@@ -561,6 +562,108 @@ export async function fetchMediaLibrary(
   }
 
   return { items: allItems, total: allItems.length }
+}
+
+// ── Scratchpad fetching ──────────────────────────────────────────────────
+
+export async function fetchScratchpads(
+  url: string,
+  username: string,
+  password: string
+): Promise<WpScratchpadRaw[]> {
+  const base = apiBase(url)
+  const headers = makeAuthHeaders(username, password)
+  const allItems: WpScratchpadRaw[] = []
+
+  let page = 1
+  let totalPages = 1
+
+  while (page <= totalPages) {
+    const params = new URLSearchParams({
+      per_page: '100',
+      page: String(page),
+      status: 'private,publish,draft',
+      _fields: 'id,title,content,modified,status'
+    })
+
+    const res = await fetch(`${base}/wp/v2/scratchpads?${params}`, { headers })
+
+    if (!res.ok) {
+      // 404 = old plugin without scratchpad CPT — return empty gracefully
+      if (res.status === 404 || res.status === 400) return []
+      throw new Error(`Failed to fetch scratchpads: HTTP ${res.status}`)
+    }
+
+    totalPages = parseInt(res.headers.get('x-wp-totalpages') || '1', 10)
+    const batch = (await res.json()) as WpScratchpadRaw[]
+    allItems.push(...batch)
+    page++
+  }
+
+  return allItems
+}
+
+export async function pushScratchpad(
+  url: string,
+  username: string,
+  password: string,
+  wpId: number | null,
+  data: { title: string; content: string }
+): Promise<{ id: number; modified: string }> {
+  const base = apiBase(url)
+  const headers = {
+    ...makeAuthHeaders(username, password),
+    'Content-Type': 'application/json'
+  }
+
+  const body = {
+    title: data.title,
+    content: data.content,
+    status: 'private'
+  }
+
+  const endpoint = wpId
+    ? `${base}/wp/v2/scratchpads/${wpId}`
+    : `${base}/wp/v2/scratchpads`
+
+  const res = await fetch(endpoint, {
+    method: wpId ? 'PUT' : 'POST',
+    headers,
+    body: JSON.stringify(body)
+  })
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(`Scratchpad push failed: HTTP ${res.status} ${text}`)
+  }
+
+  const result = (await res.json()) as { id: number; modified: string }
+  return { id: result.id, modified: result.modified }
+}
+
+export async function updatePostScratchpadMeta(
+  url: string,
+  username: string,
+  password: string,
+  wpPostId: number,
+  scratchpadWpId: number | null
+): Promise<void> {
+  const base = apiBase(url)
+  const headers = {
+    ...makeAuthHeaders(username, password),
+    'Content-Type': 'application/json'
+  }
+
+  const res = await fetch(`${base}/wp/v2/posts/${wpPostId}`, {
+    method: 'PUT',
+    headers,
+    body: JSON.stringify({ meta: { _scratchpad_id: scratchpadWpId ?? 0 } })
+  })
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(`Failed to update scratchpad meta: HTTP ${res.status} ${text}`)
+  }
 }
 
 // ── Media upload ────────────────────────────────────────────────────────

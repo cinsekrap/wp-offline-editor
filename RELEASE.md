@@ -29,16 +29,22 @@ git add package.json companion-plugin/wp-offline-editor-companion.php
 git commit -m "Bump version to X.Y.Z"
 ```
 
-## 4. Tag and push
+## 4. Push the commit
+
+```bash
+git push origin main
+```
+
+## 5. Tag and push the tag
 
 ```bash
 git tag -a vX.Y.Z -m "vX.Y.Z — Release title"
-git push origin main vX.Y.Z
+git push origin vX.Y.Z
 ```
 
-Push the commit and tag together to avoid triggering the release workflow twice.
+This triggers the release workflow.
 
-## 5. Wait for release workflow
+## 6. Wait for release workflow
 
 ```bash
 gh run list --limit 1
@@ -47,13 +53,13 @@ gh run watch <run-id>
 
 The workflow builds the macOS app, creates a **draft** GitHub release, uploads app assets (DMG, ZIP, blockmap, latest-mac.yml) and the companion plugin ZIP.
 
-## 6. Publish the release
+## 7. Publish the release
 
 ```bash
 gh release edit vX.Y.Z --draft=false --latest
 ```
 
-## 7. Update local app (optional)
+## 8. Update local app (optional)
 
 ```bash
 npx electron-rebuild
@@ -65,4 +71,4 @@ cp -R dist/mac-arm64/NP\ Presspad.app /Applications/
 ## Known issues
 
 - **Signing/notarization disabled**: `identity: null`, `notarize: false` in `electron-builder.yml`. Restore for v1.0.
-- **Double workflow trigger**: If you push the commit and tag separately, two workflow runs fire for the same tag. The second will fail because assets already exist. Push both together or delete the draft release and re-run.
+- **Tag before commit push**: If you push the tag before its commit is on `main`, the workflow checks out the wrong code. Always push the commit first.

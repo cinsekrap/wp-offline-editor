@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef, type MouseEvent } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import type { Editor } from '@tiptap/react'
 import {
   ArrowLeft,
@@ -6,25 +6,12 @@ import {
   CheckCircle,
   AlertCircle,
   PanelRight,
-  ImageIcon,
-  Upload,
   AlertTriangle,
-  Pencil,
   Trash2,
-  Maximize2,
-  Minimize2,
-  MoreHorizontal,
-  FileDown,
-  FileUp,
-  Copy,
-  CopyPlus
+  Maximize2
 } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
 import { Input } from '@renderer/components/ui/input'
-import { Separator } from '@renderer/components/ui/separator'
-import { Badge } from '@renderer/components/ui/badge'
-import { Popover, PopoverTrigger, PopoverContent } from '@renderer/components/ui/popover'
-import { ScrollArea } from '@renderer/components/ui/scroll-area'
 import { TipTapEditor } from './TipTapEditor'
 import { PostMeta } from './PostMeta'
 import { AcfPanel } from './acf/AcfPanel'
@@ -33,6 +20,9 @@ import { ConflictDialog } from './ConflictDialog'
 import { DeletePostDialog } from './DeletePostDialog'
 import { DuplicateToDialog } from './DuplicateToDialog'
 import { ImageCropDialog } from './ImageCropDialog'
+import { ImageContextMenu } from './ImageContextMenu'
+import { MediaQueuePopover } from './MediaQueuePopover'
+import { PostActionsMenu } from './PostActionsMenu'
 import { useAutoSave, type SaveStatus } from '@renderer/hooks/useAutoSave'
 import { useMediaQueue } from '@renderer/hooks/useMediaQueue'
 import { useAcfSchema } from '@renderer/hooks/useAcfSchema'
@@ -188,35 +178,34 @@ export function PostEditor({
     }
   }, [saveStatus, onPostUpdated])
 
-  // Refresh media queue when content changes (new images inserted)
-  // and clean up orphaned media (images removed via backspace, cut, etc.)
+  // Refresh media queue and clean up orphaned media (debounced to avoid
+  // running on every keystroke — only fires 2s after content stops changing)
   useEffect(() => {
-    // Skip orphan cleanup until post content has been loaded — running with
-    // empty content would delete ALL media files as "orphans"
     if (!initializedRef.current) return
 
-    refreshQueue().then(async () => {
-      // Extract media IDs still present in the editor content
-      const idRegex = /data-media-id="([^"]+)"/g
-      const activeIds = new Set<string>()
-      let match: RegExpExecArray | null
-      while ((match = idRegex.exec(content)) !== null) {
-        activeIds.add(match[1])
-      }
+    const timer = setTimeout(() => {
+      refreshQueue().then(async () => {
+        const idRegex = /data-media-id="([^"]+)"/g
+        const activeIds = new Set<string>()
+        let match: RegExpExecArray | null
+        while ((match = idRegex.exec(content)) !== null) {
+          activeIds.add(match[1])
+        }
 
-      // Exempt featured image from orphan deletion
-      if (featuredImage) {
-        activeIds.add(featuredImage)
-      }
+        if (featuredImage) {
+          activeIds.add(featuredImage)
+        }
 
-      // Delete any media in the queue that's no longer in the content
-      const currentQueue = await window.electronAPI.getMediaForPost(postId)
-      const orphans = currentQueue.filter((m) => !activeIds.has(m.id))
-      if (orphans.length > 0) {
-        await Promise.all(orphans.map((m) => window.electronAPI.deleteMedia(m.id)))
-        refreshQueue()
-      }
-    })
+        const currentQueue = await window.electronAPI.getMediaForPost(postId)
+        const orphans = currentQueue.filter((m) => !activeIds.has(m.id))
+        if (orphans.length > 0) {
+          await Promise.all(orphans.map((m) => window.electronAPI.deleteMedia(m.id)))
+          refreshQueue()
+        }
+      })
+    }, 2000)
+
+    return () => clearTimeout(timer)
   }, [content, featuredImage, refreshQueue, postId])
 
   // Focus mode keyboard shortcuts
@@ -483,46 +472,20 @@ export function PostEditor({
 
   return (
     <div className="flex h-full" onClick={() => imageMenu && setImageMenu(null)}>
-      {/* Image popover menu */}
       {imageMenu && (
-        <div
-          className="fixed z-50 bg-popover border rounded-lg shadow-lg p-3 w-[240px] animate-in fade-in-0 zoom-in-95"
-          style={{ left: imageMenu.x, top: imageMenu.y }}
-          onClick={(e: MouseEvent) => e.stopPropagation()}
-        >
-          <label className="text-xs font-medium text-muted-foreground">Alt text</label>
-          <Input
-            value={altText}
-            onChange={(e) => setAltText(e.target.value)}
-            onBlur={() => handleAltSave(imageMenu.mediaId, altText)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                handleAltSave(imageMenu.mediaId, altText)
-                setImageMenu(null)
-              }
-            }}
-            placeholder="Describe this image..."
-            className="mt-1 h-8 text-sm"
-            autoFocus
-          />
-          <Separator className="my-2" />
-          <div className="flex flex-col gap-0.5">
-            <button
-              className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded hover:bg-accent hover:text-accent-foreground transition-colors"
-              onClick={handleImageEdit}
-            >
-              <Pencil className="h-3.5 w-3.5" />
-              Crop
-            </button>
-            <button
-              className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded text-destructive hover:bg-destructive/10 transition-colors"
-              onClick={handleImageDelete}
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-              Delete
-            </button>
-          </div>
-        </div>
+        <ImageContextMenu
+          x={imageMenu.x}
+          y={imageMenu.y}
+          mediaId={imageMenu.mediaId}
+          src={imageMenu.src}
+          alt={imageMenu.alt}
+          altText={altText}
+          onAltTextChange={setAltText}
+          onAltSave={() => handleAltSave(imageMenu.mediaId, altText)}
+          onEdit={handleImageEdit}
+          onDelete={handleImageDelete}
+          onClose={() => setImageMenu(null)}
+        />
       )}
 
       {/* Main editor area */}
@@ -549,120 +512,22 @@ export function PostEditor({
 
           <div className="flex-1" />
 
-          {/* Media queue badge */}
-          {queue.length > 0 && (
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8 relative" title="Media queue">
-                  <ImageIcon className="h-4 w-4" />
-                  {pending > 0 && (
-                    <Badge className="absolute -top-1 -right-1 h-4 min-w-4 px-1 text-[10px] leading-none">
-                      {pending}
-                    </Badge>
-                  )}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent align="end" className="w-80 p-0">
-                <div className="flex items-center justify-between p-3 border-b">
-                  <span className="text-sm font-medium">Media ({queue.length})</span>
-                  {pending > 0 && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-7 text-xs"
-                      onClick={handleUploadAll}
-                      disabled={uploading !== null}
-                    >
-                      {uploading === 'all' ? (
-                        <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                      ) : (
-                        <Upload className="h-3 w-3 mr-1" />
-                      )}
-                      Upload all
-                    </Button>
-                  )}
-                </div>
-                <ScrollArea className="max-h-60">
-                  <div className="p-2 space-y-1">
-                    {queue.map((media) => (
-                      <div
-                        key={media.id}
-                        className="flex items-center gap-2 p-2 rounded-md text-sm hover:bg-muted/50"
-                      >
-                        <ImageIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
-                        <span className="truncate flex-1">{media.filename}</span>
-                        {media.synced ? (
-                          <CheckCircle className="h-4 w-4 text-green-600 shrink-0" />
-                        ) : (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6 shrink-0"
-                            onClick={() => handleUploadItem(media.id)}
-                            disabled={uploading !== null}
-                            title="Upload to WordPress"
-                          >
-                            {uploading === media.id ? (
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                            ) : (
-                              <Upload className="h-3 w-3" />
-                            )}
-                          </Button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </ScrollArea>
-              </PopoverContent>
-            </Popover>
-          )}
+          <MediaQueuePopover
+            queue={queue}
+            pending={pending}
+            uploading={uploading}
+            onUploadItem={handleUploadItem}
+            onUploadAll={handleUploadAll}
+          />
 
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8" title="More actions">
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align="end" className="w-48 p-1">
-              <button
-                className="flex items-center gap-2 w-full text-left text-sm px-2 py-1.5 rounded hover:bg-accent hover:text-accent-foreground"
-                onClick={handleImportMarkdown}
-              >
-                <FileUp className="h-3.5 w-3.5" />
-                Import Markdown
-              </button>
-              <button
-                className="flex items-center gap-2 w-full text-left text-sm px-2 py-1.5 rounded hover:bg-accent hover:text-accent-foreground"
-                onClick={handleExportMarkdown}
-              >
-                <FileDown className="h-3.5 w-3.5" />
-                Export as Markdown
-              </button>
-              {onDuplicate && (
-                <>
-                  <Separator className="my-1" />
-                  <button
-                    className="flex items-center gap-2 w-full text-left text-sm px-2 py-1.5 rounded hover:bg-accent hover:text-accent-foreground"
-                    onClick={() => handleDuplicate()}
-                    disabled={duplicating}
-                  >
-                    <Copy className="h-3.5 w-3.5" />
-                    Duplicate
-                  </button>
-                  {sites.length > 1 && (
-                    <button
-                      className="flex items-center gap-2 w-full text-left text-sm px-2 py-1.5 rounded hover:bg-accent hover:text-accent-foreground"
-                      onClick={() => setDuplicateToOpen(true)}
-                      disabled={duplicating}
-                    >
-                      <CopyPlus className="h-3.5 w-3.5" />
-                      Duplicate to...
-                    </button>
-                  )}
-                </>
-              )}
-            </PopoverContent>
-          </Popover>
+          <PostActionsMenu
+            onImportMarkdown={handleImportMarkdown}
+            onExportMarkdown={handleExportMarkdown}
+            onDuplicate={onDuplicate ? () => handleDuplicate() : undefined}
+            onDuplicateTo={sites.length > 1 ? () => setDuplicateToOpen(true) : undefined}
+            duplicating={duplicating}
+            sites={sites}
+          />
 
           <Button
             variant="ghost"

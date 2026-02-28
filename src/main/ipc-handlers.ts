@@ -1,4 +1,4 @@
-import { ipcMain, app, dialog } from 'electron'
+import { ipcMain, app, dialog, BrowserWindow } from 'electron'
 import { join } from 'path'
 import { copyFileSync, readFileSync, writeFileSync } from 'fs'
 import { z } from 'zod'
@@ -38,6 +38,13 @@ import {
   TemplateInputSchema,
   TemplateUpdateSchema
 } from './ipc-schemas'
+
+/** Notify all renderer windows to refresh badge counts (unsynced posts, pending media). */
+function notifyCountsChanged(): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    win.webContents.send('counts-changed')
+  }
+}
 
 export function registerIpcHandlers(): void {
   // ── Sites ────────────────────────────────────────────────────────────────
@@ -88,25 +95,33 @@ export function registerIpcHandlers(): void {
   })
 
   ipcMain.handle('posts:create', (_event, input: unknown) => {
-    return createPost(PostInputSchema.parse(input))
+    const post = createPost(PostInputSchema.parse(input))
+    notifyCountsChanged()
+    return post
   })
 
   ipcMain.handle('posts:update', (_event, update: unknown) => {
-    return updatePost(PostUpdateSchema.parse(update))
+    const post = updatePost(PostUpdateSchema.parse(update))
+    notifyCountsChanged()
+    return post
   })
 
-  ipcMain.handle('posts:delete', (_event, id: unknown) => {
-    return deletePostFromWp(uuidSchema.parse(id))
+  ipcMain.handle('posts:delete', async (_event, id: unknown) => {
+    await deletePostFromWp(uuidSchema.parse(id))
+    notifyCountsChanged()
   })
 
-  ipcMain.handle('posts:push', (_event, postId: unknown) => {
-    return pushPostToWp(uuidSchema.parse(postId))
+  ipcMain.handle('posts:push', async (_event, postId: unknown) => {
+    const result = await pushPostToWp(uuidSchema.parse(postId))
+    notifyCountsChanged()
+    return result
   })
 
   ipcMain.handle(
     'posts:resolve-conflict',
-    (_event, postId: unknown, strategy: unknown) => {
-      return resolveConflict(uuidSchema.parse(postId), ConflictStrategySchema.parse(strategy))
+    async (_event, postId: unknown, strategy: unknown) => {
+      await resolveConflict(uuidSchema.parse(postId), ConflictStrategySchema.parse(strategy))
+      notifyCountsChanged()
     }
   )
 
@@ -118,8 +133,10 @@ export function registerIpcHandlers(): void {
     return getTotalUnsyncedCount()
   })
 
-  ipcMain.handle('site:sync', (_event, siteId: unknown) => {
-    return syncSite(uuidSchema.parse(siteId))
+  ipcMain.handle('site:sync', async (_event, siteId: unknown) => {
+    const result = await syncSite(uuidSchema.parse(siteId))
+    notifyCountsChanged()
+    return result
   })
 
   // ── ACF Schema ──────────────────────────────────────────────────────────
@@ -150,12 +167,14 @@ export function registerIpcHandlers(): void {
     'media:save-local',
     (_event, siteId: unknown, postLocalId: unknown, filename: unknown, buffer: unknown) => {
       if (!(buffer instanceof ArrayBuffer)) throw new Error('Expected ArrayBuffer for media buffer')
-      return saveMediaLocally(
+      const media = saveMediaLocally(
         uuidSchema.parse(siteId),
         uuidSchema.parse(postLocalId),
         z.string().min(1).parse(filename),
         Buffer.from(buffer)
       )
+      notifyCountsChanged()
+      return media
     }
   )
 
@@ -167,12 +186,15 @@ export function registerIpcHandlers(): void {
     return getMediaQueue(uuidSchema.parse(siteId))
   })
 
-  ipcMain.handle('media:upload', (_event, mediaId: unknown) => {
-    return uploadMediaToWp(uuidSchema.parse(mediaId))
+  ipcMain.handle('media:upload', async (_event, mediaId: unknown) => {
+    const result = await uploadMediaToWp(uuidSchema.parse(mediaId))
+    notifyCountsChanged()
+    return result
   })
 
   ipcMain.handle('media:delete', (_event, id: unknown) => {
     deleteMedia(uuidSchema.parse(id))
+    notifyCountsChanged()
   })
 
   ipcMain.handle('media:replace-file', (_event, mediaId: unknown, buffer: unknown) => {

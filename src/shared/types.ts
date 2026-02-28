@@ -416,5 +416,6 @@ export interface ElectronAPI {
   checkForUpdates(): Promise<void>
   downloadUpdate(): Promise<void>
   installUpdate(): Promise<void>
+  onCountsChanged(callback: () => void): () => void
   onUpdaterEvent(callback: (status: string, data?: Record<string, unknown>) => void): () => void
 }

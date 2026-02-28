@@ -81,6 +81,14 @@ const api: ElectronAPI = {
   checkForUpdates: () => ipcRenderer.invoke('updater:check'),
   downloadUpdate: () => ipcRenderer.invoke('updater:download'),
   installUpdate: () => ipcRenderer.invoke('updater:install'),
+  onCountsChanged: (callback: () => void) => {
+    const handler = (): void => callback()
+    ipcRenderer.on('counts-changed', handler)
+    return (): void => {
+      ipcRenderer.removeListener('counts-changed', handler)
+    }
+  },
+
   onUpdaterEvent: (callback: (status: string, data?: Record<string, unknown>) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, status: string, data?: Record<string, unknown>): void => {
       callback(status, data)

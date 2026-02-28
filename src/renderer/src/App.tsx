@@ -130,11 +130,11 @@ function App(): JSX.Element {
   useEffect(() => {
     refreshPendingMedia()
     refreshUnsyncedCount()
-    const interval = setInterval(() => {
+    const cleanup = window.electronAPI.onCountsChanged(() => {
       refreshPendingMedia()
       refreshUnsyncedCount()
-    }, 5000)
-    return () => clearInterval(interval)
+    })
+    return cleanup
   }, [refreshPendingMedia, refreshUnsyncedCount])
 
   // ── Site handlers ──────────────────────────────────────────────────────

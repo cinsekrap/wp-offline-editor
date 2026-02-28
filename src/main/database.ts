@@ -88,151 +88,134 @@ function createSchema(db: Database.Database): void {
   `)
 }
 
+/** Try to add a column; silently ignore if it already exists. */
+function safeAddColumn(db: Database.Database, table: string, col: string, type: string): void {
+  try {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${type}`)
+  } catch {
+    // Column already exists
+  }
+}
+
+/**
+ * Versioned migration system.
+ *
+ * Each entry runs once, in order. The current schema version is tracked via
+ * SQLite's built-in `PRAGMA user_version`. To add a migration, append a new
+ * function to this array — existing databases will only run the new entries.
+ *
+ * v1 consolidates all legacy column/table additions and is fully idempotent
+ * so it's safe for both fresh installs and existing databases upgrading to
+ * the versioned system for the first time.
+ */
+const migrations: Array<(db: Database.Database) => void> = [
+  // ── v1: consolidate all pre-existing schema additions ──
+  (db) => {
+    // Sites columns
+    safeAddColumn(db, 'sites', 'last_post_pull_at', 'TEXT')
+    safeAddColumn(db, 'sites', 'last_schema_pull_at', 'TEXT')
+    safeAddColumn(db, 'sites', 'media_library_limit', 'INTEGER NOT NULL DEFAULT 100')
+    safeAddColumn(db, 'sites', 'last_media_library_pull_at', 'TEXT')
+    safeAddColumn(db, 'sites', 'wp_author_id', 'INTEGER')
+    safeAddColumn(db, 'sites', 'site_icon_url', 'TEXT')
+
+    // ACF schema columns
+    safeAddColumn(db, 'acf_schema', 'location', 'TEXT DEFAULT NULL')
+
+    // Posts columns
+    safeAddColumn(db, 'posts', 'date', 'TEXT')
+    safeAddColumn(db, 'posts', 'author_id', 'INTEGER')
+    safeAddColumn(db, 'posts', 'author_name', 'TEXT')
+    safeAddColumn(db, 'posts', 'featured_image', 'TEXT')
+    safeAddColumn(db, 'posts', 'categories', 'TEXT')
+    safeAddColumn(db, 'posts', 'tags', 'TEXT')
+    safeAddColumn(db, 'posts', 'excerpt', "TEXT NOT NULL DEFAULT ''")
+    safeAddColumn(db, 'posts', 'slug', "TEXT NOT NULL DEFAULT ''")
+    safeAddColumn(db, 'posts', 'word_count', 'INTEGER NOT NULL DEFAULT 0')
+
+    // Unique indexes
+    db.exec(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_posts_site_wp ON posts(site_id, wp_id);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_acf_schema_site_group ON acf_schema(site_id, group_id);
+    `)
+
+    // Media library table
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS media_library (
+        id INTEGER NOT NULL,
+        site_id TEXT NOT NULL,
+        title TEXT NOT NULL DEFAULT '',
+        filename TEXT NOT NULL DEFAULT '',
+        mime_type TEXT NOT NULL DEFAULT '',
+        alt_text TEXT NOT NULL DEFAULT '',
+        source_url TEXT NOT NULL DEFAULT '',
+        thumbnail_path TEXT NOT NULL DEFAULT '',
+        width INTEGER,
+        height INTEGER,
+        uploaded_at TEXT NOT NULL DEFAULT '',
+        PRIMARY KEY (site_id, id),
+        FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS idx_media_library_site_id ON media_library(site_id);
+    `)
+
+    // Taxonomy terms table
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS taxonomy_terms (
+        id INTEGER NOT NULL,
+        site_id TEXT NOT NULL,
+        taxonomy TEXT NOT NULL,
+        name TEXT NOT NULL,
+        slug TEXT NOT NULL,
+        parent INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (site_id, taxonomy, id),
+        FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
+      );
+    `)
+
+    // Writing snapshots table
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS writing_snapshots (
+        site_id TEXT NOT NULL,
+        post_id TEXT NOT NULL,
+        date TEXT NOT NULL,
+        word_count INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (site_id, post_id, date),
+        FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE,
+        FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS idx_writing_snapshots_site_date ON writing_snapshots(site_id, date);
+    `)
+
+    // Templates table
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS templates (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        title_template TEXT NOT NULL DEFAULT '',
+        content TEXT NOT NULL DEFAULT '',
+        excerpt TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL DEFAULT 'draft',
+        category_names TEXT NOT NULL DEFAULT '[]',
+        tag_names TEXT NOT NULL DEFAULT '[]',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    `)
+  }
+
+  // ── Future migrations go here ──
+  // (db) => { db.exec('ALTER TABLE posts ADD COLUMN new_col TEXT') },
+]
+
 function runMigrations(db: Database.Database): void {
-  // Add last_post_pull_at and last_schema_pull_at to sites if missing
-  const cols = db.prepare('PRAGMA table_info(sites)').all() as { name: string }[]
-  const colNames = new Set(cols.map((c) => c.name))
+  const currentVersion = db.pragma('user_version', { simple: true }) as number
 
-  if (!colNames.has('last_post_pull_at')) {
-    db.exec('ALTER TABLE sites ADD COLUMN last_post_pull_at TEXT')
+  for (let i = currentVersion; i < migrations.length; i++) {
+    migrations[i](db)
+    db.pragma(`user_version = ${i + 1}`)
   }
-  if (!colNames.has('last_schema_pull_at')) {
-    db.exec('ALTER TABLE sites ADD COLUMN last_schema_pull_at TEXT')
-  }
-
-  // Add location column to acf_schema if missing
-  const acfCols = db.prepare('PRAGMA table_info(acf_schema)').all() as { name: string }[]
-  const acfColNames = new Set(acfCols.map((c) => c.name))
-
-  if (!acfColNames.has('location')) {
-    db.exec('ALTER TABLE acf_schema ADD COLUMN location TEXT DEFAULT NULL')
-  }
-
-  // Add date column to posts if missing
-  const postCols = db.prepare('PRAGMA table_info(posts)').all() as { name: string }[]
-  const postColNames = new Set(postCols.map((c) => c.name))
-
-  if (!postColNames.has('date')) {
-    db.exec('ALTER TABLE posts ADD COLUMN date TEXT')
-  }
-
-  if (!postColNames.has('author_id')) {
-    db.exec('ALTER TABLE posts ADD COLUMN author_id INTEGER')
-  }
-  if (!postColNames.has('author_name')) {
-    db.exec('ALTER TABLE posts ADD COLUMN author_name TEXT')
-  }
-
-  if (!postColNames.has('featured_image')) {
-    db.exec('ALTER TABLE posts ADD COLUMN featured_image TEXT')
-  }
-
-  // Unique indexes to prevent duplicate posts/schema per site
-  db.exec(`
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_posts_site_wp ON posts(site_id, wp_id);
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_acf_schema_site_group ON acf_schema(site_id, group_id);
-  `)
-
-  // Media library table for cached WP attachment thumbnails
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS media_library (
-      id INTEGER NOT NULL,
-      site_id TEXT NOT NULL,
-      title TEXT NOT NULL DEFAULT '',
-      filename TEXT NOT NULL DEFAULT '',
-      mime_type TEXT NOT NULL DEFAULT '',
-      alt_text TEXT NOT NULL DEFAULT '',
-      source_url TEXT NOT NULL DEFAULT '',
-      thumbnail_path TEXT NOT NULL DEFAULT '',
-      width INTEGER,
-      height INTEGER,
-      uploaded_at TEXT NOT NULL DEFAULT '',
-      PRIMARY KEY (site_id, id),
-      FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
-    );
-    CREATE INDEX IF NOT EXISTS idx_media_library_site_id ON media_library(site_id);
-  `)
-
-  if (!colNames.has('media_library_limit')) {
-    db.exec('ALTER TABLE sites ADD COLUMN media_library_limit INTEGER NOT NULL DEFAULT 100')
-  }
-  if (!colNames.has('last_media_library_pull_at')) {
-    db.exec('ALTER TABLE sites ADD COLUMN last_media_library_pull_at TEXT')
-  }
-
-  // Taxonomy terms cache (site-level)
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS taxonomy_terms (
-      id INTEGER NOT NULL,
-      site_id TEXT NOT NULL,
-      taxonomy TEXT NOT NULL,
-      name TEXT NOT NULL,
-      slug TEXT NOT NULL,
-      parent INTEGER NOT NULL DEFAULT 0,
-      PRIMARY KEY (site_id, taxonomy, id),
-      FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
-    );
-  `)
-
-  // Per-post categories and tags (JSON arrays of term IDs)
-  if (!postColNames.has('categories')) {
-    db.exec('ALTER TABLE posts ADD COLUMN categories TEXT')
-  }
-  if (!postColNames.has('tags')) {
-    db.exec('ALTER TABLE posts ADD COLUMN tags TEXT')
-  }
-
-  if (!postColNames.has('excerpt')) {
-    db.exec("ALTER TABLE posts ADD COLUMN excerpt TEXT NOT NULL DEFAULT ''")
-  }
-  if (!postColNames.has('slug')) {
-    db.exec("ALTER TABLE posts ADD COLUMN slug TEXT NOT NULL DEFAULT ''")
-  }
-  // word_count column on posts
-  if (!postColNames.has('word_count')) {
-    db.exec('ALTER TABLE posts ADD COLUMN word_count INTEGER NOT NULL DEFAULT 0')
-  }
-
-  // wp_author_id column on sites
-  if (!colNames.has('wp_author_id')) {
-    db.exec('ALTER TABLE sites ADD COLUMN wp_author_id INTEGER')
-  }
-
-  // site_icon_url column on sites
-  if (!colNames.has('site_icon_url')) {
-    db.exec('ALTER TABLE sites ADD COLUMN site_icon_url TEXT')
-  }
-
-  // Writing snapshots table (daily word count per post)
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS writing_snapshots (
-      site_id TEXT NOT NULL,
-      post_id TEXT NOT NULL,
-      date TEXT NOT NULL,
-      word_count INTEGER NOT NULL DEFAULT 0,
-      PRIMARY KEY (site_id, post_id, date),
-      FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE,
-      FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE
-    );
-    CREATE INDEX IF NOT EXISTS idx_writing_snapshots_site_date ON writing_snapshots(site_id, date);
-  `)
-
-  // Templates table (global, not per-site)
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS templates (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      description TEXT NOT NULL DEFAULT '',
-      title_template TEXT NOT NULL DEFAULT '',
-      content TEXT NOT NULL DEFAULT '',
-      excerpt TEXT NOT NULL DEFAULT '',
-      status TEXT NOT NULL DEFAULT 'draft',
-      category_names TEXT NOT NULL DEFAULT '[]',
-      tag_names TEXT NOT NULL DEFAULT '[]',
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    )
-  `)
 }
 
 export function clearAllData(): void {

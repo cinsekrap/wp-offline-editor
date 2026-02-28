@@ -2,8 +2,9 @@
 /**
  * Plugin Name: WP Offline Editor Companion
  * Description: Exposes ACF field groups and fields via REST API for WP Offline Editor schema discovery, including code-registered field groups.
- * Version: 1.1.0
- * Author: WP Offline Editor
+ * Version: 0.6.01
+ * Author: Nic Chambers-Parkes
+ * Author URI: https://www.nicparkes.com
  * License: MIT
  * Requires at least: 6.0
  * Requires PHP: 7.4
@@ -13,6 +14,14 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+require_once plugin_dir_path( __FILE__ ) . 'plugin-update-checker/plugin-update-checker.php';
+$wpoeUpdateChecker = YahnisElsts\PluginUpdateChecker\v5\PucFactory::buildUpdateChecker(
+	'https://github.com/cinsekrap/wp-offline-editor/',
+	__FILE__,
+	'wp-offline-editor-companion'
+);
+$wpoeUpdateChecker->getVcsApi()->enableReleaseAssets();
+
 add_action( 'rest_api_init', function () {
 
 	// GET wpoe/v1/status — unauthenticated, used for namespace detection.
@@ -21,7 +30,7 @@ add_action( 'rest_api_init', function () {
 		'callback'            => function () {
 			return [
 				'active'  => true,
-				'version' => '1.1.0',
+				'version' => '0.6.01',
 				'acf'     => function_exists( 'acf_get_field_groups' ),
 			];
 		},

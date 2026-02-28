@@ -1,6 +1,6 @@
 {
   "name": "wp-offline-editor",
-  "version": "0.5.0-build.0",
+  "version": "0.6.0-build.0",
   "description": "Offline Post Editor",
   "main": "./out/main/index.js",
   "author": "",
@@ -12,7 +12,7 @@
     "preview": "electron-vite preview",
     "postinstall": "electron-builder install-app-deps",
     "build:unpack": "pnpm build && electron-builder --dir",
-    "build:plugin": "cd wordpress-plugin && zip -r ../resources/wp-offline-editor-companion.zip wp-offline-editor-companion/",
+    "build:plugin": "rm -f resources/wp-offline-editor-companion.zip && ln -sfn companion-plugin wp-offline-editor-companion && zip -r resources/wp-offline-editor-companion.zip wp-offline-editor-companion/ -x 'wp-offline-editor-companion/.*' && rm wp-offline-editor-companion",
     "build:mac": "node scripts/bump-build.js && pnpm build && electron-builder --mac"
   },
   "pnpm": {

@@ -30,11 +30,11 @@ buildNum++
 // Read package.json
 const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'))
 
-// Strip any existing build metadata
-const baseVersion = pkg.version.split('+')[0]
+// Strip any existing build metadata (both +build.N and -build.N)
+const baseVersion = pkg.version.replace(/[-+]build\.\d+$/, '')
 
-// Stamp new version
-pkg.version = `${baseVersion}+build.${buildNum}`
+// Stamp new version (use hyphen so electron-builder preserves it)
+pkg.version = `${baseVersion}-build.${buildNum}`
 
 // Write back
 fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n')

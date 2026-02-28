@@ -1,6 +1,6 @@
 {
   "name": "wp-offline-editor",
-  "version": "0.6.0-build.0",
+  "version": "0.6.1-build.0",
   "description": "Offline Post Editor",
   "main": "./out/main/index.js",
   "author": "",

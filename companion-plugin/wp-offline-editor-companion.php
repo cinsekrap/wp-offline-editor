@@ -2,7 +2,7 @@
 /**
  * Plugin Name: WP Offline Editor Companion
  * Description: Exposes ACF field groups and fields via REST API for WP Offline Editor schema discovery, including code-registered field groups.
- * Version: 0.6.01
+ * Version: 0.6.1
  * Author: Nic Chambers-Parkes
  * Author URI: https://www.nicparkes.com
  * License: MIT
@@ -30,7 +30,7 @@ add_action( 'rest_api_init', function () {
 		'callback'            => function () {
 			return [
 				'active'  => true,
-				'version' => '0.6.01',
+				'version' => '0.6.1',
 				'acf'     => function_exists( 'acf_get_field_groups' ),
 			];
 		},

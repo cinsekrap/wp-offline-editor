@@ -5,7 +5,7 @@
  * Version: 0.8.0
  * Author: Nic Chambers-Parkes
  * Author URI: https://www.nicparkes.com
- * License: MIT
+ * License: GPL-2.0-only
  * Requires at least: 6.0
  * Requires PHP: 7.4
  */

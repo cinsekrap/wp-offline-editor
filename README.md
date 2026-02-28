@@ -83,4 +83,4 @@ See [RELEASE.md](RELEASE.md) for the step-by-step release checklist.
 
 ## License
 
-MIT
+GPLv2 — see [LICENSE](LICENSE) for details.

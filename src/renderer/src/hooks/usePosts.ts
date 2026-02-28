@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import type { Post, PostInput, PullResult } from '@shared/types'
 
 interface UsePostsReturn {
@@ -18,34 +18,46 @@ export function usePosts(siteId: string | null): UsePostsReturn {
   const [pulling, setPulling] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Ref always holds the current siteId so refresh never uses a stale value
+  const siteIdRef = useRef(siteId)
+  siteIdRef.current = siteId
+
   const refresh = useCallback(async (showLoading = false) => {
-    if (!siteId) {
+    const currentSiteId = siteIdRef.current
+    if (!currentSiteId) {
       setPosts([])
       return
     }
     try {
       if (showLoading) setLoading(true)
       setError(null)
-      const result = await window.electronAPI.getPosts(siteId)
-      setPosts(result)
+      const result = await window.electronAPI.getPosts(currentSiteId)
+      // Only apply if siteId hasn't changed during the fetch
+      if (siteIdRef.current === currentSiteId) {
+        setPosts(result)
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load posts')
+      if (siteIdRef.current === currentSiteId) {
+        setError(err instanceof Error ? err.message : 'Failed to load posts')
+      }
     } finally {
       if (showLoading) setLoading(false)
     }
-  }, [siteId])
+  }, [])
 
-  // Initial load shows loading indicator
+  // Clear stale posts immediately on site change, then fetch new ones
   useEffect(() => {
+    setPosts([])
     refresh(true)
-  }, [refresh])
+  }, [siteId, refresh])
 
   const pullPosts = useCallback(async (): Promise<PullResult> => {
-    if (!siteId) throw new Error('No site selected')
+    const currentSiteId = siteIdRef.current
+    if (!currentSiteId) throw new Error('No site selected')
     try {
       setPulling(true)
       setError(null)
-      const result = await window.electronAPI.pullPosts(siteId)
+      const result = await window.electronAPI.pullPosts(currentSiteId)
       await refresh()
       return result
     } catch (err) {
@@ -55,14 +67,15 @@ export function usePosts(siteId: string | null): UsePostsReturn {
     } finally {
       setPulling(false)
     }
-  }, [siteId, refresh])
+  }, [refresh])
 
   const createPost = useCallback(async (input?: Partial<PostInput>): Promise<Post> => {
-    if (!siteId) throw new Error('No site selected')
-    const post = await window.electronAPI.createPost({ site_id: siteId, ...input })
+    const currentSiteId = siteIdRef.current
+    if (!currentSiteId) throw new Error('No site selected')
+    const post = await window.electronAPI.createPost({ site_id: currentSiteId, ...input })
     await refresh()
     return post
-  }, [siteId, refresh])
+  }, [refresh])
 
   const deletePost = useCallback(async (id: string): Promise<void> => {
     await window.electronAPI.deletePost(id)

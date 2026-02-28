@@ -106,6 +106,25 @@ const api: ElectronAPI = {
     return (): void => {
       ipcRenderer.removeListener('updater:status', handler)
     }
+  },
+
+  openScratchpadWindow: (scratchpadId: string) => ipcRenderer.invoke('scratchpad-window:open', scratchpadId),
+  isScratchpadWindowOpen: (scratchpadId: string) => ipcRenderer.invoke('scratchpad-window:is-open', scratchpadId),
+
+  onScratchpadChanged: (callback: (id: string) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, id: string): void => callback(id)
+    ipcRenderer.on('scratchpad-changed', handler)
+    return (): void => {
+      ipcRenderer.removeListener('scratchpad-changed', handler)
+    }
+  },
+
+  onScratchpadWindowStatus: (callback: (id: string, open: boolean) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, id: string, open: boolean): void => callback(id, open)
+    ipcRenderer.on('scratchpad-window-status', handler)
+    return (): void => {
+      ipcRenderer.removeListener('scratchpad-window-status', handler)
+    }
   }
 }
 

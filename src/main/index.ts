@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, shell, protocol, net } from 'electron'
+import { app, BrowserWindow, Menu, shell, protocol, net, ipcMain } from 'electron'
 import { join, resolve, normalize } from 'path'
 import { is } from '@electron-toolkit/utils'
 import { initDatabase, closeDatabase } from './database'
@@ -8,6 +8,69 @@ import { initAutoUpdater } from './updater'
 // Keep userData path stable (based on package name), but show friendly name in macOS menu bar
 app.setPath('userData', join(app.getPath('appData'), 'wp-offline-editor'))
 app.name = 'Offline Post Editor'
+
+// ── Scratchpad pop-out windows ───────────────────────────────────────────
+const scratchpadWindows = new Map<string, BrowserWindow>()
+
+export function createScratchpadWindow(scratchpadId: string): void {
+  const existing = scratchpadWindows.get(scratchpadId)
+  if (existing && !existing.isDestroyed()) {
+    existing.focus()
+    return
+  }
+
+  const win = new BrowserWindow({
+    width: 500,
+    height: 650,
+    minWidth: 350,
+    minHeight: 400,
+    show: false,
+    titleBarStyle: 'hiddenInset',
+    trafficLightPosition: { x: 15, y: 10 },
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      sandbox: false,
+      nodeIntegration: false,
+      contextIsolation: true,
+      webSecurity: true
+    }
+  })
+
+  scratchpadWindows.set(scratchpadId, win)
+
+  // Notify all windows that this scratchpad is now popped out
+  for (const w of BrowserWindow.getAllWindows()) {
+    w.webContents.send('scratchpad-window-status', scratchpadId, true)
+  }
+
+  win.on('ready-to-show', () => {
+    win.show()
+  })
+
+  win.on('closed', () => {
+    scratchpadWindows.delete(scratchpadId)
+    for (const w of BrowserWindow.getAllWindows()) {
+      w.webContents.send('scratchpad-window-status', scratchpadId, false)
+    }
+  })
+
+  // External links → system browser
+  win.webContents.setWindowOpenHandler((details) => {
+    if (details.url.startsWith('https://') || details.url.startsWith('http://')) {
+      shell.openExternal(details.url)
+    }
+    return { action: 'deny' }
+  })
+
+  const query = `?mode=scratchpad&scratchpadId=${encodeURIComponent(scratchpadId)}`
+  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+    win.loadURL(`${process.env['ELECTRON_RENDERER_URL']}${query}`)
+  } else {
+    win.loadFile(join(__dirname, '../renderer/index.html'), {
+      search: query.slice(1) // loadFile takes search without leading ?
+    })
+  }
+}
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -150,6 +213,19 @@ app.whenReady().then(() => {
 
   initDatabase()
   registerIpcHandlers()
+
+  // Scratchpad pop-out window (registered here to avoid circular imports with ipc-handlers)
+  ipcMain.handle('scratchpad-window:open', (_event, scratchpadId: unknown) => {
+    if (typeof scratchpadId !== 'string' || !scratchpadId) throw new Error('Invalid scratchpad ID')
+    createScratchpadWindow(scratchpadId)
+  })
+
+  ipcMain.handle('scratchpad-window:is-open', (_event, scratchpadId: unknown) => {
+    if (typeof scratchpadId !== 'string') return false
+    const win = scratchpadWindows.get(scratchpadId)
+    return !!win && !win.isDestroyed()
+  })
+
   buildMenu()
   if (!is.dev) initAutoUpdater()
   createWindow()

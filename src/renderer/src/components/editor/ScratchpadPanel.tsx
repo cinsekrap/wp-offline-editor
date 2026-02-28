@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Loader2,
   CheckCircle,
@@ -6,11 +6,16 @@ import {
   Plus,
   Link2,
   Unlink,
-  Search
+  Search,
+  MoreHorizontal,
+  ExternalLink,
+  Pencil
 } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
 import { Input } from '@renderer/components/ui/input'
+import { Popover, PopoverContent, PopoverTrigger } from '@renderer/components/ui/popover'
 import { useScratchpad, type ScratchpadSaveStatus } from '@renderer/hooks/useScratchpad'
+import { ScratchpadEditor } from './ScratchpadEditor'
 import { cn } from '@renderer/lib/utils'
 
 interface ScratchpadPanelProps {
@@ -58,12 +63,34 @@ export function ScratchpadPanel({ siteId, postId }: ScratchpadPanelProps): JSX.E
     saveStatus,
     create,
     link,
-    unlink
+    unlink,
+    refresh
   } = useScratchpad(siteId, postId)
 
   const [mode, setMode] = useState<'idle' | 'creating' | 'picking'>('idle')
   const [newTitle, setNewTitle] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [editingTitle, setEditingTitle] = useState(false)
+  const [poppedOut, setPoppedOut] = useState(false)
+
+  // Check if scratchpad window is already open on mount, and listen for open/close
+  useEffect(() => {
+    if (!scratchpad) {
+      setPoppedOut(false)
+      return
+    }
+
+    window.electronAPI.isScratchpadWindowOpen(scratchpad.id).then(setPoppedOut)
+
+    const cleanup = window.electronAPI.onScratchpadWindowStatus((id, open) => {
+      if (id !== scratchpad.id) return
+      setPoppedOut(open)
+      // Reload content when pop-out closes — edits may have happened there
+      if (!open) refresh()
+    })
+    return cleanup
+  }, [scratchpad?.id])
 
   if (loading) {
     return (
@@ -75,43 +102,119 @@ export function ScratchpadPanel({ siteId, postId }: ScratchpadPanelProps): JSX.E
 
   // ── Linked state ──
   if (scratchpad) {
+    // ── Popped out ──
+    if (poppedOut) {
+      return (
+        <div className="flex flex-col h-full">
+          <div className="flex items-center gap-1 px-3 py-2 border-b shrink-0">
+            <span className="text-sm font-medium truncate flex-1">
+              {title || 'Untitled'}
+            </span>
+            <Popover open={menuOpen} onOpenChange={setMenuOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" title="Scratchpad options">
+                  <MoreHorizontal className="h-3.5 w-3.5" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-40 p-1">
+                <button
+                  className="flex items-center gap-2 w-full px-2 py-1.5 rounded text-sm text-destructive hover:bg-accent transition-colors"
+                  onClick={() => {
+                    setMenuOpen(false)
+                    unlink()
+                  }}
+                >
+                  <Unlink className="h-3.5 w-3.5" />
+                  Unlink
+                </button>
+              </PopoverContent>
+            </Popover>
+          </div>
+          <div className="flex-1 flex flex-col items-center justify-center gap-3 px-4">
+            <ExternalLink className="h-5 w-5 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground text-center">
+              Open in another window
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs"
+              onClick={() => window.electronAPI.openScratchpadWindow(scratchpad.id)}
+            >
+              Focus window
+            </Button>
+          </div>
+        </div>
+      )
+    }
+
+    // ── Inline editor ──
     return (
       <div className="flex flex-col h-full">
-        <div className="p-3 space-y-2 shrink-0">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-muted-foreground">Linked scratchpad</span>
-            <ScratchpadSaveIndicator status={saveStatus} />
-          </div>
-          <Input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Scratchpad title"
-            className="h-8 text-sm"
-          />
-        </div>
-        <div className="flex-1 min-h-0 px-3 pb-2">
-          <textarea
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            placeholder="Write notes here... (markdown)"
-            className={cn(
-              'w-full h-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm',
-              'font-mono leading-relaxed',
-              'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
-              'placeholder:text-muted-foreground'
-            )}
-          />
-        </div>
-        <div className="p-3 border-t shrink-0">
+        <div className="flex items-center gap-1 px-3 py-2 border-b shrink-0">
+          {editingTitle ? (
+            <Input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Scratchpad title"
+              className="h-7 text-sm flex-1"
+              autoFocus
+              onBlur={() => setEditingTitle(false)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === 'Escape') setEditingTitle(false)
+              }}
+            />
+          ) : (
+            <span className="text-sm font-medium truncate flex-1">
+              {title || 'Untitled'}
+            </span>
+          )}
+          <ScratchpadSaveIndicator status={saveStatus} />
+          <Popover open={menuOpen} onOpenChange={setMenuOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" title="Scratchpad options">
+                <MoreHorizontal className="h-3.5 w-3.5" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-40 p-1">
+              <button
+                className="flex items-center gap-2 w-full px-2 py-1.5 rounded text-sm hover:bg-accent transition-colors"
+                onClick={() => {
+                  setMenuOpen(false)
+                  setEditingTitle(true)
+                }}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                Rename
+              </button>
+              <button
+                className="flex items-center gap-2 w-full px-2 py-1.5 rounded text-sm text-destructive hover:bg-accent transition-colors"
+                onClick={() => {
+                  setMenuOpen(false)
+                  unlink()
+                }}
+              >
+                <Unlink className="h-3.5 w-3.5" />
+                Unlink
+              </button>
+            </PopoverContent>
+          </Popover>
           <Button
             variant="ghost"
-            size="sm"
-            className="w-full text-xs text-muted-foreground hover:text-destructive"
-            onClick={unlink}
+            size="icon"
+            className="h-7 w-7 shrink-0"
+            title="Pop out"
+            onClick={() => window.electronAPI.openScratchpadWindow(scratchpad.id)}
           >
-            <Unlink className="h-3 w-3 mr-1" />
-            Unlink scratchpad
+            <ExternalLink className="h-3.5 w-3.5" />
           </Button>
+        </div>
+        <div className="flex-1 min-h-0 px-3 pb-2">
+          <ScratchpadEditor
+            key={scratchpad.id}
+            content={content}
+            onChange={setContent}
+          />
         </div>
       </div>
     )

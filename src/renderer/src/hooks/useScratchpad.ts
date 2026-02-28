@@ -70,6 +70,32 @@ export function useScratchpad(siteId: string, postId: string): UseScratchpadRetu
     loadAll()
   }, [postId, siteId, loadLinked, loadAll])
 
+  // Cross-window sync: listen for scratchpad-changed broadcasts
+  useEffect(() => {
+    const cleanup = window.electronAPI.onScratchpadChanged(async (changedId: string) => {
+      if (changedId !== scratchpadIdRef.current) return
+
+      try {
+        const sp = await window.electronAPI.getScratchpad(changedId)
+        if (!sp) return
+
+        const currentSerialized = JSON.stringify({ title, content })
+        const remoteSerialized = JSON.stringify({ title: sp.title, content: sp.content })
+
+        // Only update if remote differs — avoids cursor jumps from own saves
+        if (remoteSerialized !== currentSerialized) {
+          setTitle(sp.title)
+          setContent(sp.content)
+          lastSavedRef.current = remoteSerialized
+          freshRef.current = true
+        }
+      } catch {
+        // Ignore read errors during cross-window sync
+      }
+    })
+    return cleanup
+  }, [title, content])
+
   // Auto-save with 1500ms debounce
   useEffect(() => {
     if (!scratchpadIdRef.current) return

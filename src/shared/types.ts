@@ -461,4 +461,10 @@ export interface ElectronAPI {
   installUpdate(): Promise<void>
   onCountsChanged(callback: () => void): () => void
   onUpdaterEvent(callback: (status: string, data?: Record<string, unknown>) => void): () => void
+
+  // Scratchpad window
+  openScratchpadWindow(scratchpadId: string): Promise<void>
+  isScratchpadWindowOpen(scratchpadId: string): Promise<boolean>
+  onScratchpadChanged(callback: (id: string) => void): () => void
+  onScratchpadWindowStatus(callback: (id: string, open: boolean) => void): () => void
 }

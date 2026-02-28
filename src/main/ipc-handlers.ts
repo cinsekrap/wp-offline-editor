@@ -301,7 +301,13 @@ export function registerIpcHandlers(): void {
   })
 
   ipcMain.handle('scratchpads:update', (_event, update: unknown) => {
-    return updateScratchpad(ScratchpadUpdateSchema.parse(update))
+    const parsed = ScratchpadUpdateSchema.parse(update)
+    const result = updateScratchpad(parsed)
+    // Broadcast to all windows for cross-window sync
+    for (const win of BrowserWindow.getAllWindows()) {
+      win.webContents.send('scratchpad-changed', parsed.id)
+    }
+    return result
   })
 
   ipcMain.handle('scratchpads:delete', (_event, id: unknown) => {

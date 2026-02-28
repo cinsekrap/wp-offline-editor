@@ -593,7 +593,7 @@ export function PostEditor({
           <div className="flex border-b shrink-0">
             <button
               className={cn(
-                'flex-1 text-xs font-medium py-2 transition-colors',
+                'flex-1 text-xs font-medium h-12 transition-colors',
                 sidebarTab === 'post'
                   ? 'text-foreground border-b-2 border-foreground'
                   : 'text-muted-foreground hover:text-foreground'
@@ -605,7 +605,7 @@ export function PostEditor({
             {hasAcf && (
               <button
                 className={cn(
-                  'flex-1 text-xs font-medium py-2 transition-colors',
+                  'flex-1 text-xs font-medium h-12 transition-colors',
                   sidebarTab === 'acf'
                     ? 'text-foreground border-b-2 border-foreground'
                     : 'text-muted-foreground hover:text-foreground'
@@ -617,7 +617,7 @@ export function PostEditor({
             )}
             <button
               className={cn(
-                'flex-1 text-xs font-medium py-2 transition-colors',
+                'flex-1 text-xs font-medium h-12 transition-colors',
                 sidebarTab === 'scratchpad'
                   ? 'text-foreground border-b-2 border-foreground'
                   : 'text-muted-foreground hover:text-foreground'

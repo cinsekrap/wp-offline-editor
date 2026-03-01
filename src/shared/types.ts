@@ -63,6 +63,7 @@ export interface Post {
   tags: number[]
   word_count: number
   scratchpad_id: string | null
+  pending_delete: boolean
   modified_local: string
   modified_remote: string | null
   synced: boolean
@@ -362,6 +363,7 @@ export interface AcfPullResult {
 
 export interface SyncResult {
   pushed: number
+  deleted: number
   pushErrors: string[]
   pull: PullResult
   schemaPull: AcfPullResult

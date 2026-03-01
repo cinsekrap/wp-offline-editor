@@ -41,9 +41,8 @@ export function DeletePostDialog({
         <DialogHeader>
           <DialogTitle>Delete Post</DialogTitle>
           <DialogDescription>
-            Are you sure you want to delete <strong>{postTitle || 'Untitled'}</strong>? This will
-            remove the post and its associated media from your local database. This action cannot be
-            undone.
+            Are you sure you want to delete <strong>{postTitle || 'Untitled'}</strong>? The post will
+            be removed locally and deleted from WordPress on the next sync.
           </DialogDescription>
         </DialogHeader>
 

@@ -133,23 +133,32 @@ export async function pushPostToWp(postId: string): Promise<PushResult> {
   return { wp_id: result.id, modified_remote: result.modified }
 }
 
-export async function deletePostFromWp(postId: string): Promise<void> {
-  const post = getPostById(postId)
-  if (!post) throw new Error(`Post not found: ${postId}`)
+async function pushPendingDeletions(siteId: string): Promise<{ deleted: number; errors: string[] }> {
+  const db = getDb()
+  const rows = db
+    .prepare('SELECT id, wp_id FROM posts WHERE site_id = ? AND pending_delete = 1 AND wp_id IS NOT NULL')
+    .all(siteId) as { id: string; wp_id: number }[]
 
-  // If the post exists on WordPress, delete it remotely first
-  if (post.wp_id) {
-    const site = getSiteById(post.site_id)
-    if (!site) throw new Error(`Site not found: ${post.site_id}`)
+  const site = getSiteById(siteId)
+  if (!site || rows.length === 0) return { deleted: 0, errors: [] }
 
-    const password = getCredential(site.keychain_ref)
-    if (!password) throw new Error(`No credential found for site: ${site.label}`)
+  const password = getCredential(site.keychain_ref)
+  if (!password) return { deleted: 0, errors: [] }
 
-    await deleteRemotePost(site.url, site.username, password, post.wp_id)
+  let deleted = 0
+  const errors: string[] = []
+
+  for (const row of rows) {
+    try {
+      await deleteRemotePost(site.url, site.username, password, row.wp_id)
+      deletePost(row.id) // hard-delete locally after successful remote delete
+      deleted++
+    } catch (err) {
+      errors.push(`Delete wp_id=${row.wp_id}: ${err instanceof Error ? err.message : String(err)}`)
+    }
   }
 
-  // Then delete locally
-  deletePost(postId)
+  return { deleted, errors }
 }
 
 export async function resolveConflict(
@@ -372,14 +381,24 @@ export async function syncSite(siteId: string, options?: { force?: boolean }): P
     console.warn('[sync] Failed to push scratchpads:', err instanceof Error ? err.message : err)
   }
 
-  // Get all unsynced, non-conflict posts for this site
+  // Push pending deletions before the push loop (so deletions don't inflate mass push guard)
+  let deletedCount = 0
+  const pushErrors: string[] = []
+  try {
+    const deleteResult = await pushPendingDeletions(siteId)
+    deletedCount = deleteResult.deleted
+    pushErrors.push(...deleteResult.errors)
+  } catch (err) {
+    pushErrors.push(`Deletions: ${err instanceof Error ? err.message : String(err)}`)
+  }
+
+  // Get all unsynced, non-conflict, non-pending-delete posts for this site
   const unsyncedPosts = db
-    .prepare('SELECT id FROM posts WHERE site_id = ? AND synced = 0 AND conflict = 0')
+    .prepare('SELECT id FROM posts WHERE site_id = ? AND synced = 0 AND conflict = 0 AND pending_delete = 0')
     .all(siteId) as { id: string }[]
 
   // Push each one, collecting errors
   let pushed = 0
-  const pushErrors: string[] = []
   let massPushPaused: { count: number } | undefined
 
   if (unsyncedPosts.length > MASS_PUSH_THRESHOLD && !options?.force) {
@@ -446,13 +465,13 @@ export async function syncSite(siteId: string, options?: { force?: boolean }): P
     }
   }
 
-  return { pushed, pushErrors, pull, schemaPull, mediaLibraryPull, pluginVersionWarning, massPushPaused }
+  return { pushed, deleted: deletedCount, pushErrors, pull, schemaPull, mediaLibraryPull, pluginVersionWarning, massPushPaused }
 }
 
 export function getUnsyncedPostCount(siteId: string): number {
   const db = getDb()
   const row = db
-    .prepare('SELECT COUNT(*) as count FROM posts WHERE site_id = ? AND synced = 0')
+    .prepare('SELECT COUNT(*) as count FROM posts WHERE site_id = ? AND (synced = 0 OR pending_delete = 1)')
     .get(siteId) as { count: number }
   return row.count
 }
@@ -460,7 +479,7 @@ export function getUnsyncedPostCount(siteId: string): number {
 export function getTotalUnsyncedCount(): number {
   const db = getDb()
   const row = db
-    .prepare('SELECT COUNT(*) as count FROM posts WHERE synced = 0')
+    .prepare('SELECT COUNT(*) as count FROM posts WHERE (synced = 0 OR pending_delete = 1)')
     .get() as { count: number }
   return row.count
 }

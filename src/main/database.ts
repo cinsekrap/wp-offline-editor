@@ -259,6 +259,11 @@ const migrations: Array<(db: Database.Database) => void> = [
       const plainContent = p.content.replace(/<[^>]*>/g, ' ').replace(/&[^;]+;/g, ' ').replace(/\s+/g, ' ').trim()
       insert.run(p.id, p.site_id, p.title, plainContent, p.excerpt)
     }
+  },
+
+  // ── v4: soft-delete support ──
+  (db) => {
+    safeAddColumn(db, 'posts', 'pending_delete', 'INTEGER NOT NULL DEFAULT 0')
   }
 ]
 

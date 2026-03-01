@@ -187,8 +187,11 @@ async function upsertPost(
   const db = getDb()
 
   const existing = db
-    .prepare('SELECT id, modified_remote, synced FROM posts WHERE site_id = ? AND wp_id = ?')
-    .get(siteId, wpPost.id) as { id: string; modified_remote: string | null; synced: number } | undefined
+    .prepare('SELECT id, modified_remote, synced, pending_delete FROM posts WHERE site_id = ? AND wp_id = ?')
+    .get(siteId, wpPost.id) as { id: string; modified_remote: string | null; synced: number; pending_delete: number } | undefined
+
+  // Local delete intent takes precedence — don't recreate the post from a pull
+  if (existing?.pending_delete) return 'unchanged'
 
   const title = decodeHtmlEntities(wpPost.title.rendered)
   let content = sanitizeHtml(wpPost.content.rendered)
@@ -310,7 +313,7 @@ async function upsertPost(
 
 export function getAllPostsForSite(siteId: string): Post[] {
   const db = getDb()
-  const rows = db.prepare('SELECT * FROM posts WHERE site_id = ? ORDER BY modified_local DESC').all(siteId) as PostRow[]
+  const rows = db.prepare('SELECT * FROM posts WHERE site_id = ? AND pending_delete = 0 ORDER BY modified_local DESC').all(siteId) as PostRow[]
   return rows.map(normalizePostRow)
 }
 
@@ -415,6 +418,43 @@ export function bulkDeletePosts(postIds: string[]): void {
   tx()
 }
 
+export function softDeletePost(id: string): void {
+  const db = getDb()
+  const row = db.prepare('SELECT wp_id FROM posts WHERE id = ?').get(id) as { wp_id: number | null } | undefined
+  if (!row) return
+
+  removePostFromIndex(id)
+
+  if (row.wp_id == null) {
+    // No WordPress counterpart — hard-delete immediately
+    db.prepare('DELETE FROM posts WHERE id = ?').run(id)
+  } else {
+    // Mark for deletion on next sync
+    db.prepare('UPDATE posts SET pending_delete = 1, synced = 0 WHERE id = ?').run(id)
+  }
+}
+
+export function bulkSoftDeletePosts(postIds: string[]): void {
+  const db = getDb()
+  const select = db.prepare('SELECT id, wp_id FROM posts WHERE id = ?')
+  const hardDel = db.prepare('DELETE FROM posts WHERE id = ?')
+  const softDel = db.prepare('UPDATE posts SET pending_delete = 1, synced = 0 WHERE id = ?')
+
+  const tx = db.transaction(() => {
+    for (const id of postIds) {
+      const row = select.get(id) as { id: string; wp_id: number | null } | undefined
+      if (!row) continue
+      removePostFromIndex(id)
+      if (row.wp_id == null) {
+        hardDel.run(id)
+      } else {
+        softDel.run(id)
+      }
+    }
+  })
+  tx()
+}
+
 /** Raw shape from SQLite — booleans are integers, JSON columns are strings */
 interface PostRow {
   id: string
@@ -434,6 +474,7 @@ interface PostRow {
   tags: string | number[] | null
   word_count: number | null
   scratchpad_id: string | null
+  pending_delete: number
   modified_local: string
   modified_remote: string | null
   synced: number
@@ -459,6 +500,7 @@ function normalizePostRow(row: PostRow): Post {
     tags: typeof row.tags === 'string' ? JSON.parse(row.tags) : row.tags ?? [],
     word_count: row.word_count ?? 0,
     scratchpad_id: row.scratchpad_id ?? null,
+    pending_delete: Boolean(row.pending_delete),
     modified_local: row.modified_local,
     modified_remote: row.modified_remote,
     synced: Boolean(row.synced),

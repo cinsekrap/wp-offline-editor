@@ -6,8 +6,8 @@ import { is } from '@electron-toolkit/utils'
 import { getAllSites, getSiteById, addSite, updateSite, deleteSite, clearSiteData, clearSiteContent } from './site-service'
 import { testWpConnection, fetchAuthors } from './wp-client'
 import { getCredential } from './credentials'
-import { pullPostsForSite, getAllPostsForSite, getPostById, createPost, updatePost, bulkUpdateStatus, bulkDeletePosts } from './post-service'
-import { pushPostToWp, deletePostFromWp, resolveConflict, getUnsyncedPostCount, getTotalUnsyncedCount, syncSite } from './sync-service'
+import { pullPostsForSite, getAllPostsForSite, getPostById, createPost, updatePost, bulkUpdateStatus, softDeletePost, bulkSoftDeletePosts } from './post-service'
+import { pushPostToWp, resolveConflict, getUnsyncedPostCount, getTotalUnsyncedCount, syncSite } from './sync-service'
 import { pullAcfSchemaForSite, getAcfSchemasForSite } from './acf-service'
 import {
   saveMediaLocally,
@@ -124,8 +124,8 @@ export function registerIpcHandlers(): void {
     return post
   })
 
-  ipcMain.handle('posts:delete', async (_event, id: unknown) => {
-    await deletePostFromWp(uuidSchema.parse(id))
+  ipcMain.handle('posts:delete', (_event, id: unknown) => {
+    softDeletePost(uuidSchema.parse(id))
     notifyCountsChanged()
   })
 
@@ -197,7 +197,7 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('posts:bulk-delete', (_event, input: unknown) => {
     const { postIds } = BulkDeleteSchema.parse(input)
-    bulkDeletePosts(postIds)
+    bulkSoftDeletePosts(postIds)
     notifyCountsChanged()
   })
 

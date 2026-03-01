@@ -85,6 +85,7 @@ export function useSyncStatus({
       } else {
         const parts: string[] = []
         if (result.pushed > 0) parts.push(`pushed ${result.pushed}`)
+        if (result.deleted > 0) parts.push(`deleted ${result.deleted} from WordPress`)
         if (result.pull.created > 0) parts.push(`pulled ${result.pull.created} new`)
         if (result.pull.updated > 0) parts.push(`${result.pull.updated} updated`)
         if (result.schemaPull.groupsUpdated > 0)

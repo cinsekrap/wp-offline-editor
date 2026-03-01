@@ -64,6 +64,16 @@ export function createScratchpadWindow(scratchpadId: string): void {
     return { action: 'deny' }
   })
 
+  // Prevent navigation to external URLs
+  win.webContents.on('will-navigate', (event, url) => {
+    if (!url.startsWith('http://localhost') && !url.startsWith('file://')) {
+      event.preventDefault()
+      if (url.startsWith('https://') || url.startsWith('http://')) {
+        shell.openExternal(url)
+      }
+    }
+  })
+
   const query = `?mode=scratchpad&scratchpadId=${encodeURIComponent(scratchpadId)}`
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     win.loadURL(`${process.env['ELECTRON_RENDERER_URL']}${query}`)

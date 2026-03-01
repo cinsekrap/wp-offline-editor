@@ -22,8 +22,8 @@ export function ExportImportSection(): JSX.Element {
   const [importing, setImporting] = useState(false)
 
   async function handleExport(): Promise<void> {
-    if (exportPassword.length < 1) {
-      toast({ title: 'Password required', variant: 'destructive' })
+    if (exportPassword.length < 8) {
+      toast({ title: 'Password must be at least 8 characters', variant: 'destructive' })
       return
     }
     if (exportPassword !== exportConfirm) {

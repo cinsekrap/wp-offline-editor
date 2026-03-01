@@ -168,12 +168,15 @@ export async function pullPostsForSite(siteId: string): Promise<PullResult> {
     }
   }
 
-  // Update last_post_pull_at
-  const db = getDb()
-  db.prepare('UPDATE sites SET last_post_pull_at = ? WHERE id = ?').run(
-    new Date().toISOString(),
-    siteId
-  )
+  // Only update pull timestamp when all posts processed without errors,
+  // so a partial failure triggers a full re-pull next time
+  if (result.errors.length === 0) {
+    const db = getDb()
+    db.prepare('UPDATE sites SET last_post_pull_at = ? WHERE id = ?').run(
+      new Date().toISOString(),
+      siteId
+    )
+  }
 
   return result
 }

@@ -76,11 +76,10 @@ function swapImageSrc(editor: Editor, mediaId: string, wpUrl: string): void {
   const { doc, tr } = editor.state
   doc.descendants((node, pos) => {
     if (node.type.name === 'image' && node.attrs.mediaId === mediaId) {
-      editor.view.dispatch(
-        tr.setNodeMarkup(pos, undefined, { ...node.attrs, src: wpUrl })
-      )
+      tr.setNodeMarkup(pos, undefined, { ...node.attrs, src: wpUrl })
     }
   })
+  if (tr.docChanged) editor.view.dispatch(tr)
 }
 
 export function PostEditor({
@@ -171,8 +170,8 @@ export function PostEditor({
   useEffect(() => {
     const id = postId
     return () => {
-      flushRef.current()
-      window.electronAPI.captureRevision(id)
+      // Chain captureRevision after flush completes so the save lands first
+      flushRef.current().then(() => window.electronAPI.captureRevision(id))
     }
   }, [postId])
 
@@ -344,12 +343,14 @@ export function PostEditor({
   }, [onPostUpdated, toast])
 
   const handleBack = useCallback(async () => {
+    // Ensure pending save completes before navigating away
+    await flush()
     // If the post is blank (no title, no content), delete it silently
     if (!title.trim() && !content.trim()) {
       await onDelete()
     }
     onBack()
-  }, [title, content, onDelete, onBack])
+  }, [title, content, onDelete, onBack, flush])
 
   const handleDelete = useCallback(async () => {
     await onDelete()
@@ -375,14 +376,18 @@ export function PostEditor({
   const handleImageDelete = useCallback(async () => {
     if (!imageMenu || !editorRef.current) return
     const { mediaId } = imageMenu
-    // Remove the image node from the editor
+    // Collect positions first, then delete in reverse to keep offsets stable
     const editor = editorRef.current
     const { doc, tr } = editor.state
+    const positions: { pos: number; size: number }[] = []
     doc.descendants((node, pos) => {
       if (node.type.name === 'image' && node.attrs.mediaId === mediaId) {
-        tr.delete(pos, pos + node.nodeSize)
+        positions.push({ pos, size: node.nodeSize })
       }
     })
+    for (const { pos, size } of positions.reverse()) {
+      tr.delete(pos, pos + size)
+    }
     editor.view.dispatch(tr)
     // Delete the media file
     await window.electronAPI.deleteMedia(mediaId)
@@ -399,11 +404,10 @@ export function PostEditor({
         const { doc, tr } = editorRef.current.state
         doc.descendants((node, pos) => {
           if (node.type.name === 'image' && node.attrs.mediaId === mediaId) {
-            editorRef.current!.view.dispatch(
-              tr.setNodeMarkup(pos, undefined, { ...node.attrs, src: newSrc })
-            )
+            tr.setNodeMarkup(pos, undefined, { ...node.attrs, src: newSrc })
           }
         })
+        if (tr.docChanged) editorRef.current.view.dispatch(tr)
       }
       await refreshQueue()
       setCropTarget(null)
@@ -417,11 +421,10 @@ export function PostEditor({
       const { doc, tr } = editorRef.current.state
       doc.descendants((node, pos) => {
         if (node.type.name === 'image' && node.attrs.mediaId === mediaId) {
-          editorRef.current!.view.dispatch(
-            tr.setNodeMarkup(pos, undefined, { ...node.attrs, alt: newAlt })
-          )
+          tr.setNodeMarkup(pos, undefined, { ...node.attrs, alt: newAlt })
         }
       })
+      if (tr.docChanged) editorRef.current.view.dispatch(tr)
     },
     []
   )

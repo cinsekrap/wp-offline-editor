@@ -229,6 +229,10 @@ export function registerIpcHandlers(): void {
     'media:save-local',
     (_event, siteId: unknown, postLocalId: unknown, filename: unknown, buffer: unknown) => {
       if (!(buffer instanceof ArrayBuffer)) throw new Error('Expected ArrayBuffer for media buffer')
+      const MAX_MEDIA_SIZE = 50 * 1024 * 1024 // 50 MB
+      if (buffer.byteLength > MAX_MEDIA_SIZE) {
+        throw new Error(`File too large (${Math.round(buffer.byteLength / 1024 / 1024)}MB). Maximum is 50MB.`)
+      }
       const media = saveMediaLocally(
         uuidSchema.parse(siteId),
         uuidSchema.parse(postLocalId),

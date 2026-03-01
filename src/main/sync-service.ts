@@ -371,7 +371,19 @@ async function pullScratchpadsForSite(siteId: string): Promise<void> {
 
 const MASS_PUSH_THRESHOLD = 5
 
-export async function syncSite(siteId: string, options?: { force?: boolean }): Promise<SyncResult> {
+/** Per-site mutex: if a sync is already in flight, callers receive the same promise. */
+const syncLocks = new Map<string, Promise<SyncResult>>()
+
+export function syncSite(siteId: string, options?: { force?: boolean }): Promise<SyncResult> {
+  const existing = syncLocks.get(siteId)
+  if (existing) return existing
+
+  const promise = doSyncSite(siteId, options).finally(() => syncLocks.delete(siteId))
+  syncLocks.set(siteId, promise)
+  return promise
+}
+
+async function doSyncSite(siteId: string, options?: { force?: boolean }): Promise<SyncResult> {
   const db = getDb()
 
   // Push scratchpads first (before posts, so wp_id is available for meta sync)

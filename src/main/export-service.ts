@@ -13,7 +13,7 @@ import {
 import { randomBytes, pbkdf2Sync } from 'crypto'
 import { execFileSync } from 'child_process'
 import { getOrCreateDbKey } from './credentials'
-import { getDb, closeDatabase, initDatabase } from './database'
+import { getDb, closeDatabase, initDatabase, assertHexKey } from './database'
 
 const DB_FILENAME = 'wp-offline-editor.db'
 const METADATA_FILENAME = 'metadata.json'
@@ -48,6 +48,8 @@ export async function exportData(password: string, destPath: string): Promise<vo
     const derivedKey = deriveKey(password, salt)
 
     const backupDb = new Database(backupPath)
+    assertHexKey(localKey)
+    assertHexKey(derivedKey)
     backupDb.pragma(`key='${localKey}'`)
     backupDb.pragma(`rekey='${derivedKey}'`)
 
@@ -112,6 +114,7 @@ export async function importData(password: string, archivePath: string): Promise
     // Validate: try opening the DB with the derived key
     const importedDbPath = join(tempDir, DB_FILENAME)
     const testDb = new Database(importedDbPath)
+    assertHexKey(derivedKey)
     testDb.pragma(`key='${derivedKey}'`)
     try {
       testDb.prepare('SELECT count(*) FROM sites').get()
@@ -121,6 +124,7 @@ export async function importData(password: string, archivePath: string): Promise
     }
 
     // Re-encrypt with local machine's key
+    assertHexKey(localKey)
     testDb.pragma(`rekey='${localKey}'`)
     testDb.close()
 

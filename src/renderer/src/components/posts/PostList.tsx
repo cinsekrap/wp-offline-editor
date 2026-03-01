@@ -29,6 +29,11 @@ export const STATUS_LABELS: Record<string, string> = {
   trash: 'Trash'
 }
 
+/** Strip all HTML tags except <mark> from FTS5 snippets to prevent XSS. */
+function sanitizeSnippet(html: string): string {
+  return html.replace(/<(?!\/?mark\b)[^>]*>/gi, '')
+}
+
 type SortOption = 'date' | 'modified_local' | 'title'
 
 const FILTER_STATUSES: { value: PostStatus; label: string }[] = [
@@ -491,11 +496,11 @@ export function PostList({
                 >
                   <p
                     className="text-sm font-medium truncate [&_mark]:bg-yellow-200 [&_mark]:text-foreground dark:[&_mark]:bg-yellow-800"
-                    dangerouslySetInnerHTML={{ __html: result.title }}
+                    dangerouslySetInnerHTML={{ __html: sanitizeSnippet(result.title) }}
                   />
                   <p
                     className="text-xs text-muted-foreground mt-1 line-clamp-2 [&_mark]:bg-yellow-200 [&_mark]:text-foreground dark:[&_mark]:bg-yellow-800"
-                    dangerouslySetInnerHTML={{ __html: result.snippet }}
+                    dangerouslySetInnerHTML={{ __html: sanitizeSnippet(result.snippet) }}
                   />
                 </button>
               ))}

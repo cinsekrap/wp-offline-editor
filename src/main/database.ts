@@ -8,6 +8,13 @@ let db: Database.Database | null = null
 
 const DB_FILENAME = 'wp-offline-editor.db'
 
+/** Validate a key is strictly hex before interpolating into a PRAGMA statement. */
+export function assertHexKey(key: string): void {
+  if (!/^[0-9a-f]+$/i.test(key)) {
+    throw new Error('Database key is not valid hex — possible corruption')
+  }
+}
+
 export function getDb(): Database.Database {
   if (db) return db
   throw new Error('Database not initialized. Call initDatabase() first.')
@@ -18,7 +25,7 @@ export function initDatabase(): void {
   const key = getOrCreateDbKey()
 
   db = new Database(dbPath)
-  // key is a hex string generated internally by getOrCreateDbKey() — safe to interpolate
+  assertHexKey(key)
   db.pragma(`key='${key}'`)
   db.pragma('journal_mode=WAL')
   db.pragma('foreign_keys=ON')
@@ -271,8 +278,15 @@ function runMigrations(db: Database.Database): void {
   const currentVersion = db.pragma('user_version', { simple: true }) as number
 
   for (let i = currentVersion; i < migrations.length; i++) {
-    migrations[i](db)
-    db.pragma(`user_version = ${i + 1}`)
+    db.exec('BEGIN')
+    try {
+      migrations[i](db)
+      db.pragma(`user_version = ${i + 1}`)
+      db.exec('COMMIT')
+    } catch (err) {
+      db.exec('ROLLBACK')
+      throw new Error(`Migration v${i + 1} failed: ${err instanceof Error ? err.message : String(err)}`)
+    }
   }
 }
 

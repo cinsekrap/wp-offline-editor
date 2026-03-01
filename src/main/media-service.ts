@@ -14,7 +14,12 @@ function getMediaDir(siteId: string): string {
   return dir
 }
 
-function normalizeMediaRow(row: Media): Media {
+/** Raw shape from SQLite — synced is stored as INTEGER */
+interface MediaRow extends Omit<Media, 'synced'> {
+  synced: number
+}
+
+function normalizeMediaRow(row: MediaRow): Media {
   return {
     ...row,
     synced: Boolean(row.synced)
@@ -33,7 +38,7 @@ export function saveMediaFromWp(
   // Dedup: if we already have this wp_url for this post, return existing
   const existing = db
     .prepare('SELECT * FROM media WHERE post_local_id = ? AND wp_url = ?')
-    .get(postLocalId, wpUrl) as Media | undefined
+    .get(postLocalId, wpUrl) as MediaRow | undefined
   if (existing) return normalizeMediaRow(existing)
 
   const id = uuidv4()
@@ -75,13 +80,13 @@ export function saveMediaLocally(
 
 export function getMediaById(id: string): Media | null {
   const db = getDb()
-  const row = db.prepare('SELECT * FROM media WHERE id = ?').get(id) as Media | undefined
+  const row = db.prepare('SELECT * FROM media WHERE id = ?').get(id) as MediaRow | undefined
   return row ? normalizeMediaRow(row) : null
 }
 
 export function getMediaForPost(postLocalId: string): Media[] {
   const db = getDb()
-  const rows = db.prepare('SELECT * FROM media WHERE post_local_id = ?').all(postLocalId) as Media[]
+  const rows = db.prepare('SELECT * FROM media WHERE post_local_id = ?').all(postLocalId) as MediaRow[]
   return rows.map(normalizeMediaRow)
 }
 
@@ -89,7 +94,7 @@ export function getMediaQueue(siteId: string): Media[] {
   const db = getDb()
   const rows = db
     .prepare('SELECT * FROM media WHERE site_id = ? AND synced = 0')
-    .all(siteId) as Media[]
+    .all(siteId) as MediaRow[]
   return rows.map(normalizeMediaRow)
 }
 

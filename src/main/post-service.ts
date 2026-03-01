@@ -409,18 +409,6 @@ export function bulkUpdateStatus(postIds: string[], status: string): number {
   return tx()
 }
 
-export function bulkDeletePosts(postIds: string[]): void {
-  const db = getDb()
-  const del = db.prepare('DELETE FROM posts WHERE id = ?')
-  const tx = db.transaction(() => {
-    for (const id of postIds) {
-      removePostFromIndex(id)
-      del.run(id)
-    }
-  })
-  tx()
-}
-
 export function softDeletePost(id: string): void {
   const db = getDb()
   const row = db.prepare('SELECT wp_id FROM posts WHERE id = ?').get(id) as { wp_id: number | null } | undefined

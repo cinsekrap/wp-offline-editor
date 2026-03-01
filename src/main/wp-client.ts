@@ -32,6 +32,15 @@ function apiBase(url: string): string {
   return `${url.replace(/\/+$/, '')}/wp-json`
 }
 
+const DEFAULT_TIMEOUT_MS = 30_000
+
+/** Fetch with an automatic abort timeout to prevent indefinite hangs. */
+function fetchWithTimeout(url: string, init?: RequestInit, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<Response> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  return fetch(url, { ...init, signal: controller.signal }).finally(() => clearTimeout(timer))
+}
+
 export async function testWpConnection(
   url: string,
   username: string,
@@ -48,7 +57,7 @@ export async function testWpConnection(
 
   try {
     // Test basic WP REST API availability
-    const rootRes = await fetch(base, { headers })
+    const rootRes = await fetchWithTimeout(base, { headers })
 
     if (!rootRes.ok) {
       if (rootRes.status === 401 || rootRes.status === 403) {
@@ -65,7 +74,7 @@ export async function testWpConnection(
     // Get WP version from the wp/v2 users/me endpoint (requires auth)
     let wpVersion = 'Unknown'
     try {
-      const meRes = await fetch(`${base}/wp/v2/users/me?context=edit`, { headers })
+      const meRes = await fetchWithTimeout(`${base}/wp/v2/users/me?context=edit`, { headers })
       if (meRes.ok) {
         wpVersion = meRes.headers.get('x-wp-version') || 'Unknown'
       }
@@ -90,7 +99,7 @@ export async function testWpConnection(
     let wpoePluginVersion: string | undefined
     if (wpoePluginActive) {
       try {
-        const statusRes = await fetch(`${base}/wpoe/v1/status`, { headers })
+        const statusRes = await fetchWithTimeout(`${base}/wpoe/v1/status`, { headers })
         if (statusRes.ok) {
           const status = (await statusRes.json()) as { acf?: boolean; version?: string }
           acfActive = acfActive || !!status.acf
@@ -103,7 +112,7 @@ export async function testWpConnection(
 
     if (!acfActive) {
       try {
-        const schemaRes = await fetch(`${base}/wp/v2/posts?per_page=1&_fields=acf`, { headers })
+        const schemaRes = await fetchWithTimeout(`${base}/wp/v2/posts?per_page=1&_fields=acf`, { headers })
         if (schemaRes.ok) {
           const posts = (await schemaRes.json()) as Record<string, unknown>[]
           acfActive = posts.length > 0 && 'acf' in posts[0]
@@ -150,7 +159,7 @@ export async function fetchPluginVersion(
   const headers = makeAuthHeaders(username, password)
 
   try {
-    const res = await fetch(`${base}/wpoe/v1/status`, { headers })
+    const res = await fetchWithTimeout(`${base}/wpoe/v1/status`, { headers })
     if (!res.ok) return null
     const status = (await res.json()) as { version?: string }
     return status.version ?? null
@@ -171,14 +180,14 @@ export async function fetchSiteIcon(
 
   try {
     // WP REST API returns site_icon as a media attachment ID (0 = no icon)
-    const res = await fetch(`${base}/wp/v2/settings`, { headers })
+    const res = await fetchWithTimeout(`${base}/wp/v2/settings`, { headers })
     if (!res.ok) return null
 
     const settings = (await res.json()) as { site_icon?: number }
     if (!settings.site_icon) return null
 
     // Fetch the actual image URL from the media endpoint
-    const mediaRes = await fetch(
+    const mediaRes = await fetchWithTimeout(
       `${base}/wp/v2/media/${settings.site_icon}?_fields=source_url,media_details`,
       { headers }
     )
@@ -195,7 +204,7 @@ export async function fetchSiteIcon(
     if (!imageUrl) return null
 
     // Download the image
-    const imgRes = await fetch(imageUrl)
+    const imgRes = await fetchWithTimeout(imageUrl)
     if (!imgRes.ok) return null
 
     const arrayBuf = await imgRes.arrayBuffer()
@@ -234,7 +243,7 @@ export async function fetchPosts(
         _fields: fields
       })
 
-      const res = await fetch(`${base}/wp/v2/posts?${params}`, { headers })
+      const res = await fetchWithTimeout(`${base}/wp/v2/posts?${params}`, { headers })
 
       if (!res.ok) {
         // 400 often means "no posts with this status" — skip silently
@@ -284,7 +293,7 @@ export async function fetchUserNames(
     per_page: '100'
   })
 
-  const res = await fetch(`${base}/wp/v2/users?${params}`, { headers })
+  const res = await fetchWithTimeout(`${base}/wp/v2/users?${params}`, { headers })
   if (!res.ok) return map
 
   const users = (await res.json()) as { id: number; name: string }[]
@@ -304,7 +313,7 @@ export async function fetchAuthors(
   const base = apiBase(url)
   const headers = makeAuthHeaders(username, password)
 
-  const res = await fetch(`${base}/wp/v2/users?per_page=100&_fields=id,name`, { headers })
+  const res = await fetchWithTimeout(`${base}/wp/v2/users?per_page=100&_fields=id,name`, { headers })
   if (!res.ok) {
     throw new Error(`Failed to fetch authors: HTTP ${res.status}`)
   }
@@ -341,7 +350,7 @@ export async function fetchTaxonomyTerms(
       _fields: 'id,name,slug,parent'
     })
 
-    const res = await fetch(`${base}/wp/v2/${taxonomy}?${params}`, { headers })
+    const res = await fetchWithTimeout(`${base}/wp/v2/${taxonomy}?${params}`, { headers })
 
     if (!res.ok) {
       if (res.status === 400) break
@@ -367,7 +376,7 @@ export async function fetchAcfFieldGroups(
   const base = apiBase(url)
   const headers = makeAuthHeaders(username, password)
 
-  const res = await fetch(`${base}/wpoe/v1/field-groups`, { headers })
+  const res = await fetchWithTimeout(`${base}/wpoe/v1/field-groups`, { headers })
   if (!res.ok) {
     throw new Error(`Failed to fetch ACF field groups: HTTP ${res.status}`)
   }
@@ -385,7 +394,7 @@ export async function fetchAcfFieldGroupFields(
   const base = apiBase(url)
   const headers = makeAuthHeaders(username, password)
 
-  const res = await fetch(`${base}/wpoe/v1/field-groups/${groupKey}/fields`, { headers })
+  const res = await fetchWithTimeout(`${base}/wpoe/v1/field-groups/${groupKey}/fields`, { headers })
   if (!res.ok) {
     throw new Error(`Failed to fetch fields for group ${groupKey}: HTTP ${res.status}`)
   }
@@ -403,7 +412,7 @@ export async function fetchShortcodes(
   const base = apiBase(url)
   const headers = makeAuthHeaders(username, password)
 
-  const res = await fetch(`${base}/wpoe/v1/shortcodes`, { headers })
+  const res = await fetchWithTimeout(`${base}/wpoe/v1/shortcodes`, { headers })
   if (!res.ok) {
     throw new Error(`Failed to fetch shortcodes: HTTP ${res.status}`)
   }
@@ -423,7 +432,7 @@ export async function fetchAttachmentUrl(
   const headers = makeAuthHeaders(username, password)
 
   try {
-    const res = await fetch(
+    const res = await fetchWithTimeout(
       `${base}/wp/v2/media/${attachmentId}?_fields=source_url`,
       { headers }
     )
@@ -467,7 +476,7 @@ export async function pushPost(
     ? `${base}/wp/v2/posts/${wpId}`
     : `${base}/wp/v2/posts`
 
-  const res = await fetch(endpoint, {
+  const res = await fetchWithTimeout(endpoint, {
     method: wpId ? 'PUT' : 'POST',
     headers,
     body: JSON.stringify(body)
@@ -493,7 +502,7 @@ export async function deleteRemotePost(
   const base = apiBase(url)
   const headers = makeAuthHeaders(username, password)
 
-  const res = await fetch(`${base}/wp/v2/posts/${wpId}?force=true`, {
+  const res = await fetchWithTimeout(`${base}/wp/v2/posts/${wpId}?force=true`, {
     method: 'DELETE',
     headers
   })
@@ -515,7 +524,7 @@ export async function fetchSinglePost(
   const base = apiBase(url)
   const headers = makeAuthHeaders(username, password)
 
-  const res = await fetch(
+  const res = await fetchWithTimeout(
     `${base}/wp/v2/posts/${wpId}?_fields=id,title,content,excerpt,slug,status,modified,date,author,featured_media,categories,tags,acf`,
     { headers }
   )
@@ -568,7 +577,7 @@ export async function fetchMediaLibrary(
       _fields: 'id,title,mime_type,alt_text,source_url,media_details,date'
     })
 
-    const res = await fetch(`${base}/wp/v2/media?${params}`, { headers })
+    const res = await fetchWithTimeout(`${base}/wp/v2/media?${params}`, { headers })
 
     if (!res.ok) {
       if (res.status === 400) break
@@ -611,7 +620,7 @@ export async function fetchScratchpads(
       _fields: 'id,title,content,modified,status'
     })
 
-    const res = await fetch(`${base}/wp/v2/scratchpads?${params}`, { headers })
+    const res = await fetchWithTimeout(`${base}/wp/v2/scratchpads?${params}`, { headers })
 
     if (!res.ok) {
       // 404 = old plugin without scratchpad CPT — return empty gracefully
@@ -651,7 +660,7 @@ export async function pushScratchpad(
     ? `${base}/wp/v2/scratchpads/${wpId}`
     : `${base}/wp/v2/scratchpads`
 
-  const res = await fetch(endpoint, {
+  const res = await fetchWithTimeout(endpoint, {
     method: wpId ? 'PUT' : 'POST',
     headers,
     body: JSON.stringify(body)
@@ -679,7 +688,7 @@ export async function updatePostScratchpadMeta(
     'Content-Type': 'application/json'
   }
 
-  const res = await fetch(`${base}/wp/v2/posts/${wpPostId}`, {
+  const res = await fetchWithTimeout(`${base}/wp/v2/posts/${wpPostId}`, {
     method: 'PUT',
     headers,
     body: JSON.stringify({ meta: { _scratchpad_id: scratchpadWpId ?? 0 } })
@@ -711,7 +720,7 @@ export async function uploadMedia(
   const form = new FormData()
   form.append('file', blob, basename(filename))
 
-  const res = await fetch(`${base}/wp/v2/media`, {
+  const res = await fetchWithTimeout(`${base}/wp/v2/media`, {
     method: 'POST',
     headers,
     body: form

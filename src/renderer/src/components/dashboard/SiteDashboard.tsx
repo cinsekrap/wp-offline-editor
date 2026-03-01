@@ -31,8 +31,10 @@ function formatRelativeDate(dateStr: string | null): string {
 
   const date = new Date(dateStr)
   const now = new Date()
-  const diffMs = now.getTime() - date.getTime()
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+
+  // Compare calendar dates in local timezone, not raw ms difference
+  const toDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+  const diffDays = Math.round((toDay(now) - toDay(date)) / (1000 * 60 * 60 * 24))
 
   if (diffDays === 0) return 'Today'
   if (diffDays === 1) return 'Yesterday'
@@ -47,8 +49,10 @@ function formatRelativeDate(dateStr: string | null): string {
 function formatFutureDate(dateStr: string): string {
   const date = new Date(dateStr)
   const now = new Date()
-  const diffMs = date.getTime() - now.getTime()
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+
+  // Compare calendar dates in local timezone, not raw ms difference
+  const toDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+  const diffDays = Math.round((toDay(date) - toDay(now)) / (1000 * 60 * 60 * 24))
 
   const time = date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
 

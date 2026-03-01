@@ -192,6 +192,7 @@ export function PostMeta({
   )
 
   return (
+    <ScrollArea className="flex-1">
     <div className="space-y-4 p-4">
       {/* Status */}
       <div className="space-y-1.5">
@@ -594,6 +595,7 @@ export function PostMeta({
         />
       )}
     </div>
+    </ScrollArea>
   )
 }
 

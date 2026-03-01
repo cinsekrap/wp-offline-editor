@@ -612,7 +612,7 @@ export function PostList({
           <p className="text-sm mb-2">
             {bulkAction === 'publish'
               ? `Publish ${selectedIds.size} post${selectedIds.size > 1 ? 's' : ''}? They will be pushed to WordPress on next sync.`
-              : `Delete ${selectedIds.size} post${selectedIds.size > 1 ? 's' : ''}? Remote copies will be deleted on next sync.`}
+              : `Delete ${selectedIds.size} post${selectedIds.size > 1 ? 's' : ''} locally? WordPress copies will not be affected.`}
           </p>
           <div className="flex items-center gap-2 justify-end">
             <Button size="sm" variant="outline" onClick={() => setBulkAction(null)} disabled={bulkLoading}>

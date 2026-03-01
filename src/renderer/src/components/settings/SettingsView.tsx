@@ -7,12 +7,30 @@ import {
   Sun,
   Moon,
   Monitor,
-  X
+  X,
+  Loader2
 } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
 import { Switch } from '@renderer/components/ui/switch'
 import { Label } from '@renderer/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@renderer/components/ui/select'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@renderer/components/ui/dialog'
 import { SiteList } from './SiteList'
+import { ClearSiteContentDialog } from './ClearSiteContentDialog'
+import { ExportImportSection } from './ExportImportSection'
 import { UpdateChecker } from './UpdateChecker'
 import type { Site, AppSettings } from '@shared/types'
 
@@ -89,7 +107,7 @@ export function SettingsView({
         )}
 
         {activeSection === 'sync' && (
-          <SyncSection settings={settings} onUpdate={onUpdateSettings} />
+          <SyncSection settings={settings} onUpdate={onUpdateSettings} sites={sites} />
         )}
 
         {activeSection === 'appearance' && (
@@ -179,10 +197,12 @@ function GeneralSection(): JSX.Element {
       <h2 className="text-lg font-semibold mb-1">General</h2>
       <p className="text-sm text-muted-foreground mb-6">About this application.</p>
 
-      <div>
+      <div className="mb-8">
         <Label className="mb-3 block">About</Label>
         <UpdateChecker />
       </div>
+
+      <ExportImportSection />
     </div>
   )
 }
@@ -198,11 +218,34 @@ const SYNC_OPTIONS = [
 
 function SyncSection({
   settings,
-  onUpdate
+  onUpdate,
+  sites
 }: {
   settings: AppSettings
   onUpdate: (patch: Partial<AppSettings>) => void
+  sites: Site[]
 }): JSX.Element {
+  const [clearSiteId, setClearSiteId] = useState<string | null>(null)
+  const [clearDialogOpen, setClearDialogOpen] = useState(false)
+  const [resetDialogOpen, setResetDialogOpen] = useState(false)
+  const [resetting, setResetting] = useState(false)
+
+  const clearSite = sites.find((s) => s.id === clearSiteId) ?? null
+
+  async function handleClearContent(siteId: string): Promise<void> {
+    await window.electronAPI.clearSiteContent(siteId)
+  }
+
+  async function handleReset(): Promise<void> {
+    setResetting(true)
+    try {
+      await window.electronAPI.clearAllData()
+      window.location.reload()
+    } finally {
+      setResetting(false)
+    }
+  }
+
   return (
     <div>
       <h2 className="text-lg font-semibold mb-1">Sync</h2>
@@ -244,7 +287,80 @@ function SyncSection({
         />
       </div>
 
-      {/* TODO: revisit clear-data feature */}
+      {/* Clear site content */}
+      {sites.length > 0 && (
+        <div className="max-w-md mb-8">
+          <div className="space-y-0.5 mb-3">
+            <Label>Clear site content</Label>
+            <p className="text-xs text-muted-foreground">
+              Remove all posts, media, scratchpads, and cached data for a site. The site connection and credentials will be kept.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Select value={clearSiteId ?? ''} onValueChange={setClearSiteId}>
+              <SelectTrigger className="h-8 text-sm w-48">
+                <SelectValue placeholder="Select a site..." />
+              </SelectTrigger>
+              <SelectContent>
+                {sites.map((site) => (
+                  <SelectItem key={site.id} value={site.id}>
+                    {site.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={!clearSiteId}
+              onClick={() => setClearDialogOpen(true)}
+            >
+              Clear Content
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Reset app */}
+      <div className="max-w-md">
+        <div className="space-y-0.5 mb-3">
+          <Label>Reset app</Label>
+          <p className="text-xs text-muted-foreground">
+            Remove all sites, posts, media, and credentials. App settings will be kept.
+          </p>
+        </div>
+        <Button variant="destructive" size="sm" onClick={() => setResetDialogOpen(true)}>
+          Reset App
+        </Button>
+      </div>
+
+      <ClearSiteContentDialog
+        site={clearSite}
+        open={clearDialogOpen}
+        onOpenChange={setClearDialogOpen}
+        onConfirm={handleClearContent}
+      />
+
+      <Dialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Reset App</DialogTitle>
+            <DialogDescription>
+              Reset the app? This removes all sites, posts, media, and credentials. App settings
+              will be kept.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setResetDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleReset} disabled={resetting}>
+              {resetting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Reset
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

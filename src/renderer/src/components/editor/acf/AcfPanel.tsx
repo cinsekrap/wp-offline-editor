@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useAcfSchema } from '@renderer/hooks/useAcfSchema'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
 import { Separator } from '@renderer/components/ui/separator'
-import { AcfFieldRenderer } from './AcfFieldRenderer'
+import { AcfFieldRenderer, SUPPORTED_TYPES, UNSUPPORTED_TYPES } from './AcfFieldRenderer'
 import { buildFieldValueMap, isFieldVisible } from './acf-conditional-logic'
 import { Loader2 } from 'lucide-react'
 import type { AcfLocationRule, AcfField } from '@shared/types'
@@ -58,6 +58,10 @@ interface AcfPanelProps {
   onChange: (name: string, value: unknown) => void
 }
 
+function isUnsupportedType(type: string): boolean {
+  return UNSUPPORTED_TYPES.has(type) || !SUPPORTED_TYPES.has(type)
+}
+
 function filterVisibleFields(fields: AcfField[], acfData: Record<string, unknown>): AcfField[] {
   const valueMap = buildFieldValueMap(fields, acfData)
   return fields.filter((f) => isFieldVisible(f, valueMap))
@@ -88,7 +92,9 @@ export function AcfPanel({ siteId, acfData, onChange }: AcfPanelProps): JSX.Elem
       <div className="space-y-4 p-4">
         {schemas.map((schema, idx) => {
           const visibleFields = visibleFieldsBySchema[idx]
-          if (visibleFields.length === 0) return null
+          const supportedFields = visibleFields.filter((f) => !isUnsupportedType(f.type))
+          const hiddenCount = visibleFields.length - supportedFields.length
+          if (supportedFields.length === 0 && hiddenCount === 0) return null
           return (
             <div key={schema.id}>
               {idx > 0 && <Separator className="mb-4" />}
@@ -96,7 +102,7 @@ export function AcfPanel({ siteId, acfData, onChange }: AcfPanelProps): JSX.Elem
                 {schema.group_title}
               </h4>
               <div className="space-y-3">
-                {visibleFields.map((field) => (
+                {supportedFields.map((field) => (
                   <AcfFieldRenderer
                     key={field.key}
                     field={field}
@@ -105,6 +111,11 @@ export function AcfPanel({ siteId, acfData, onChange }: AcfPanelProps): JSX.Elem
                   />
                 ))}
               </div>
+              {hiddenCount > 0 && (
+                <p className="text-xs text-muted-foreground mt-3">
+                  {hiddenCount} unsupported field{hiddenCount > 1 ? 's' : ''} hidden
+                </p>
+              )}
             </div>
           )
         })}

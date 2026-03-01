@@ -3,7 +3,7 @@ import { join } from 'path'
 import { copyFileSync, readFileSync, writeFileSync } from 'fs'
 import { z } from 'zod'
 import { is } from '@electron-toolkit/utils'
-import { getAllSites, getSiteById, addSite, updateSite, deleteSite, clearSiteData } from './site-service'
+import { getAllSites, getSiteById, addSite, updateSite, deleteSite, clearSiteData, clearSiteContent } from './site-service'
 import { testWpConnection, fetchAuthors } from './wp-client'
 import { getCredential } from './credentials'
 import { pullPostsForSite, getAllPostsForSite, getPostById, createPost, updatePost, bulkUpdateStatus, bulkDeletePosts } from './post-service'
@@ -36,6 +36,7 @@ import { searchPosts, indexPost } from './search-service'
 import { getRevisionsForPost, restoreRevision, captureRevisionForPost } from './revision-service'
 import { getWritingStats } from './stats-service'
 import { clearAllData } from './database'
+import { exportData, readExportMetadata, importData } from './export-service'
 import { checkForUpdates, downloadUpdate, installUpdate } from './updater'
 import {
   uuidSchema,
@@ -52,7 +53,8 @@ import {
   ScratchpadUpdateSchema,
   BulkStatusSchema,
   BulkDeleteSchema,
-  SearchQuerySchema
+  SearchQuerySchema,
+  SyncOptionsSchema
 } from './ipc-schemas'
 
 /** Notify all renderer windows to refresh badge counts (unsynced posts, pending media). */
@@ -149,8 +151,8 @@ export function registerIpcHandlers(): void {
     return getTotalUnsyncedCount()
   })
 
-  ipcMain.handle('site:sync', async (_event, siteId: unknown) => {
-    const result = await syncSite(uuidSchema.parse(siteId))
+  ipcMain.handle('site:sync', async (_event, siteId: unknown, options?: unknown) => {
+    const result = await syncSite(uuidSchema.parse(siteId), SyncOptionsSchema.parse(options))
     notifyCountsChanged()
     return result
   })
@@ -392,8 +394,45 @@ export function registerIpcHandlers(): void {
     clearSiteData(uuidSchema.parse(siteId))
   })
 
+  ipcMain.handle('app:clear-site-content', (_event, siteId: unknown) => {
+    clearSiteContent(uuidSchema.parse(siteId))
+    notifyCountsChanged()
+  })
+
   ipcMain.handle('app:clear-all-data', () => {
     clearAllData()
+  })
+
+  // ── Export/Import ──────────────────────────────────────────────────────
+
+  ipcMain.handle('app:export-data', async (_event, password: unknown, destPath: unknown) => {
+    await exportData(z.string().min(1).parse(password), z.string().min(1).parse(destPath))
+  })
+
+  ipcMain.handle('app:import-metadata', (_event, archivePath: unknown) => {
+    return readExportMetadata(z.string().min(1).parse(archivePath))
+  })
+
+  ipcMain.handle('app:import-data', async (_event, password: unknown, archivePath: unknown) => {
+    await importData(z.string().min(1).parse(password), z.string().min(1).parse(archivePath))
+  })
+
+  ipcMain.handle('dialog:save-export', async () => {
+    const { canceled, filePath } = await dialog.showSaveDialog({
+      title: 'Export Data',
+      defaultPath: join(app.getPath('downloads'), 'np-presspad-backup.nppexport'),
+      filters: [{ name: 'NP Presspad Export', extensions: ['nppexport'] }]
+    })
+    return canceled || !filePath ? null : filePath
+  })
+
+  ipcMain.handle('dialog:open-import', async () => {
+    const { canceled, filePaths } = await dialog.showOpenDialog({
+      title: 'Import Data',
+      filters: [{ name: 'NP Presspad Export', extensions: ['nppexport'] }],
+      properties: ['openFile']
+    })
+    return canceled || filePaths.length === 0 ? null : filePaths[0]
   })
 
   // ── Settings ────────────────────────────────────────────────────────────

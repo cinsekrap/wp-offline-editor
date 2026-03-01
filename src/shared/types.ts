@@ -367,6 +367,7 @@ export interface SyncResult {
   schemaPull: AcfPullResult
   mediaLibraryPull: MediaLibraryPullResult
   pluginVersionWarning?: string
+  massPushPaused?: { count: number }
 }
 
 // ── WP Connection ────────────────────────────────────────────────────────
@@ -379,6 +380,15 @@ export interface WpConnectionResult {
   wpoePluginActive?: boolean
   wpoePluginVersion?: string
   error?: string
+}
+
+// ── Export/Import ────────────────────────────────────────────────────
+
+export interface ExportMetadata {
+  version: string
+  exportedAt: string
+  salt: string
+  sites: { label: string; url: string }[]
 }
 
 // ── App Settings ─────────────────────────────────────────────────────────
@@ -412,7 +422,7 @@ export interface ElectronAPI {
   resolveConflict(postId: string, strategy: 'keep-mine' | 'keep-theirs' | 'fork'): Promise<void>
   getUnsyncedPostCount(siteId: string): Promise<number>
   getTotalUnsyncedCount(): Promise<number>
-  syncSite(siteId: string): Promise<SyncResult>
+  syncSite(siteId: string, options?: { force?: boolean }): Promise<SyncResult>
 
   // ACF Schema
   pullAcfSchema(siteId: string): Promise<AcfPullResult>
@@ -485,7 +495,15 @@ export interface ElectronAPI {
 
   // Data management
   clearSiteData(siteId: string): Promise<void>
+  clearSiteContent(siteId: string): Promise<void>
   clearAllData(): Promise<void>
+
+  // Export/Import
+  exportData(password: string, destPath: string): Promise<void>
+  importReadMetadata(archivePath: string): Promise<ExportMetadata>
+  importData(password: string, archivePath: string): Promise<void>
+  showSaveExportDialog(): Promise<string | null>
+  showOpenImportDialog(): Promise<string | null>
 
   // App
   getVersion(): Promise<string>

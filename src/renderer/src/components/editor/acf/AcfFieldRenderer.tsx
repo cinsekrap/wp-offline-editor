@@ -4,7 +4,7 @@ import { Label } from '@renderer/components/ui/label'
 import { Switch } from '@renderer/components/ui/switch'
 import { Checkbox } from '@renderer/components/ui/checkbox'
 import { RadioGroup, RadioGroupItem } from '@renderer/components/ui/radio-group'
-import { Badge } from '@renderer/components/ui/badge'
+
 import { Calendar } from '@renderer/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/components/ui/popover'
 import { Button } from '@renderer/components/ui/button'
@@ -31,7 +31,15 @@ interface AcfFieldRendererProps {
   onChange: (name: string, value: unknown) => void
 }
 
-const UNSUPPORTED_TYPES = new Set([
+export const SUPPORTED_TYPES = new Set([
+  'text', 'textarea', 'number', 'email', 'url',
+  'select', 'checkbox', 'radio', 'button_group', 'true_false',
+  'date_picker', 'wysiwyg', 'color_picker',
+  'image', 'file', 'gallery', 'google_map',
+  'group', 'repeater', 'flexible_content'
+])
+
+export const UNSUPPORTED_TYPES = new Set([
   'relationship',
   'post_object',
   'page_link',
@@ -85,14 +93,7 @@ function InputWithAddons({
 
 export function AcfFieldRenderer({ field, value, onChange }: AcfFieldRendererProps): JSX.Element {
   if (UNSUPPORTED_TYPES.has(field.type)) {
-    return (
-      <div className="space-y-1.5">
-        <Label className="text-xs text-muted-foreground">{field.label}</Label>
-        <Badge variant="secondary" className="text-xs">
-          {field.type} — not supported
-        </Badge>
-      </div>
-    )
+    return null
   }
 
   const prepend = (field.prepend as string) || undefined
@@ -485,13 +486,6 @@ export function AcfFieldRenderer({ field, value, onChange }: AcfFieldRendererPro
       )
 
     default:
-      return (
-        <div className="space-y-1.5">
-          <Label className="text-xs text-muted-foreground">{field.label}</Label>
-          <Badge variant="outline" className="text-xs">
-            {field.type} — unsupported
-          </Badge>
-        </div>
-      )
+      return null
   }
 }

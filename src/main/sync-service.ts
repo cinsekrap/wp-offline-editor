@@ -360,7 +360,9 @@ async function pullScratchpadsForSite(siteId: string): Promise<void> {
   }
 }
 
-export async function syncSite(siteId: string): Promise<SyncResult> {
+const MASS_PUSH_THRESHOLD = 5
+
+export async function syncSite(siteId: string, options?: { force?: boolean }): Promise<SyncResult> {
   const db = getDb()
 
   // Push scratchpads first (before posts, so wp_id is available for meta sync)
@@ -378,12 +380,19 @@ export async function syncSite(siteId: string): Promise<SyncResult> {
   // Push each one, collecting errors
   let pushed = 0
   const pushErrors: string[] = []
-  for (const row of unsyncedPosts) {
-    try {
-      await pushPostToWp(row.id)
-      pushed++
-    } catch (err) {
-      pushErrors.push(err instanceof Error ? err.message : String(err))
+  let massPushPaused: { count: number } | undefined
+
+  if (unsyncedPosts.length > MASS_PUSH_THRESHOLD && !options?.force) {
+    massPushPaused = { count: unsyncedPosts.length }
+    // Skip pushing — still proceed with pull (safe, read-only)
+  } else {
+    for (const row of unsyncedPosts) {
+      try {
+        await pushPostToWp(row.id)
+        pushed++
+      } catch (err) {
+        pushErrors.push(err instanceof Error ? err.message : String(err))
+      }
     }
   }
 
@@ -437,7 +446,7 @@ export async function syncSite(siteId: string): Promise<SyncResult> {
     }
   }
 
-  return { pushed, pushErrors, pull, schemaPull, mediaLibraryPull, pluginVersionWarning }
+  return { pushed, pushErrors, pull, schemaPull, mediaLibraryPull, pluginVersionWarning, massPushPaused }
 }
 
 export function getUnsyncedPostCount(siteId: string): number {

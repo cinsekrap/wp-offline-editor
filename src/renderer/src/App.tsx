@@ -9,6 +9,7 @@ import { SiteDashboard } from '@renderer/components/dashboard/SiteDashboard'
 import { TemplateList } from '@renderer/components/templates/TemplateList'
 import { TemplateEditor } from '@renderer/components/templates/TemplateEditor'
 import { TemplatePickerDialog } from '@renderer/components/templates/TemplatePickerDialog'
+import { MassPushDialog } from '@renderer/components/sync/MassPushDialog'
 import { Toaster } from '@renderer/components/ui/toaster'
 import { ToastAction } from '@renderer/components/ui/toast'
 import { useToast } from '@renderer/components/ui/use-toast'
@@ -147,6 +148,20 @@ function App(): JSX.Element {
     mq.addEventListener('change', handler)
     return () => mq.removeEventListener('change', handler)
   }, [settings.theme])
+
+  // ── Post-import warning ────────────────────────────────────────────────
+  useEffect(() => {
+    const flag = localStorage.getItem('npp-post-import')
+    if (flag) {
+      localStorage.removeItem('npp-post-import')
+      toast({
+        title: 'Import successful',
+        description: 'Re-enter your site passwords in Settings > Sites to resume syncing.',
+        variant: 'warning'
+      })
+      nav.goToSettings()
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Reconnect toast ─────────────────────────────────────────────────────
   useEffect(() => {
@@ -318,6 +333,15 @@ function App(): JSX.Element {
         templates={templates}
         onBlank={tmpl.handleBlankPost}
         onSelect={tmpl.handleNewPostFromTemplate}
+      />
+
+      <MassPushDialog
+        count={sync.massPushPaused?.count ?? 0}
+        open={sync.massPushPaused !== null}
+        onOpenChange={(open) => {
+          if (!open) sync.clearMassPushPaused()
+        }}
+        onConfirm={sync.handleForceSync}
       />
 
       <Toaster />

@@ -111,6 +111,28 @@ export function clearSiteData(siteId: string): void {
   removeSiteAndAssets(siteId)
 }
 
+/** Remove all posts/media/scratchpads/cached data for a site while keeping the site connection and credentials. */
+export function clearSiteContent(siteId: string): void {
+  const db = getDb()
+
+  db.transaction(() => {
+    db.prepare('DELETE FROM posts_fts WHERE site_id = ?').run(siteId)
+    db.prepare('DELETE FROM revisions WHERE post_id IN (SELECT id FROM posts WHERE site_id = ?)').run(siteId)
+    db.prepare('DELETE FROM media WHERE post_local_id IN (SELECT id FROM posts WHERE site_id = ?)').run(siteId)
+    db.prepare('DELETE FROM writing_snapshots WHERE site_id = ?').run(siteId)
+    db.prepare('DELETE FROM posts WHERE site_id = ?').run(siteId)
+    db.prepare('DELETE FROM scratchpads WHERE site_id = ?').run(siteId)
+    db.prepare('DELETE FROM acf_schema WHERE site_id = ?').run(siteId)
+    db.prepare('DELETE FROM media_library WHERE site_id = ?').run(siteId)
+    db.prepare('DELETE FROM taxonomy_terms WHERE site_id = ?').run(siteId)
+    db.prepare(`UPDATE sites SET last_post_pull_at = NULL, last_schema_pull_at = NULL, last_media_library_pull_at = NULL WHERE id = ?`).run(siteId)
+  })()
+
+  const userData = app.getPath('userData')
+  try { rmSync(join(userData, 'media', siteId), { recursive: true, force: true }) } catch { /* ignore */ }
+  try { rmSync(join(userData, 'media-library', siteId), { recursive: true, force: true }) } catch { /* ignore */ }
+}
+
 export function updateSiteIconUrl(siteId: string, iconUrl: string | null): void {
   const db = getDb()
   db.prepare('UPDATE sites SET site_icon_url = ?, updated_at = ? WHERE id = ?')

@@ -14,6 +14,9 @@ interface UseSyncStatusReturn {
   unsyncedPostCount: number
   handleSync: () => Promise<void>
   refreshCounts: () => Promise<void>
+  massPushPaused: { count: number } | null
+  handleForceSync: () => Promise<void>
+  clearMassPushPaused: () => void
 }
 
 export function useSyncStatus({
@@ -24,6 +27,7 @@ export function useSyncStatus({
   const [syncing, setSyncing] = useState(false)
   const [pendingMediaCount, setPendingMediaCount] = useState(0)
   const [unsyncedPostCount, setUnsyncedPostCount] = useState(0)
+  const [massPushPaused, setMassPushPaused] = useState<{ count: number } | null>(null)
 
   const refreshPendingMedia = useCallback(async () => {
     if (!selectedSiteId) {
@@ -65,32 +69,41 @@ export function useSyncStatus({
     return cleanup
   }, [refreshPendingMedia, refreshUnsyncedCount])
 
-  const handleSync = useCallback(async (): Promise<void> => {
+  const doSync = useCallback(async (options?: { force?: boolean }): Promise<void> => {
     if (!selectedSiteId) return
     try {
       setSyncing(true)
-      const result = await window.electronAPI.syncSite(selectedSiteId)
+      const result = await window.electronAPI.syncSite(selectedSiteId, options)
 
-      const parts: string[] = []
-      if (result.pushed > 0) parts.push(`pushed ${result.pushed}`)
-      if (result.pull.created > 0) parts.push(`pulled ${result.pull.created} new`)
-      if (result.pull.updated > 0) parts.push(`${result.pull.updated} updated`)
-      if (result.schemaPull.groupsUpdated > 0)
-        parts.push(`${result.schemaPull.groupsUpdated} schema updated`)
-
-      const allErrors = [...result.pushErrors, ...result.pull.errors, ...result.schemaPull.errors]
-
-      if (allErrors.length > 0) {
+      if (result.massPushPaused) {
+        setMassPushPaused(result.massPushPaused)
         toast({
-          title: 'Sync complete with warnings',
-          description: allErrors[0],
-          variant: 'destructive'
+          title: 'Sync paused',
+          description: `${result.massPushPaused.count} posts have unsynced changes. Review before pushing.`,
+          variant: 'warning'
         })
       } else {
-        toast({
-          title: 'Sync complete',
-          description: parts.length > 0 ? parts.join(', ') : 'Everything up to date'
-        })
+        const parts: string[] = []
+        if (result.pushed > 0) parts.push(`pushed ${result.pushed}`)
+        if (result.pull.created > 0) parts.push(`pulled ${result.pull.created} new`)
+        if (result.pull.updated > 0) parts.push(`${result.pull.updated} updated`)
+        if (result.schemaPull.groupsUpdated > 0)
+          parts.push(`${result.schemaPull.groupsUpdated} schema updated`)
+
+        const allErrors = [...result.pushErrors, ...result.pull.errors, ...result.schemaPull.errors]
+
+        if (allErrors.length > 0) {
+          toast({
+            title: 'Sync complete with warnings',
+            description: allErrors[0],
+            variant: 'destructive'
+          })
+        } else {
+          toast({
+            title: 'Sync complete',
+            description: parts.length > 0 ? parts.join(', ') : 'Everything up to date'
+          })
+        }
       }
 
       if (result.pluginVersionWarning) {
@@ -113,12 +126,24 @@ export function useSyncStatus({
     }
   }, [selectedSiteId, toast, refreshUnsyncedCount, refreshPosts])
 
+  const handleSync = useCallback(() => doSync(), [doSync])
+
+  const handleForceSync = useCallback(async () => {
+    setMassPushPaused(null)
+    await doSync({ force: true })
+  }, [doSync])
+
+  const clearMassPushPaused = useCallback(() => setMassPushPaused(null), [])
+
   return {
     syncing,
     setSyncing,
     pendingMediaCount,
     unsyncedPostCount,
     handleSync,
-    refreshCounts
+    refreshCounts,
+    massPushPaused,
+    handleForceSync,
+    clearMassPushPaused
   }
 }

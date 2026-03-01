@@ -23,7 +23,7 @@ const api: ElectronAPI = {
     ipcRenderer.invoke('posts:resolve-conflict', postId, strategy),
   getUnsyncedPostCount: (siteId) => ipcRenderer.invoke('posts:unsynced-count', siteId),
   getTotalUnsyncedCount: () => ipcRenderer.invoke('posts:total-unsynced-count'),
-  syncSite: (siteId) => ipcRenderer.invoke('site:sync', siteId),
+  syncSite: (siteId, options) => ipcRenderer.invoke('site:sync', siteId, options),
 
   // ACF Schema
   pullAcfSchema: (siteId) => ipcRenderer.invoke('acf:pull-schema', siteId),
@@ -92,7 +92,15 @@ const api: ElectronAPI = {
 
   // Data management
   clearSiteData: (siteId) => ipcRenderer.invoke('app:clear-site-data', siteId),
+  clearSiteContent: (siteId) => ipcRenderer.invoke('app:clear-site-content', siteId),
   clearAllData: () => ipcRenderer.invoke('app:clear-all-data'),
+
+  // Export/Import
+  exportData: (password, destPath) => ipcRenderer.invoke('app:export-data', password, destPath),
+  importReadMetadata: (archivePath) => ipcRenderer.invoke('app:import-metadata', archivePath),
+  importData: (password, archivePath) => ipcRenderer.invoke('app:import-data', password, archivePath),
+  showSaveExportDialog: () => ipcRenderer.invoke('dialog:save-export'),
+  showOpenImportDialog: () => ipcRenderer.invoke('dialog:open-import'),
 
   // App
   getVersion: () => ipcRenderer.invoke('app:version'),

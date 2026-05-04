@@ -82,9 +82,14 @@ export async function pullAcfSchemaForSite(siteId: string): Promise<AcfPullResul
 
 export function normalizeAcfFields(rawFields: WpAcfFieldRaw[]): AcfField[] {
   return rawFields.map((raw) => {
-    // Spread all raw properties, then override specific keys
+    // Spread all raw properties, then override specific keys.
+    // sub_fields/layouts/choices have looser raw types; normalized below.
+    const { sub_fields: _rawSubFields, layouts: _rawLayouts, choices: _rawChoices, ...rest } = raw
+    void _rawSubFields
+    void _rawLayouts
+    void _rawChoices
     const field: AcfField = {
-      ...raw,
+      ...rest,
       key: raw.key,
       label: raw.label,
       name: raw.name,

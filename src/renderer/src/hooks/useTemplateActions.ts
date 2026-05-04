@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import type { Template, TemplateInput, TemplateUpdate, TaxonomyTerm } from '@shared/types'
+import type { Template, TemplateInput, TemplateUpdate, TaxonomyTerm, Post, PostInput } from '@shared/types'
 import type { ToastFn } from '@renderer/lib/types'
 
 interface UseTemplateActionsParams {
@@ -9,7 +9,7 @@ interface UseTemplateActionsParams {
   removeTemplate: (id: string) => Promise<void>
   refreshTemplates: () => Promise<void>
   selectedSiteId: string | null
-  createPost: (input?: Partial<{ site_id: string; title: string; content: string; status: string; excerpt: string }>) => Promise<{ id: string }>
+  createPost: (input?: Partial<PostInput>) => Promise<Post>
   toast: ToastFn
   onPostCreated: (postId: string) => void
 }

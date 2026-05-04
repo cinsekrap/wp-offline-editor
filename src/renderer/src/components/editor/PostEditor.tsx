@@ -496,7 +496,6 @@ export function PostEditor({
           x={imageMenu.x}
           y={imageMenu.y}
           mediaId={imageMenu.mediaId}
-          src={imageMenu.src}
           alt={imageMenu.alt}
           altText={altText}
           onAltTextChange={setAltText}

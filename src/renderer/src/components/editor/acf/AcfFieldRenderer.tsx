@@ -91,7 +91,7 @@ function InputWithAddons({
   )
 }
 
-export function AcfFieldRenderer({ field, value, onChange }: AcfFieldRendererProps): JSX.Element {
+export function AcfFieldRenderer({ field, value, onChange }: AcfFieldRendererProps): JSX.Element | null {
   if (UNSUPPORTED_TYPES.has(field.type)) {
     return null
   }
@@ -138,9 +138,9 @@ export function AcfFieldRenderer({ field, value, onChange }: AcfFieldRendererPro
 
     case 'number': {
       const val = (resolveValue(value, field) as string) ?? ''
-      const min = field.min as number | undefined
-      const max = field.max as number | undefined
-      const step = field.step as number | undefined
+      const min = field.min as number | string | undefined
+      const max = field.max as number | string | undefined
+      const step = field.step as number | string | undefined
       return (
         <div className="space-y-1.5">
           <Label className="text-xs">{field.label}{field.required && ' *'}</Label>

@@ -99,7 +99,7 @@ export function PostList({
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<SearchResult[] | null>(null)
   const [searching, setSearching] = useState(false)
-  const searchTimerRef = useRef<ReturnType<typeof setTimeout>>()
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   // Multi-select state
   const [selectMode, setSelectMode] = useState(false)
@@ -569,7 +569,9 @@ export function PostList({
                     <AlertTriangle className="h-3.5 w-3.5 text-orange-500 shrink-0" />
                   )}
                   {!post.synced && !post.conflict && (
-                    <CloudUpload className="h-3.5 w-3.5 text-blue-500 shrink-0" title="Not synced" />
+                    <span title="Not synced" className="shrink-0">
+                      <CloudUpload className="h-3.5 w-3.5 text-blue-500" />
+                    </span>
                   )}
                   {post.synced && !post.conflict && (
                     <CheckCircle className="h-3.5 w-3.5 text-green-500 shrink-0" />

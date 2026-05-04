@@ -31,7 +31,7 @@ export const PostInputSchema = z.object({
   title: z.string().optional(),
   content: z.string().optional(),
   status: postStatusSchema.optional(),
-  acf: z.unknown().optional(),
+  acf: z.record(z.string(), z.unknown()).nullable().optional(),
   excerpt: z.string().optional(),
   slug: z.string().optional()
 })
@@ -41,7 +41,7 @@ export const PostUpdateSchema = z.object({
   title: z.string().optional(),
   content: z.string().optional(),
   status: postStatusSchema.optional(),
-  acf: z.unknown().optional(),
+  acf: z.record(z.string(), z.unknown()).nullable().optional(),
   date: z.string().nullable().optional(),
   featured_image: z.string().nullable().optional(),
   excerpt: z.string().optional(),

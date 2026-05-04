@@ -1,16 +1,31 @@
-import Image from '@tiptap/extension-image'
+import Image, { type ImageOptions } from '@tiptap/extension-image'
 import { ReactNodeViewRenderer } from '@tiptap/react'
 import { ImageNodeView } from '@renderer/components/editor/ImageNodeView'
+
+type ImageClickHandler = (
+  mediaId: string,
+  src: string,
+  alt: string,
+  position: { x: number; y: number }
+) => void
+
+declare module '@tiptap/extension-image' {
+  interface ImageOptions {
+    onImageClick: ImageClickHandler | null
+  }
+}
 
 export const MediaImage = Image.extend({
   name: 'image',
 
-  addOptions() {
+  addOptions(): ImageOptions {
+    const parent = this.parent?.()
     return {
-      ...this.parent?.(),
-      onImageClick: null as
-        | ((mediaId: string, src: string, alt: string, position: { x: number; y: number }) => void)
-        | null
+      inline: parent?.inline ?? false,
+      allowBase64: parent?.allowBase64 ?? false,
+      HTMLAttributes: parent?.HTMLAttributes ?? {},
+      resize: parent?.resize ?? false,
+      onImageClick: null
     }
   },
 

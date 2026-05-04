@@ -48,7 +48,7 @@ async function insertImageFile(
   editor
     .chain()
     .focus()
-    .setImage({ src, mediaId: media.id } as Record<string, unknown>)
+    .setImage({ src, mediaId: media.id } as { src: string })
     .run()
 }
 
@@ -133,7 +133,7 @@ export function TipTapEditor({
         const item = items.find((i) => i.id === wpId)
         if (item) {
           const src = `media://file${encodeURI(item.thumbnail_path)}`
-          editor.chain().focus().setImage({ src } as Record<string, unknown>).run()
+          editor.chain().focus().setImage({ src }).run()
         }
       }
     })

@@ -72,7 +72,7 @@ export function ScratchpadEditor({
     // Temporarily detach onUpdate to avoid echo
     const origOnUpdate = editor.options.onUpdate
     editor.options.onUpdate = () => {}
-    editor.commands.setContent(mdToHtml(content), false)
+    editor.commands.setContent(mdToHtml(content), { emitUpdate: false })
     editor.options.onUpdate = origOnUpdate
   }, [editor, content])
 

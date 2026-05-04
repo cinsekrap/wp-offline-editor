@@ -122,13 +122,24 @@ export async function pushPostToWp(postId: string): Promise<PushResult> {
     tags: post.tags.length > 0 ? post.tags : undefined
   })
 
+  // Rewrite any external (https://) image URLs in the response back to media://
+  // so the local DB stays offline-displayable. Covers the case where WP applied
+  // server-side filters that mutated content (shortcode normalization,
+  // wp_kses, Gutenberg block comments, etc.) — we keep the post-filter version
+  // but with images pointing at the local cache. Image dedupe keeps re-downloads cheap.
+  const storedContent = await downloadAndRewriteImages(post.site_id, postId, result.content, site.url)
+  // Prefer the server-echoed ACF (post-filter), fall back to what we sent if the
+  // response omitted it (older companion plugin / non-ACF site / partial echo).
+  const acfForStorage = result.acf ?? swappedAcf
+  const responseAcfJson: string | null = acfForStorage ? JSON.stringify(acfForStorage) : null
+  const storedAcfJson = await rewriteAcfImageUrls(post.site_id, postId, responseAcfJson, site.url)
+
   // Update local DB
   const now = new Date().toISOString()
-  const acfJson = swappedAcf ? JSON.stringify(swappedAcf) : null
   db.prepare(`
     UPDATE posts SET wp_id = ?, content = ?, acf = ?, modified_remote = ?, modified_local = ?, synced = 1, conflict = 0
     WHERE id = ?
-  `).run(result.id, swappedContent, acfJson, result.modified, now, postId)
+  `).run(result.id, storedContent, storedAcfJson, result.modified, now, postId)
 
   return { wp_id: result.id, modified_remote: result.modified }
 }

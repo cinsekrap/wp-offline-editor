@@ -452,7 +452,7 @@ export async function pushPost(
   password: string,
   wpId: number | null,
   data: { title: string; content: string; status: string; date?: string | null; acf?: Record<string, unknown> | null; featured_media?: number; excerpt?: string; slug?: string; categories?: number[]; tags?: number[] }
-): Promise<{ id: number; modified: string }> {
+): Promise<{ id: number; modified: string; content: string; acf: Record<string, unknown> | null }> {
   const base = apiBase(url)
   const headers = {
     ...makeAuthHeaders(username, password),
@@ -472,9 +472,11 @@ export async function pushPost(
   if (data.categories) body.categories = data.categories
   if (data.tags) body.tags = data.tags
 
+  // context=edit returns content.raw (the unfiltered source) so we round-trip
+  // exactly what WP stored after its filters, not the rendered output.
   const endpoint = wpId
-    ? `${base}/wp/v2/posts/${wpId}`
-    : `${base}/wp/v2/posts`
+    ? `${base}/wp/v2/posts/${wpId}?context=edit`
+    : `${base}/wp/v2/posts?context=edit`
 
   const res = await fetchWithTimeout(endpoint, {
     method: wpId ? 'PUT' : 'POST',
@@ -487,8 +489,14 @@ export async function pushPost(
     throw new Error(`Push failed: HTTP ${res.status} ${text}`)
   }
 
-  const result = (await res.json()) as { id: number; modified: string }
-  return { id: result.id, modified: result.modified }
+  const result = (await res.json()) as {
+    id: number
+    modified: string
+    content?: { raw?: string; rendered?: string }
+    acf?: Record<string, unknown> | null
+  }
+  const content = result.content?.raw ?? result.content?.rendered ?? data.content
+  return { id: result.id, modified: result.modified, content, acf: result.acf ?? null }
 }
 
 // ── Post delete ─────────────────────────────────────────────────────────

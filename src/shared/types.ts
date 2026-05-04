@@ -448,6 +448,7 @@ export interface ElectronAPI {
   uploadMedia(mediaId: string): Promise<Media>
   deleteMedia(id: string): Promise<void>
   replaceMediaFile(mediaId: string, buffer: ArrayBuffer): Promise<Media>
+  saveMediaFromLibrary(siteId: string, postLocalId: string, libraryItemId: number): Promise<Media>
 
   // Markdown
   importMarkdown(): Promise<string | null>

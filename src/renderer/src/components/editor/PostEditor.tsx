@@ -182,8 +182,9 @@ export function PostEditor({
     }
   }, [saveStatus, onPostUpdated])
 
-  // Refresh media queue and clean up orphaned media (debounced to avoid
-  // running on every keystroke — only fires 2s after content stops changing)
+  // Refresh media queue and clean up orphaned media. Debounced 30s after
+  // content stops changing so an undo within that window can recover an image
+  // that was just removed (the media file is still on disk until cleanup).
   useEffect(() => {
     if (!initializedRef.current) return
 
@@ -207,7 +208,7 @@ export function PostEditor({
           refreshQueue()
         }
       })
-    }, 2000)
+    }, 30_000)
 
     return () => clearTimeout(timer)
   }, [content, featuredImage, refreshQueue, postId])

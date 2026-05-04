@@ -11,6 +11,7 @@ import { pushPostToWp, resolveConflict, getUnsyncedPostCount, getTotalUnsyncedCo
 import { pullAcfSchemaForSite, getAcfSchemasForSite } from './acf-service'
 import {
   saveMediaLocally,
+  saveMediaFromLibrary,
   getMediaForPost,
   getMediaQueue,
   uploadMediaToWp,
@@ -267,6 +268,19 @@ export function registerIpcHandlers(): void {
     if (!(buffer instanceof ArrayBuffer)) throw new Error('Expected ArrayBuffer for media buffer')
     return replaceMediaFile(uuidSchema.parse(mediaId), Buffer.from(buffer))
   })
+
+  ipcMain.handle(
+    'media:save-from-library',
+    async (_event, siteId: unknown, postLocalId: unknown, libraryItemId: unknown) => {
+      const media = await saveMediaFromLibrary(
+        uuidSchema.parse(siteId),
+        uuidSchema.parse(postLocalId),
+        z.number().int().positive().parse(libraryItemId)
+      )
+      notifyCountsChanged()
+      return media
+    }
+  )
 
   // ── Shortcodes ──────────────────────────────────────────────────────────
 

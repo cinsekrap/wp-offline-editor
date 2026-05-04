@@ -1,12 +1,12 @@
 import { v4 as uuidv4 } from 'uuid'
-import { app } from 'electron'
+import { app, net } from 'electron'
 import { join, basename } from 'path'
-import { mkdirSync, writeFileSync, existsSync, unlinkSync } from 'fs'
+import { mkdirSync, writeFileSync, existsSync, unlinkSync, copyFileSync } from 'fs'
 import { getDb } from './database'
 import { getSiteById } from './site-service'
 import { getCredential } from './credentials'
 import { uploadMedia } from './wp-client'
-import type { Media } from '@shared/types'
+import type { Media, MediaLibraryItem } from '@shared/types'
 
 function getMediaDir(siteId: string): string {
   const dir = join(app.getPath('userData'), 'media', siteId)
@@ -131,6 +131,67 @@ export function replaceMediaFile(mediaId: string, buffer: Buffer): Media {
   db.prepare('UPDATE media SET synced = 0, wp_id = NULL, wp_url = NULL WHERE id = ?').run(mediaId)
 
   return getMediaById(mediaId)!
+}
+
+/**
+ * Adopt a media-library item into this post's media queue as a synced row.
+ * Reuses the locally-cached library thumbnail for offline display, but stores
+ * the full WP source_url so push correctly swaps `media://...` → wp source.
+ *
+ * Dedupes: if this post already references the same library item (by wp_id),
+ * the existing media row is returned.
+ */
+export async function saveMediaFromLibrary(
+  siteId: string,
+  postLocalId: string,
+  libraryItemId: number
+): Promise<Media> {
+  const db = getDb()
+
+  const libraryItem = db
+    .prepare('SELECT * FROM media_library WHERE site_id = ? AND id = ?')
+    .get(siteId, libraryItemId) as MediaLibraryItem | undefined
+  if (!libraryItem) throw new Error(`Library item not found: ${libraryItemId}`)
+
+  // Dedupe — if this post already adopted this WP attachment, reuse it
+  const existing = db
+    .prepare('SELECT * FROM media WHERE post_local_id = ? AND wp_id = ?')
+    .get(postLocalId, libraryItemId) as MediaRow | undefined
+  if (existing) return normalizeMediaRow(existing)
+
+  const id = uuidv4()
+  const filename = libraryItem.filename || `library-${libraryItemId}`
+  const safeFilename = `${id}-${basename(filename)}`
+  const dir = getMediaDir(siteId)
+  const localPath = join(dir, safeFilename)
+
+  // Prefer the full-size remote image if we can reach it, so the editor
+  // and any subsequent push send the full image, not the thumbnail.
+  // Fall back to the cached thumbnail if offline or fetch fails.
+  let copied = false
+  try {
+    const resp = await net.fetch(libraryItem.source_url)
+    if (resp.ok) {
+      const buffer = Buffer.from(await resp.arrayBuffer())
+      writeFileSync(localPath, buffer)
+      copied = true
+    }
+  } catch {
+    // network unavailable — fall through to local thumbnail copy
+  }
+  if (!copied) {
+    if (!existsSync(libraryItem.thumbnail_path)) {
+      throw new Error('Library thumbnail file is missing')
+    }
+    copyFileSync(libraryItem.thumbnail_path, localPath)
+  }
+
+  db.prepare(`
+    INSERT INTO media (id, site_id, post_local_id, local_path, wp_id, wp_url, filename, synced)
+    VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+  `).run(id, siteId, postLocalId, localPath, libraryItemId, libraryItem.source_url, filename)
+
+  return getMediaById(id)!
 }
 
 export function deleteMedia(id: string): void {

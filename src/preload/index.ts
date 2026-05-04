@@ -43,6 +43,8 @@ const api: ElectronAPI = {
   uploadMedia: (mediaId) => ipcRenderer.invoke('media:upload', mediaId),
   deleteMedia: (id) => ipcRenderer.invoke('media:delete', id),
   replaceMediaFile: (mediaId, buffer) => ipcRenderer.invoke('media:replace-file', mediaId, buffer),
+  saveMediaFromLibrary: (siteId, postLocalId, libraryItemId) =>
+    ipcRenderer.invoke('media:save-from-library', siteId, postLocalId, libraryItemId),
 
   // Markdown
   importMarkdown: () => ipcRenderer.invoke('markdown:import'),

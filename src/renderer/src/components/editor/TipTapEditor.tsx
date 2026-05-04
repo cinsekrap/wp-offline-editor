@@ -125,18 +125,19 @@ export function TipTapEditor({
     await insertImageFile(editor, file, siteId, postId)
   }
 
-  const handleLibrarySelect = (ids: number[]): void => {
+  const handleLibrarySelect = async (ids: number[]): Promise<void> => {
     if (!editor || ids.length === 0) return
-    // Look up the library item to get its thumbnail path for the src
-    window.electronAPI.getMediaLibrary(siteId).then((items) => {
-      for (const wpId of ids) {
-        const item = items.find((i) => i.id === wpId)
-        if (item) {
-          const src = `media://file${encodeURI(item.thumbnail_path)}`
-          editor.chain().focus().setImage({ src }).run()
-        }
+    // Adopt each library item into this post's media table so push correctly
+    // resolves the media:// URL to the WP source_url.
+    for (const wpId of ids) {
+      try {
+        const media = await window.electronAPI.saveMediaFromLibrary(siteId, postId, wpId)
+        const src = `media://file${encodeURI(media.local_path)}`
+        editor.chain().focus().setImage({ src, mediaId: media.id } as { src: string }).run()
+      } catch (err) {
+        console.warn('[library-insert] Failed:', err instanceof Error ? err.message : err)
       }
-    })
+    }
   }
 
   const style = fontSize ? ({ '--editor-font-size': `${fontSize}px` } as CSSProperties) : undefined

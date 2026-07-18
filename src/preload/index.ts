@@ -31,6 +31,8 @@ const api: ElectronAPI = {
 
   // Taxonomy
   getTaxonomyTerms: (siteId, taxonomy) => ipcRenderer.invoke('taxonomy:get-terms', siteId, taxonomy),
+  createPendingTerm: (siteId, taxonomy, name) =>
+    ipcRenderer.invoke('taxonomy:create-pending', { siteId, taxonomy, name }),
 
   // Media Library
   getMediaLibrary: (siteId) => ipcRenderer.invoke('media-library:get', siteId),

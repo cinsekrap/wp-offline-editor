@@ -8,7 +8,8 @@ import { getCredential } from './credentials'
 import { getPostById, deletePost, pullPostsForSite, downloadAndRewriteImages, rewriteAcfImageUrls, downloadFeaturedImage } from './post-service'
 import { indexPost } from './search-service'
 import { getMediaForPost, uploadMediaToWp } from './media-service'
-import { pushPost, deleteRemotePost, fetchSinglePost, fetchUserNames, fetchSiteIcon, fetchScratchpads, pushScratchpad as pushScratchpadToWp, updatePostScratchpadMeta, fetchPluginVersion } from './wp-client'
+import { pushPost, deleteRemotePost, fetchSinglePost, fetchUserNames, fetchSiteIcon, fetchScratchpads, pushScratchpad as pushScratchpadToWp, updatePostScratchpadMeta, fetchPluginVersion, createTerm } from './wp-client'
+import { getPendingTermsForSite } from './taxonomy-service'
 import { isPluginVersionMismatch, pluginMismatchMessage } from '@shared/version-utils'
 import { decodeHtmlEntities } from './html-utils'
 import { sanitizeHtml } from './sanitize'
@@ -19,13 +20,130 @@ import { pullTaxonomyTerms } from './taxonomy-service'
 import { getScratchpadsForSite, getScratchpadById } from './scratchpad-service'
 import type { PushResult, SyncResult } from '@shared/types'
 
-export async function pushPostToWp(postId: string): Promise<PushResult> {
+/**
+ * Rewrite a JSON array of term ids, replacing any negative (pending) id with its
+ * resolved real WP id, de-duplicating in the process. Returns the new JSON and
+ * whether anything changed.
+ */
+function rewriteTermIds(json: string | null, idMap: Map<number, number>): { json: string; changed: boolean } {
+  let ids: number[]
+  try {
+    ids = json ? (JSON.parse(json) as number[]) : []
+  } catch {
+    ids = []
+  }
+  let changed = false
+  const out: number[] = []
+  for (const id of ids) {
+    const mapped = idMap.has(id) ? idMap.get(id)! : id
+    if (mapped !== id) changed = true
+    if (!out.includes(mapped)) out.push(mapped)
+    else if (mapped !== id) changed = true // collapsed a duplicate
+  }
+  return { json: JSON.stringify(out), changed }
+}
+
+/**
+ * Create any offline-created (pending) terms for a site on WordPress, then swap
+ * their temporary negative ids for the real WP ids across taxonomy_terms and
+ * every post's categories/tags. Runs before the push loop so pushed payloads
+ * contain real ids. Terms that fail to create are left pending and reported as
+ * errors; posts still referencing negative ids are skipped by the caller.
+ */
+async function resolvePendingTerms(siteId: string): Promise<{ errors: string[] }> {
+  const pending = getPendingTermsForSite(siteId)
+  if (pending.length === 0) return { errors: [] }
+
+  const site = getSiteById(siteId)
+  if (!site) return { errors: [] }
+
+  const password = getCredential(site.keychain_ref)
+  if (!password) {
+    return { errors: [`No credential to create ${pending.length} pending term(s) for ${site.label}`] }
+  }
+
+  const errors: string[] = []
+  const resolved: { negId: number; realId: number; taxonomy: 'category' | 'post_tag' }[] = []
+
+  for (const pt of pending) {
+    const endpoint = pt.taxonomy === 'category' ? 'categories' : 'tags'
+    try {
+      const { id } = await createTerm(site.url, site.username, password, endpoint, pt.name)
+      resolved.push({ negId: pt.id, realId: id, taxonomy: pt.taxonomy })
+    } catch (err) {
+      errors.push(`Create term "${pt.name}": ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
+
+  if (resolved.length === 0) return { errors }
+
   const db = getDb()
+  const apply = db.transaction(() => {
+    const catMap = new Map<number, number>()
+    const tagMap = new Map<number, number>()
+
+    for (const r of resolved) {
+      // Update taxonomy_terms: reuse the real id row if it already exists
+      // (e.g. pulled in a prior sync), otherwise re-key the negative row.
+      const realExists = db
+        .prepare('SELECT 1 FROM taxonomy_terms WHERE site_id = ? AND taxonomy = ? AND id = ?')
+        .get(siteId, r.taxonomy, r.realId)
+      if (realExists) {
+        db.prepare('DELETE FROM taxonomy_terms WHERE site_id = ? AND taxonomy = ? AND id = ?')
+          .run(siteId, r.taxonomy, r.negId)
+      } else {
+        db.prepare('UPDATE taxonomy_terms SET id = ? WHERE site_id = ? AND taxonomy = ? AND id = ?')
+          .run(r.realId, siteId, r.taxonomy, r.negId)
+      }
+      db.prepare('DELETE FROM pending_terms WHERE id = ?').run(r.negId)
+      ;(r.taxonomy === 'category' ? catMap : tagMap).set(r.negId, r.realId)
+    }
+
+    // Rewrite every post's categories/tags arrays for this site
+    const posts = db
+      .prepare('SELECT id, categories, tags FROM posts WHERE site_id = ?')
+      .all(siteId) as { id: string; categories: string | null; tags: string | null }[]
+    for (const p of posts) {
+      const cats = rewriteTermIds(p.categories, catMap)
+      const tgs = rewriteTermIds(p.tags, tagMap)
+      if (cats.changed || tgs.changed) {
+        db.prepare('UPDATE posts SET categories = ?, tags = ? WHERE id = ?')
+          .run(cats.json, tgs.json, p.id)
+      }
+    }
+  })
+  apply()
+
+  return { errors }
+}
+
+/** True if any of the post's category/tag ids are still negative (pending, unresolved). */
+function postHasNegativeTerms(post: { categories: number[]; tags: number[] }): boolean {
+  return post.categories.some((id) => id < 0) || post.tags.some((id) => id < 0)
+}
+
+export async function pushPostToWp(postId: string, options?: { skipTermResolution?: boolean }): Promise<PushResult> {
+  const db = getDb()
+
+  const pre = getPostById(postId)
+  if (!pre) throw new Error(`Post not found: ${postId}`)
+
+  // Resolve this site's pending terms first so the push payload carries real WP
+  // ids (skipped when the caller — the sync loop — already resolved them).
+  if (!options?.skipTermResolution) {
+    await resolvePendingTerms(pre.site_id)
+  }
 
   const post = getPostById(postId)
   if (!post) throw new Error(`Post not found: ${postId}`)
   if (!post.title.trim() && !post.content.trim()) {
     throw new Error('Cannot push a blank post — add a title or content first')
+  }
+
+  // If a pending term couldn't be created (e.g. offline / permissions), don't
+  // send temporary negative ids to WordPress — they'd be silently dropped.
+  if (postHasNegativeTerms(post)) {
+    throw new Error('Post references a tag or category not yet created on WordPress — sync again when online')
   }
 
   const site = getSiteById(post.site_id)
@@ -407,9 +525,19 @@ async function doSyncSite(siteId: string, options?: { force?: boolean }): Promis
     console.warn('[sync] Failed to push scratchpads:', err instanceof Error ? err.message : err)
   }
 
+  const pushErrors: string[] = []
+
+  // Resolve offline-created (pending) terms before anything is pushed, so push
+  // payloads carry real WP ids instead of temporary negative ones.
+  try {
+    const termResult = await resolvePendingTerms(siteId)
+    pushErrors.push(...termResult.errors)
+  } catch (err) {
+    pushErrors.push(`Terms: ${err instanceof Error ? err.message : String(err)}`)
+  }
+
   // Push pending deletions before the push loop (so deletions don't inflate mass push guard)
   let deletedCount = 0
-  const pushErrors: string[] = []
   try {
     const deleteResult = await pushPendingDeletions(siteId)
     deletedCount = deleteResult.deleted
@@ -432,8 +560,15 @@ async function doSyncSite(siteId: string, options?: { force?: boolean }): Promis
     // Skip pushing — still proceed with pull (safe, read-only)
   } else {
     for (const row of unsyncedPosts) {
+      // Skip posts still referencing unresolved (negative) term ids — a term
+      // failed to create, so pushing would drop those ids silently.
+      const p = getPostById(row.id)
+      if (p && postHasNegativeTerms(p)) {
+        pushErrors.push(`Skipped "${p.title || 'Untitled'}" — a tag/category isn't on WordPress yet`)
+        continue
+      }
       try {
-        await pushPostToWp(row.id)
+        await pushPostToWp(row.id, { skipTermResolution: true })
         pushed++
       } catch (err) {
         pushErrors.push(err instanceof Error ? err.message : String(err))

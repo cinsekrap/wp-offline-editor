@@ -96,10 +96,19 @@ export function PostList({
   const [sortBy, setSortBy] = useState<SortOption>('date')
 
   // Search state
+  const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<SearchResult[] | null>(null)
   const [searching, setSearching] = useState(false)
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
+  // Closing the search bar clears the query so hidden results don't linger
+  const toggleSearch = useCallback(() => {
+    setSearchOpen((prev) => {
+      if (prev) setSearchQuery('')
+      return !prev
+    })
+  }, [])
 
   // Multi-select state
   const [selectMode, setSelectMode] = useState(false)
@@ -307,6 +316,20 @@ export function PostList({
       <div className="flex items-center justify-between px-6 py-3 border-b shrink-0">
         <h2 className="text-lg font-semibold">Posts</h2>
         <div className="flex items-center gap-1">
+          {/* Search toggle */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className={cn('h-8 w-8 relative', searchOpen && 'bg-accent')}
+            onClick={toggleSearch}
+            title={searchOpen ? 'Close search' : 'Search posts'}
+          >
+            <Search className="h-4 w-4" />
+            {searchQuery.trim() && (
+              <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-blue-500" />
+            )}
+          </Button>
+
           {/* Select mode toggle */}
           <Button
             variant="ghost"
@@ -428,26 +451,32 @@ export function PostList({
         </div>
       </div>
 
-      {/* Search bar */}
-      <div className="px-6 py-2 border-b shrink-0">
-        <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <Input
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search posts..."
-            className="pl-8 pr-8 h-8 text-sm"
-          />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          )}
+      {/* Search bar (toggled from the header icon) */}
+      {searchOpen && (
+        <div className="px-6 py-2 border-b shrink-0">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              autoFocus
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') toggleSearch()
+              }}
+              placeholder="Search posts..."
+              className="pl-8 pr-8 h-8 text-sm"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Select-all bar */}
       {selectMode && !isSearching && (
@@ -487,7 +516,7 @@ export function PostList({
               <p className="text-sm">No results for &ldquo;{searchQuery}&rdquo;</p>
             </div>
           ) : (
-            <div className="max-w-2xl mx-auto py-2">
+            <div className="py-2">
               {searchResults!.map((result) => (
                 <button
                   key={result.post_id}
@@ -528,65 +557,77 @@ export function PostList({
             )}
           </div>
         ) : (
-          <div className="max-w-2xl mx-auto py-2">
-            {filteredAndSorted.map((post) => (
-              <button
-                key={post.id}
-                onClick={() => {
-                  if (selectMode) {
-                    toggleSelected(post.id)
-                  } else {
-                    onSelectPost(post.id)
-                  }
-                }}
-                className={cn(
-                  'w-full text-left px-6 py-3 transition-colors hover:bg-accent/50',
-                  selectMode && selectedIds.has(post.id) && 'bg-accent/40'
-                )}
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  {selectMode && (
-                    <div
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 px-6 py-4">
+            {filteredAndSorted.map((post) => {
+              // Drafts and pending posts read as tentative; published/scheduled/private are "definite"
+              const definite = post.status !== 'draft' && post.status !== 'pending'
+              return (
+                <button
+                  key={post.id}
+                  onClick={() => {
+                    if (selectMode) {
+                      toggleSelected(post.id)
+                    } else {
+                      onSelectPost(post.id)
+                    }
+                  }}
+                  className={cn(
+                    'border rounded-lg p-4 text-left transition-colors flex flex-col',
+                    definite
+                      ? 'bg-card hover:bg-accent/30'
+                      : 'bg-muted/40 border-border/70 hover:bg-muted/70',
+                    selectMode && selectedIds.has(post.id) && 'ring-2 ring-foreground/40 bg-accent/40'
+                  )}
+                >
+                  <div className="flex items-start gap-2 min-w-0">
+                    {selectMode && (
+                      <div
+                        className={cn(
+                          'h-4 w-4 rounded border shrink-0 flex items-center justify-center mt-0.5',
+                          selectedIds.has(post.id)
+                            ? 'bg-foreground border-foreground'
+                            : 'border-border'
+                        )}
+                        onClick={(e) => { e.stopPropagation(); toggleSelected(post.id) }}
+                      >
+                        {selectedIds.has(post.id) && (
+                          <svg className="h-3 w-3 text-background" viewBox="0 0 16 16" fill="none">
+                            <path d="M3 8l3.5 3.5L13 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        )}
+                      </div>
+                    )}
+                    <p
                       className={cn(
-                        'h-4 w-4 rounded border shrink-0 flex items-center justify-center',
-                        selectedIds.has(post.id)
-                          ? 'bg-foreground border-foreground'
-                          : 'border-border'
+                        'text-sm flex-1 line-clamp-2 min-h-10',
+                        definite ? 'font-semibold text-foreground' : 'font-medium text-muted-foreground'
                       )}
-                      onClick={(e) => { e.stopPropagation(); toggleSelected(post.id) }}
                     >
-                      {selectedIds.has(post.id) && (
-                        <svg className="h-3 w-3 text-background" viewBox="0 0 16 16" fill="none">
-                          <path d="M3 8l3.5 3.5L13 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      )}
-                    </div>
-                  )}
-                  <p className="text-sm font-medium truncate flex-1">
-                    {post.title || '(Untitled)'}
-                  </p>
-                  {post.conflict && (
-                    <AlertTriangle className="h-3.5 w-3.5 text-orange-500 shrink-0" />
-                  )}
-                  {!post.synced && !post.conflict && (
-                    <span title="Not synced" className="shrink-0">
-                      <CloudUpload className="h-3.5 w-3.5 text-blue-500" />
+                      {post.title || '(Untitled)'}
+                    </p>
+                    {post.conflict && (
+                      <AlertTriangle className="h-3.5 w-3.5 text-orange-500 shrink-0 mt-0.5" />
+                    )}
+                    {!post.synced && !post.conflict && (
+                      <span title="Not synced" className="shrink-0 mt-0.5">
+                        <CloudUpload className="h-3.5 w-3.5 text-blue-500" />
+                      </span>
+                    )}
+                    {post.synced && !post.conflict && (
+                      <CheckCircle className="h-3.5 w-3.5 text-green-500 shrink-0 mt-0.5" />
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 mt-2">
+                    <Badge className={cn('text-[10px] px-1.5 py-0', STATUS_COLORS[post.status] || '')} variant="outline">
+                      {STATUS_LABELS[post.status] || post.status}
+                    </Badge>
+                    <span className="text-[11px] text-muted-foreground">
+                      {getDisplayDate(post)}
                     </span>
-                  )}
-                  {post.synced && !post.conflict && (
-                    <CheckCircle className="h-3.5 w-3.5 text-green-500 shrink-0" />
-                  )}
-                </div>
-                <div className={cn('flex items-center gap-2 mt-1', selectMode && 'ml-6')}>
-                  <Badge className={cn('text-[10px] px-1.5 py-0', STATUS_COLORS[post.status] || '')} variant="outline">
-                    {STATUS_LABELS[post.status] || post.status}
-                  </Badge>
-                  <span className="text-[11px] text-muted-foreground">
-                    {getDisplayDate(post)}
-                  </span>
-                </div>
-              </button>
-            ))}
+                  </div>
+                </button>
+              )
+            })}
           </div>
         )}
       </ScrollArea>

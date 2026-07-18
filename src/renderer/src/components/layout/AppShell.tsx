@@ -7,6 +7,7 @@ interface AppShellProps {
   onSettingsClick: () => void
   onPostsClick?: () => void
   onTemplatesClick?: () => void
+  onMediaClick?: () => void
   onSyncClick?: () => void
   syncing?: boolean
   showSync?: boolean
@@ -26,6 +27,7 @@ export function AppShell({
   onSettingsClick,
   onPostsClick,
   onTemplatesClick,
+  onMediaClick,
   onSyncClick,
   syncing,
   showSync,
@@ -45,6 +47,7 @@ export function AppShell({
         onSettingsClick={onSettingsClick}
         onPostsClick={onPostsClick}
         onTemplatesClick={onTemplatesClick}
+        onMediaClick={onMediaClick}
         onSyncClick={onSyncClick}
         syncing={syncing}
         showSync={showSync}

@@ -9,6 +9,7 @@ import { SiteDashboard } from '@renderer/components/dashboard/SiteDashboard'
 import { TemplateList } from '@renderer/components/templates/TemplateList'
 import { TemplateEditor } from '@renderer/components/templates/TemplateEditor'
 import { TemplatePickerDialog } from '@renderer/components/templates/TemplatePickerDialog'
+import { MediaLibraryView } from '@renderer/components/media/MediaLibraryView'
 import { MassPushDialog } from '@renderer/components/sync/MassPushDialog'
 import { Toaster } from '@renderer/components/ui/toaster'
 import { ToastAction } from '@renderer/components/ui/toast'
@@ -285,6 +286,16 @@ function App(): JSX.Element {
             deletePost={deletePost}
           />
         )
+      case 'media':
+        if (!selectedSiteId) {
+          return (
+            <div className="text-center py-12 text-muted-foreground">
+              <p className="text-lg font-medium mb-1">Media Library</p>
+              <p className="text-sm">Select a site to manage media.</p>
+            </div>
+          )
+        }
+        return <MediaLibraryView siteId={selectedSiteId} online={effectiveOnline} />
       case 'templates':
         if (tmpl.editingTemplate) {
           return (
@@ -324,6 +335,7 @@ function App(): JSX.Element {
               }
             : undefined
         }
+        onMediaClick={selectedSiteId && notSettings ? nav.goToMedia : undefined}
         onSyncClick={sync.handleSync}
         syncing={sync.syncing}
         showSync={notSettings && !!selectedSiteId}

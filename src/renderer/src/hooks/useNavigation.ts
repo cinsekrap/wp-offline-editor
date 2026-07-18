@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import type { Site } from '@shared/types'
 import type { PostListFilter } from '@renderer/components/posts/PostList'
 
-export type View = 'dashboard' | 'posts' | 'settings' | 'templates'
+export type View = 'dashboard' | 'posts' | 'settings' | 'templates' | 'media'
 
 interface UseNavigationParams {
   sites: Site[]
@@ -19,6 +19,7 @@ interface UseNavigationReturn {
   goToDashboard: () => void
   goToPosts: () => void
   goToTemplates: () => void
+  goToMedia: () => void
   selectPostFromDashboard: (id: string) => void
   selectPostFromList: (id: string | null) => void
   navigateToNewPost: (postId: string) => void
@@ -79,6 +80,12 @@ export function useNavigation({
 
   const goToTemplates = useCallback(() => setCurrentView('templates'), [])
 
+  const goToMedia = useCallback(() => {
+    setSelectedPostId(null)
+    setInitialPostFilter(null)
+    setCurrentView('media')
+  }, [])
+
   const selectPostFromDashboard = useCallback((id: string) => {
     setPreviousView('dashboard')
     setSelectedPostId(id)
@@ -137,6 +144,7 @@ export function useNavigation({
     goToDashboard,
     goToPosts,
     goToTemplates,
+    goToMedia,
     selectPostFromDashboard,
     selectPostFromList,
     navigateToNewPost,

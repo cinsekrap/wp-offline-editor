@@ -451,6 +451,13 @@ export interface ElectronAPI {
 
   // Media Library
   getMediaLibrary(siteId: string): Promise<MediaLibraryItem[]>
+  pullMediaLibrary(siteId: string): Promise<MediaLibraryPullResult>
+  uploadToMediaLibrary(
+    siteId: string,
+    filename: string,
+    buffer: ArrayBuffer
+  ): Promise<MediaLibraryItem>
+  updateMediaLibraryAlt(siteId: string, id: number, altText: string): Promise<MediaLibraryItem>
 
   // Media
   saveMediaLocal(

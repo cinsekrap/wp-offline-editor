@@ -103,7 +103,7 @@ export function SettingsView({
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-6">
         {activeSection === 'general' && (
-          <GeneralSection />
+          <GeneralSection settings={settings} onUpdate={onUpdateSettings} />
         )}
 
         {activeSection === 'sync' && (
@@ -213,7 +213,13 @@ function AppearanceSection({
   )
 }
 
-function GeneralSection(): JSX.Element {
+function GeneralSection({
+  settings,
+  onUpdate
+}: {
+  settings: AppSettings
+  onUpdate: (patch: Partial<AppSettings>) => void
+}): JSX.Element {
   return (
     <div>
       <h2 className="text-lg font-semibold mb-1">General</h2>
@@ -221,7 +227,10 @@ function GeneralSection(): JSX.Element {
 
       <div className="mb-8">
         <Label className="mb-3 block">About</Label>
-        <UpdateChecker />
+        <UpdateChecker
+          autoDownload={settings.autoDownloadUpdates}
+          onAutoDownloadChange={(enabled) => onUpdate({ autoDownloadUpdates: enabled })}
+        />
       </div>
 
       <ExportImportSection />

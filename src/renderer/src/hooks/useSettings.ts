@@ -6,7 +6,8 @@ const defaultSettings: AppSettings = {
   editorFontSize: 16,
   forceOffline: false,
   autoSyncInterval: 5,
-  writingChartMode: 'daily'
+  writingChartMode: 'daily',
+  autoDownloadUpdates: false
 }
 
 export function useSettings() {

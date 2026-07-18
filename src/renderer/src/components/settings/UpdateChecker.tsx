@@ -1,12 +1,19 @@
 import { useState, useEffect } from 'react'
 import { Button } from '@renderer/components/ui/button'
+import { Switch } from '@renderer/components/ui/switch'
+import { Label } from '@renderer/components/ui/label'
 import { RefreshCw, Download, RotateCcw, CheckCircle, AlertCircle, Loader2 } from 'lucide-react'
 
 type UpdateStatus = 'idle' | 'checking' | 'available' | 'up-to-date' | 'downloading' | 'ready' | 'error'
 
 const api = window.electronAPI
 
-export function UpdateChecker(): JSX.Element {
+interface UpdateCheckerProps {
+  autoDownload: boolean
+  onAutoDownloadChange: (enabled: boolean) => void
+}
+
+export function UpdateChecker({ autoDownload, onAutoDownloadChange }: UpdateCheckerProps): JSX.Element {
   const [version, setVersion] = useState('')
   const [status, setStatus] = useState<UpdateStatus>('idle')
   const [availableVersion, setAvailableVersion] = useState('')
@@ -17,6 +24,11 @@ export function UpdateChecker(): JSX.Element {
     api.getVersion().then(setVersion)
 
     const cleanup = api.onUpdaterEvent((eventStatus, data) => {
+      // Background (sync-triggered) checks shouldn't flip this UI's idle
+      // state — only their positive outcomes matter here
+      if (data?.auto && (eventStatus === 'checking' || eventStatus === 'up-to-date' || eventStatus === 'error')) {
+        return
+      }
       switch (eventStatus) {
         case 'checking':
           setStatus('checking')
@@ -100,6 +112,16 @@ export function UpdateChecker(): JSX.Element {
             {errorMessage}
           </span>
         )}
+      </div>
+
+      <div className="flex items-center justify-between max-w-md">
+        <div className="space-y-0.5">
+          <Label>Download updates automatically</Label>
+          <p className="text-xs text-muted-foreground">
+            When an update is found, download it in the background. It installs when you quit the app.
+          </p>
+        </div>
+        <Switch checked={autoDownload} onCheckedChange={onAutoDownloadChange} />
       </div>
     </div>
   )

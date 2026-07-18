@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { AppShell } from '@renderer/components/layout/AppShell'
 import { SettingsView } from '@renderer/components/settings/SettingsView'
 import { AddSiteDialog } from '@renderer/components/settings/AddSiteDialog'
@@ -166,6 +166,41 @@ function App(): JSX.Element {
       nav.goToSettings()
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Update toasts (background checks piggyback on sync) ────────────────
+  const updateNotifiedRef = useRef<{ availableVersion?: string; ready?: boolean }>({})
+  useEffect(() => {
+    return window.electronAPI.onUpdaterEvent((status, data) => {
+      const notified = updateNotifiedRef.current
+      // With auto-download on, the download is already underway — stay quiet
+      // until it's ready
+      if (status === 'available' && data?.auto && !data?.autoDownload) {
+        const version = (data?.version as string) ?? ''
+        if (notified.availableVersion === version) return
+        notified.availableVersion = version
+        toast({
+          title: 'Update available',
+          description: `NP Presspad ${version} is ready to download.`,
+          action: (
+            <ToastAction altText="Download" onClick={() => window.electronAPI.downloadUpdate()}>
+              Download
+            </ToastAction>
+          )
+        })
+      } else if (status === 'ready' && !notified.ready) {
+        notified.ready = true
+        toast({
+          title: 'Update downloaded',
+          description: 'Restart to finish installing. (Quitting the app also installs it.)',
+          action: (
+            <ToastAction altText="Restart now" onClick={() => window.electronAPI.installUpdate()}>
+              Restart now
+            </ToastAction>
+          )
+        })
+      }
+    })
+  }, [toast])
 
   // ── Reconnect toast ─────────────────────────────────────────────────────
   useEffect(() => {

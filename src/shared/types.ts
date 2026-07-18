@@ -401,6 +401,7 @@ export interface AppSettings {
   forceOffline: boolean
   autoSyncInterval: number // minutes — 0 means disabled
   writingChartMode: 'daily' | 'weekly'
+  autoDownloadUpdates: boolean
 }
 
 // ── IPC API surface exposed via contextBridge ────────────────────────────

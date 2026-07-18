@@ -38,7 +38,7 @@ import { getRevisionsForPost, restoreRevision, captureRevisionForPost } from './
 import { getWritingStats } from './stats-service'
 import { clearAllData } from './database'
 import { exportData, readExportMetadata, importData } from './export-service'
-import { checkForUpdates, downloadUpdate, installUpdate } from './updater'
+import { checkForUpdates, downloadUpdate, installUpdate, maybeAutoCheckForUpdates, setAutoDownloadUpdates } from './updater'
 import {
   uuidSchema,
   SiteInputSchema,
@@ -155,6 +155,9 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('site:sync', async (_event, siteId: unknown, options?: unknown) => {
     const result = await syncSite(uuidSchema.parse(siteId), SyncOptionsSchema.parse(options))
     notifyCountsChanged()
+    // A successful sync proves we're online — good moment for a (throttled)
+    // background update check
+    maybeAutoCheckForUpdates()
     return result
   })
 
@@ -460,7 +463,12 @@ export function registerIpcHandlers(): void {
   })
 
   ipcMain.handle('settings:update', (_event, patch: unknown) => {
-    return updateSettings(AppSettingsSchema.parse(patch))
+    const parsed = AppSettingsSchema.parse(patch)
+    const updated = updateSettings(parsed)
+    if (parsed.autoDownloadUpdates !== undefined) {
+      setAutoDownloadUpdates(parsed.autoDownloadUpdates)
+    }
+    return updated
   })
 
   // ── App ──────────────────────────────────────────────────────────────────

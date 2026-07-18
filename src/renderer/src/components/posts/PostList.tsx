@@ -9,6 +9,7 @@ import { ScrollArea } from '@renderer/components/ui/scroll-area'
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/components/ui/popover'
 import { cn } from '@renderer/lib/utils'
 import { FILTER_STATUSES } from '@renderer/lib/post-status'
+import { useCategoryNames, categoryLabel } from '@renderer/hooks/useCategoryNames'
 import { StatusPill } from './StatusPill'
 import type { Post, PostStatus, SearchResult } from '@shared/types'
 
@@ -75,6 +76,7 @@ export function PostList({
   onBulkStatus,
   onBulkDelete
 }: PostListProps): JSX.Element {
+  const categoryNames = useCategoryNames(siteId)
   const [activeFilters, setActiveFilters] = useState<Set<PostStatus>>(new Set())
   const [activeAuthorFilters, setActiveAuthorFilters] = useState<Set<number>>(new Set())
   const [syncFilter, setSyncFilter] = useState<'all' | 'synced' | 'unsynced'>('all')
@@ -591,6 +593,11 @@ export function PostList({
                     <span className="text-[11px] text-muted-foreground flex-1 truncate">
                       {getDisplayDate(post)}
                     </span>
+                    {categoryLabel(post.categories, categoryNames) && (
+                      <span className="text-[11px] text-muted-foreground truncate max-w-[55%] shrink-0 text-right">
+                        {categoryLabel(post.categories, categoryNames)}
+                      </span>
+                    )}
                   </div>
                   <p
                     className={cn(

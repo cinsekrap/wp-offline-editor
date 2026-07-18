@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { Plus, ChevronRight, AlertTriangle } from 'lucide-react'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
 import { StatusPill } from '@renderer/components/posts/StatusPill'
+import { useCategoryNames, categoryLabel } from '@renderer/hooks/useCategoryNames'
 import { WritingStats } from './WritingStats'
 import { useWindowSize } from '@renderer/hooks/useWindowSize'
 import type { Post } from '@shared/types'
@@ -55,12 +56,15 @@ function formatFutureDate(dateStr: string): string {
 function PostCard({
   post,
   onClick,
-  subtitle
+  subtitle,
+  categoryNames
 }: {
   post: Post
   onClick: () => void
   subtitle?: string
+  categoryNames: Map<number, string>
 }): JSX.Element {
+  const categories = categoryLabel(post.categories, categoryNames)
   return (
     <button
       onClick={onClick}
@@ -69,15 +73,16 @@ function PostCard({
       <p className="text-sm font-medium truncate">
         {post.title || '(Untitled)'}
       </p>
-      <div className="flex items-center gap-2 mt-1.5">
+      <div className="flex items-center gap-2 mt-1.5 min-w-0">
         <StatusPill
           status={post.status}
           synced={post.synced}
           conflict={post.conflict}
           hasRemote={post.wp_id != null}
         />
-        <span className="text-xs text-muted-foreground">
+        <span className="text-xs text-muted-foreground truncate">
           {subtitle ?? formatRelativeDate(post.date ?? post.modified_local)}
+          {categories && <> &middot; {categories}</>}
         </span>
       </div>
     </button>
@@ -138,6 +143,7 @@ export function SiteDashboard({
     }
   }, [posts])
 
+  const categoryNames = useCategoryNames(siteId)
   const { height } = useWindowSize()
   // On shorter windows, show 1 row (3 cards) instead of 2 rows (6 cards)
   const compact = height < 700
@@ -199,7 +205,12 @@ export function SiteDashboard({
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
               {visibleCards.map((post) => (
-                <PostCard key={post.id} post={post} onClick={() => onSelectPost(post.id)} />
+                <PostCard
+                  key={post.id}
+                  post={post}
+                  categoryNames={categoryNames}
+                  onClick={() => onSelectPost(post.id)}
+                />
               ))}
             </div>
           </section>
@@ -222,7 +233,12 @@ export function SiteDashboard({
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
               {waitingToSync.map((post) => (
-                <PostCard key={post.id} post={post} onClick={() => onSelectPost(post.id)} />
+                <PostCard
+                  key={post.id}
+                  post={post}
+                  categoryNames={categoryNames}
+                  onClick={() => onSelectPost(post.id)}
+                />
               ))}
             </div>
           </section>
@@ -262,6 +278,7 @@ export function SiteDashboard({
                   <PostCard
                     key={post.id}
                     post={post}
+                    categoryNames={categoryNames}
                     onClick={() => onSelectPost(post.id)}
                     subtitle={post.date ? formatFutureDate(post.date) : undefined}
                   />

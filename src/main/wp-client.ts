@@ -561,7 +561,9 @@ export async function deleteRemotePost(
     headers
   })
 
-  if (!res.ok) {
+  // 404 = already gone on WordPress — the deletion intent is satisfied, and
+  // treating it as failure would retry (and count) the row forever.
+  if (!res.ok && res.status !== 404) {
     const text = await res.text().catch(() => '')
     throw new Error(`Delete failed: HTTP ${res.status} ${text}`)
   }

@@ -25,10 +25,6 @@ export const STATUS_COLORS: Record<string, string> = {
     'bg-red-100 text-red-800 border-red-200 dark:bg-red-950/50 dark:text-red-400 dark:border-red-900'
 }
 
-/** Dashboard "Unsynced" pseudo-status pill (not a WP status). */
-export const UNSYNCED_PILL_COLOR =
-  'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-950/50 dark:text-blue-400 dark:border-blue-900'
-
 /** Statuses offered in list filters — every user-facing status except trash. */
 export const FILTER_STATUSES: { value: PostStatus; label: string }[] = [
   { value: 'draft', label: STATUS_LABELS.draft },

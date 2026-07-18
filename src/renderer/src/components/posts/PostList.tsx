@@ -1,15 +1,15 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import {
-  Plus, Loader2, AlertTriangle, CheckCircle, CloudUpload,
+  Plus, Loader2,
   Filter, ArrowUpDown, Search, X, CheckSquare
 } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
-import { Badge } from '@renderer/components/ui/badge'
 import { Input } from '@renderer/components/ui/input'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/components/ui/popover'
 import { cn } from '@renderer/lib/utils'
-import { STATUS_COLORS, STATUS_LABELS, FILTER_STATUSES } from '@renderer/lib/post-status'
+import { FILTER_STATUSES } from '@renderer/lib/post-status'
+import { StatusPill } from './StatusPill'
 import type { Post, PostStatus, SearchResult } from '@shared/types'
 
 /** Strip all HTML tags except <mark> from FTS5 snippets to prevent XSS. */
@@ -52,7 +52,7 @@ function formatRelativeDate(dateStr: string | null): string {
   return diffYears <= 1 ? 'Last year' : `${diffYears} years ago`
 }
 
-export type PostListFilter = 'drafts-unsynced' | 'published' | 'scheduled'
+export type PostListFilter = 'drafts' | 'published' | 'scheduled' | 'unsynced'
 
 interface PostListProps {
   posts: Post[]
@@ -147,7 +147,7 @@ export function PostList({
   useEffect(() => {
     if (initialFilter && initialFilter !== appliedFilterRef.current) {
       appliedFilterRef.current = initialFilter
-      if (initialFilter === 'drafts-unsynced') {
+      if (initialFilter === 'drafts') {
         setActiveFilters(new Set<PostStatus>())
         setSyncFilter('all')
         setSortBy('modified_local')
@@ -159,6 +159,10 @@ export function PostList({
         setActiveFilters(new Set<PostStatus>(['future']))
         setSyncFilter('all')
         setSortBy('date')
+      } else if (initialFilter === 'unsynced') {
+        setActiveFilters(new Set<PostStatus>())
+        setSyncFilter('unsynced')
+        setSortBy('modified_local')
       }
     }
   }, [initialFilter])
@@ -201,8 +205,8 @@ export function PostList({
 
   const filteredAndSorted = useMemo(() => {
     let base = posts
-    if (initialFilter === 'drafts-unsynced') {
-      base = posts.filter((p) => p.status === 'draft' || !p.synced)
+    if (initialFilter === 'drafts') {
+      base = posts.filter((p) => p.status === 'draft' || p.status === 'pending')
     }
 
     let result = activeFilters.size === 0 ? base : base.filter((p) => activeFilters.has(p.status))
@@ -564,7 +568,7 @@ export function PostList({
                     selectMode && selectedIds.has(post.id) && 'ring-2 ring-foreground/40 bg-accent/40'
                   )}
                 >
-                  {/* Eyebrow: date + sync state */}
+                  {/* Eyebrow: date (+ checkbox in select mode) */}
                   <div className="flex items-center gap-2 min-w-0">
                     {selectMode && (
                       <div
@@ -586,17 +590,6 @@ export function PostList({
                     <span className="text-[11px] text-muted-foreground flex-1 truncate">
                       {getDisplayDate(post)}
                     </span>
-                    {post.conflict && (
-                      <AlertTriangle className="h-3.5 w-3.5 text-orange-500 shrink-0" />
-                    )}
-                    {!post.synced && !post.conflict && (
-                      <span title="Not synced" className="shrink-0">
-                        <CloudUpload className="h-3.5 w-3.5 text-blue-500" />
-                      </span>
-                    )}
-                    {post.synced && !post.conflict && (
-                      <CheckCircle className="h-3.5 w-3.5 text-green-500 shrink-0" />
-                    )}
                   </div>
                   <p
                     className={cn(
@@ -607,9 +600,7 @@ export function PostList({
                     {post.title || '(Untitled)'}
                   </p>
                   <div className="mt-2">
-                    <Badge className={cn('text-[10px] px-1.5 py-0', STATUS_COLORS[post.status] || '')} variant="outline">
-                      {STATUS_LABELS[post.status] || post.status}
-                    </Badge>
+                    <StatusPill status={post.status} synced={post.synced} conflict={post.conflict} />
                   </div>
                 </button>
               )

@@ -1,9 +1,7 @@
 import { useMemo } from 'react'
-import { Plus, CloudUpload, CheckCircle, ChevronRight, AlertTriangle } from 'lucide-react'
-import { Badge } from '@renderer/components/ui/badge'
+import { Plus, ChevronRight, AlertTriangle } from 'lucide-react'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
-import { cn } from '@renderer/lib/utils'
-import { STATUS_COLORS, UNSYNCED_PILL_COLOR } from '@renderer/lib/post-status'
+import { StatusPill } from '@renderer/components/posts/StatusPill'
 import { WritingStats } from './WritingStats'
 import { useWindowSize } from '@renderer/hooks/useWindowSize'
 import type { Post } from '@shared/types'
@@ -56,14 +54,10 @@ function formatFutureDate(dateStr: string): string {
 
 function PostCard({
   post,
-  pillLabel,
-  pillColor,
   onClick,
   subtitle
 }: {
   post: Post
-  pillLabel: string
-  pillColor: string
   onClick: () => void
   subtitle?: string
 }): JSX.Element {
@@ -72,23 +66,11 @@ function PostCard({
       onClick={onClick}
       className="border rounded-lg p-4 hover:bg-accent/30 transition-colors cursor-pointer text-left w-full"
     >
-      <div className="flex items-center gap-2 min-w-0">
-        <p className="text-sm font-medium truncate flex-1">
-          {post.title || '(Untitled)'}
-        </p>
-        {!post.synced ? (
-          <CloudUpload className="h-3.5 w-3.5 text-blue-500 shrink-0" />
-        ) : (
-          <CheckCircle className="h-3.5 w-3.5 text-green-500 shrink-0" />
-        )}
-      </div>
+      <p className="text-sm font-medium truncate">
+        {post.title || '(Untitled)'}
+      </p>
       <div className="flex items-center gap-2 mt-1.5">
-        <Badge
-          className={cn('text-[11px] px-2 py-0', pillColor)}
-          variant="outline"
-        >
-          {pillLabel}
-        </Badge>
+        <StatusPill status={post.status} synced={post.synced} conflict={post.conflict} />
         <span className="text-xs text-muted-foreground">
           {subtitle ?? formatRelativeDate(post.date ?? post.modified_local)}
         </span>
@@ -105,21 +87,37 @@ export function SiteDashboard({
   onNewPost,
   onSeeAllPosts
 }: SiteDashboardProps): JSX.Element {
-  const { pickBackUp, pickBackUpTotal, scheduledPosts, scheduledCount, hasUnsyncedScheduled } = useMemo(() => {
+  const {
+    pickBackUp,
+    pickBackUpTotal,
+    scheduledPosts,
+    scheduledCount,
+    hasUnsyncedScheduled,
+    waitingToSync,
+    waitingToSyncCount
+  } = useMemo(() => {
     const pick: Post[] = []
     const scheduled: Post[] = []
+    const waiting: Post[] = []
 
     for (const post of posts) {
       if (post.status === 'trash') continue
       if (post.status === 'future') {
         scheduled.push(post)
-      } else if (post.status === 'draft' || !post.synced) {
+      } else if (post.status === 'draft' || post.status === 'pending') {
+        // Unfinished writing only — published posts are done, whatever their
+        // sync state (the card pill carries that)
         pick.push(post)
+      } else if (!post.synced || post.conflict) {
+        // Live posts with unpushed local changes (or conflicts). Drafts and
+        // scheduled posts are already shown above, so no duplicate cards.
+        waiting.push(post)
       }
     }
 
-    // Sort pick-back-up by modified_local desc
+    // Sort pick-back-up + waiting-to-sync by modified_local desc
     pick.sort((a, b) => new Date(b.modified_local).getTime() - new Date(a.modified_local).getTime())
+    waiting.sort((a, b) => new Date(b.modified_local).getTime() - new Date(a.modified_local).getTime())
 
     // Sort scheduled by date asc (soonest first)
     scheduled.sort((a, b) => new Date(a.date ?? '').getTime() - new Date(b.date ?? '').getTime())
@@ -129,16 +127,11 @@ export function SiteDashboard({
       pickBackUpTotal: pick.length,
       scheduledPosts: scheduled.slice(0, 3),
       scheduledCount: scheduled.length,
-      hasUnsyncedScheduled: scheduled.some((p) => !p.synced)
+      hasUnsyncedScheduled: scheduled.some((p) => !p.synced),
+      waitingToSync: waiting.slice(0, 3),
+      waitingToSyncCount: waiting.length
     }
   }, [posts])
-
-  function getPickBackUpPill(post: Post): { label: string; color: string } {
-    if (post.status === 'draft') {
-      return { label: 'Draft', color: STATUS_COLORS.draft }
-    }
-    return { label: 'Unsynced', color: UNSYNCED_PILL_COLOR }
-  }
 
   const { height } = useWindowSize()
   // On shorter windows, show 1 row (3 cards) instead of 2 rows (6 cards)
@@ -159,11 +152,6 @@ export function SiteDashboard({
   return (
     <ScrollArea className="h-full">
       <div className={`max-w-4xl mx-auto px-6 ${compact ? 'py-3' : 'py-4'}`}>
-        {/* Header */}
-        <div className={`flex items-center justify-between ${compact ? 'mb-3' : 'mb-4'}`}>
-          <h1 className="text-lg font-semibold">Dashboard</h1>
-        </div>
-
         {/* Writing Stats */}
         <WritingStats siteId={siteId} compact={compact} />
 
@@ -196,7 +184,7 @@ export function SiteDashboard({
               <h2 className="text-sm font-medium text-muted-foreground">Pick back up</h2>
               {hasMoreCards && (
                 <button
-                  onClick={() => onSeeAllPosts('drafts-unsynced')}
+                  onClick={() => onSeeAllPosts('drafts')}
                   className="flex items-center gap-0.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
                 >
                   See all
@@ -205,18 +193,32 @@ export function SiteDashboard({
               )}
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-              {visibleCards.map((post) => {
-                const pill = getPickBackUpPill(post)
-                return (
-                  <PostCard
-                    key={post.id}
-                    post={post}
-                    pillLabel={pill.label}
-                    pillColor={pill.color}
-                    onClick={() => onSelectPost(post.id)}
-                  />
-                )
-              })}
+              {visibleCards.map((post) => (
+                <PostCard key={post.id} post={post} onClick={() => onSelectPost(post.id)} />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Waiting to sync — only when live posts have unpushed changes */}
+        {waitingToSync.length > 0 && (
+          <section className={compact ? 'mb-3' : 'mb-5'}>
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-sm font-medium text-muted-foreground">Waiting to sync</h2>
+              {waitingToSyncCount > waitingToSync.length && (
+                <button
+                  onClick={() => onSeeAllPosts('unsynced')}
+                  className="flex items-center gap-0.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  See all
+                  <ChevronRight className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+              {waitingToSync.map((post) => (
+                <PostCard key={post.id} post={post} onClick={() => onSelectPost(post.id)} />
+              ))}
             </div>
           </section>
         )}
@@ -255,8 +257,6 @@ export function SiteDashboard({
                   <PostCard
                     key={post.id}
                     post={post}
-                    pillLabel="Scheduled"
-                    pillColor={STATUS_COLORS.future}
                     onClick={() => onSelectPost(post.id)}
                     subtitle={post.date ? formatFutureDate(post.date) : undefined}
                   />

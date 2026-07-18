@@ -2,7 +2,10 @@ import * as React from 'react'
 
 import type { ToastActionElement, ToastProps } from '@renderer/components/ui/toast'
 
-const TOAST_LIMIT = 1
+// Allow a few toasts to stack — with a limit of 1, a second toast (e.g. the
+// plugin-version warning after a sync) silently replaces the first before the
+// user can read it.
+const TOAST_LIMIT = 3
 const TOAST_REMOVE_DELAY = 1000000
 
 type ToasterToast = ToastProps & {

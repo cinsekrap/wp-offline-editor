@@ -4,6 +4,7 @@ import { is } from '@electron-toolkit/utils'
 import { initDatabase, closeDatabase } from './database'
 import { registerIpcHandlers } from './ipc-handlers'
 import { initAutoUpdater } from './updater'
+import { deleteScratchpadIfPristine } from './scratchpad-service'
 
 // Keep userData path stable (based on package name).
 // safeStorage uses app.name for the macOS Keychain service — keep the old name until
@@ -54,6 +55,19 @@ export function createScratchpadWindow(scratchpadId: string): void {
     for (const w of BrowserWindow.getAllWindows()) {
       w.webContents.send('scratchpad-window-status', scratchpadId, false)
     }
+    // If the scratchpad was created but never touched, don't keep it around.
+    // Small delay lets any in-flight debounced auto-save land first.
+    setTimeout(() => {
+      try {
+        if (deleteScratchpadIfPristine(scratchpadId)) {
+          for (const w of BrowserWindow.getAllWindows()) {
+            w.webContents.send('scratchpad-changed', scratchpadId)
+          }
+        }
+      } catch {
+        /* non-critical */
+      }
+    }, 2000)
   })
 
   // External links → system browser

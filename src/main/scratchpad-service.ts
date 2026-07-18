@@ -29,7 +29,7 @@ function normalizeRow(row: ScratchpadRow): Scratchpad {
 export function getScratchpadsForSite(siteId: string): Scratchpad[] {
   const db = getDb()
   const rows = db
-    .prepare('SELECT * FROM scratchpads WHERE site_id = ? ORDER BY modified_local DESC')
+    .prepare('SELECT * FROM scratchpads WHERE site_id = ? AND pending_delete = 0 ORDER BY modified_local DESC')
     .all(siteId) as ScratchpadRow[]
   return rows.map(normalizeRow)
 }
@@ -75,11 +75,56 @@ export function updateScratchpad(update: ScratchpadUpdate): Scratchpad {
   return getScratchpadById(update.id)!
 }
 
+/**
+ * Local-first delete: scratchpads never pushed to WP are removed immediately;
+ * synced ones are marked pending_delete and removed from WordPress (then
+ * locally) on the next sync — otherwise a pull would resurrect them.
+ */
 export function deleteScratchpad(id: string): void {
   const db = getDb()
   // Unlink any posts referencing this scratchpad
   db.prepare('UPDATE posts SET scratchpad_id = NULL WHERE scratchpad_id = ?').run(id)
+
+  const row = db.prepare('SELECT wp_id FROM scratchpads WHERE id = ?').get(id) as
+    | { wp_id: number | null }
+    | undefined
+  if (!row) return
+
+  if (row.wp_id == null) {
+    db.prepare('DELETE FROM scratchpads WHERE id = ?').run(id)
+  } else {
+    db.prepare('UPDATE scratchpads SET pending_delete = 1, synced = 0 WHERE id = ?').run(id)
+  }
+}
+
+export function hardDeleteScratchpad(id: string): void {
+  getDb().prepare('DELETE FROM scratchpads WHERE id = ?').run(id)
+}
+
+export function getPendingDeleteScratchpads(siteId: string): { id: string; wp_id: number | null }[] {
+  return getDb()
+    .prepare('SELECT id, wp_id FROM scratchpads WHERE site_id = ? AND pending_delete = 1')
+    .all(siteId) as { id: string; wp_id: number | null }[]
+}
+
+/**
+ * Remove a scratchpad that was created but never touched: no content, default
+ * title, never pushed, not linked to a post. Called when a pop-out window for
+ * it closes. Returns true if it was deleted.
+ */
+export function deleteScratchpadIfPristine(id: string): boolean {
+  const db = getDb()
+  const row = db
+    .prepare('SELECT wp_id, title, content FROM scratchpads WHERE id = ? AND pending_delete = 0')
+    .get(id) as { wp_id: number | null; title: string; content: string } | undefined
+  if (!row) return false
+  if (row.wp_id != null) return false
+  if (row.content.trim() !== '') return false
+  if (row.title.trim() !== '' && row.title.trim() !== 'Untitled') return false
+  const linked = db.prepare('SELECT 1 FROM posts WHERE scratchpad_id = ? LIMIT 1').get(id)
+  if (linked) return false
   db.prepare('DELETE FROM scratchpads WHERE id = ?').run(id)
+  return true
 }
 
 export function linkScratchpadToPost(postId: string, scratchpadId: string): void {

@@ -729,6 +729,25 @@ export async function pushScratchpad(
   return { id: result.id, modified: result.modified }
 }
 
+/** Delete a scratchpad on WordPress. A 404 (already gone) counts as success. */
+export async function deleteRemoteScratchpad(
+  url: string,
+  username: string,
+  password: string,
+  wpId: number
+): Promise<void> {
+  const base = apiBase(url)
+  const headers = makeAuthHeaders(username, password)
+
+  const res = await fetchWithTimeout(`${base}/wp/v2/scratchpads/${wpId}?force=true`, {
+    method: 'DELETE',
+    headers
+  })
+  if (!res.ok && res.status !== 404) {
+    throw new Error(`Scratchpad delete failed: HTTP ${res.status}`)
+  }
+}
+
 export async function updatePostScratchpadMeta(
   url: string,
   username: string,

@@ -129,10 +129,10 @@ export function MediaLibraryView({ siteId, online }: MediaLibraryViewProps): JSX
         if (firstNewId !== null) setSelectedId(firstNewId)
         const anyPending = firstNewId !== null && firstNewId < 0
         toast({
-          title: anyPending ? 'Added to library' : 'Upload complete',
+          title: 'Added to library',
           description: anyPending
             ? `${success} file${success > 1 ? 's' : ''} saved locally — will upload on next sync.`
-            : `${success} file${success > 1 ? 's' : ''} added to the media library.`
+            : `${success} file${success > 1 ? 's' : ''} uploaded to WordPress.`
         })
       }
     },
@@ -210,14 +210,14 @@ export function MediaLibraryView({ siteId, online }: MediaLibraryViewProps): JSX
               size="sm"
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
-              title={online ? 'Upload files to WordPress' : 'Add files — they upload on next sync'}
+              title="Add files to the library — they sync to WordPress"
             >
               {uploading ? (
                 <Loader2 className="h-4 w-4 mr-1 animate-spin" />
               ) : (
                 <Upload className="h-4 w-4 mr-1" />
               )}
-              Upload
+              Add
             </Button>
           </div>
         </div>
@@ -378,7 +378,7 @@ export function MediaLibraryView({ siteId, online }: MediaLibraryViewProps): JSX
                   onClick={handleDeletePending}
                 >
                   <Trash2 className="h-4 w-4 mr-1" />
-                  Remove before upload
+                  Remove
                 </Button>
               </div>
             )}

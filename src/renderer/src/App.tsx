@@ -284,6 +284,7 @@ function App(): JSX.Element {
             refreshPosts={refreshPosts}
             createPost={createPost}
             deletePost={deletePost}
+            onNewPost={tmpl.handleNewPost}
           />
         )
       case 'media':

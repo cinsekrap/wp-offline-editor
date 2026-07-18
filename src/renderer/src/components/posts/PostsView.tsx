@@ -20,6 +20,8 @@ interface PostsViewProps {
   deletePost: (id: string) => Promise<void>
   sites?: Site[]
   onDuplicate?: (newPostId: string, targetSiteId: string) => void
+  /** Template-aware new-post flow (opens the template picker when templates exist). */
+  onNewPost?: () => void
 }
 
 export function PostsView({
@@ -36,12 +38,17 @@ export function PostsView({
   createPost,
   deletePost,
   sites,
-  onDuplicate
+  onDuplicate,
+  onNewPost
 }: PostsViewProps): JSX.Element {
-  const handleNewPost = useCallback(async () => {
+  const handleBlankNewPost = useCallback(async () => {
     const post = await createPost()
     onSelectPost(post.id)
   }, [createPost, onSelectPost])
+
+  // Prefer the template-aware flow so both New post buttons (dashboard and
+  // posts screen) behave the same; fall back to a blank post if not wired.
+  const handleNewPost = onNewPost ?? handleBlankNewPost
 
   const handleDeletePost = useCallback(async () => {
     if (!selectedPostId) return

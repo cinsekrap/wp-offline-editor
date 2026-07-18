@@ -299,6 +299,28 @@ const migrations: Array<(db: Database.Database) => void> = [
       );
       CREATE INDEX IF NOT EXISTS idx_pending_terms_site_id ON pending_terms(site_id);
     `)
+  },
+
+  // ── v7: offline-first media library uploads ──
+  // Files added to the library while offline are staged locally with NEGATIVE
+  // ids (same convention as pending_terms) and uploaded on the next sync.
+  // pending_alt_text on media_library queues offline alt-text edits for
+  // existing items; sync applies and clears it.
+  (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS media_library_pending (
+        id INTEGER PRIMARY KEY,
+        site_id TEXT NOT NULL,
+        filename TEXT NOT NULL,
+        local_path TEXT NOT NULL,
+        mime_type TEXT NOT NULL DEFAULT '',
+        alt_text TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS idx_media_library_pending_site_id ON media_library_pending(site_id);
+    `)
+    safeAddColumn(db, 'media_library', 'pending_alt_text', 'TEXT')
   }
 ]
 

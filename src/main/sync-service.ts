@@ -15,7 +15,7 @@ import { decodeHtmlEntities } from './html-utils'
 import { sanitizeHtml } from './sanitize'
 import { normalizeAcf } from './acf-utils'
 import { pullAcfSchemaForSite } from './acf-service'
-import { pullMediaLibraryForSite } from './media-library-service'
+import { pullMediaLibraryForSite, pushMediaLibraryPending } from './media-library-service'
 import { pullTaxonomyTerms } from './taxonomy-service'
 import { getScratchpadsForSite, getScratchpadById } from './scratchpad-service'
 import { refreshSiteCss, getSiteCssAgeMs } from './site-css-service'
@@ -538,6 +538,14 @@ async function doSyncSite(siteId: string, options?: { force?: boolean }): Promis
     pushErrors.push(...termResult.errors)
   } catch (err) {
     pushErrors.push(`Terms: ${err instanceof Error ? err.message : String(err)}`)
+  }
+
+  // Push staged media library uploads + queued alt-text edits
+  try {
+    const mediaLibResult = await pushMediaLibraryPending(siteId)
+    pushErrors.push(...mediaLibResult.errors)
+  } catch (err) {
+    pushErrors.push(`Media library: ${err instanceof Error ? err.message : String(err)}`)
   }
 
   // Push pending deletions before the push loop (so deletions don't inflate mass push guard)

@@ -3,7 +3,7 @@ import { basename } from 'path'
 import { getDb } from './database'
 import { getSiteById } from './site-service'
 import { getCredential } from './credentials'
-import { fetchPosts, fetchUserNames, fetchAttachmentUrl } from './wp-client'
+import { fetchPosts, fetchUserNames, fetchAttachmentUrl, fetchAllPostIds, fetchRemotePostExistence } from './wp-client'
 import { decodeHtmlEntities } from './html-utils'
 import { sanitizeHtml } from './sanitize'
 import { normalizeAcf } from './acf-utils'
@@ -157,7 +157,7 @@ export async function pullPostsForSite(siteId: string): Promise<PullResult> {
   const uniqueAuthorIds = [...new Set(posts.map((p) => p.author).filter(Boolean))]
   const authorNames = await fetchUserNames(site.url, site.username, password, uniqueAuthorIds)
 
-  const result: PullResult = { total: posts.length, created: 0, updated: 0, unchanged: 0, errors: [] }
+  const result: PullResult = { total: posts.length, created: 0, updated: 0, unchanged: 0, removed: 0, errors: [] }
 
   for (const wpPost of posts) {
     try {
@@ -177,9 +177,52 @@ export async function pullPostsForSite(siteId: string): Promise<PullResult> {
       new Date().toISOString(),
       siteId
     )
+
+    // Ghost detection: posts deleted (or trashed) on WordPress otherwise linger
+    // locally forever, since the pull above only adds and updates. Absence from
+    // the ID sweep is only a trigger — theme/plugin REST filtering can hide
+    // live posts from list queries — so each candidate is verified with a
+    // direct GET and removed only on a confirmed answer. Fully-synced copies
+    // only: local edits always survive.
+    result.removed = await removeGhostPosts(siteId, site.url, site.username, password, statuses)
   }
 
   return result
+}
+
+async function removeGhostPosts(
+  siteId: string,
+  siteUrl: string,
+  username: string,
+  password: string,
+  statuses: string[]
+): Promise<number> {
+  const db = getDb()
+  let remoteIds: Set<number> | null = null
+  try {
+    remoteIds = await fetchAllPostIds(siteUrl, username, password, statuses)
+  } catch {
+    return 0
+  }
+  if (!remoteIds) return 0 // partial sweep — can't trust absence
+
+  const candidates = (
+    db
+      .prepare(
+        'SELECT id, wp_id FROM posts WHERE site_id = ? AND wp_id IS NOT NULL AND synced = 1 AND conflict = 0 AND pending_delete = 0'
+      )
+      .all(siteId) as { id: string; wp_id: number }[]
+  ).filter((row) => !remoteIds.has(row.wp_id))
+
+  let removed = 0
+  for (const row of candidates) {
+    const existence = await fetchRemotePostExistence(siteUrl, username, password, row.wp_id)
+    if (existence === 'gone') {
+      deletePost(row.id)
+      removed++
+    }
+  }
+  return removed
 }
 
 async function upsertPost(

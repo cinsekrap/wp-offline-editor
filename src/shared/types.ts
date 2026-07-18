@@ -360,6 +360,8 @@ export interface PullResult {
   created: number
   updated: number
   unchanged: number
+  /** Local copies removed because the post was confirmed deleted (or trashed) on WordPress. */
+  removed: number
   errors: string[]
 }
 

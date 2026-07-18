@@ -273,6 +273,73 @@ export async function fetchPosts(
   return { posts: allPosts, total: allPosts.length }
 }
 
+/**
+ * Fetch the complete set of post IDs on the site for the given statuses —
+ * id-only and uncapped (unlike fetchPosts, whose published pull is limited to
+ * maxPublished). Returns null when the sweep can't be trusted (any request
+ * failed), so callers must not treat a partial sweep as "these are all".
+ */
+export async function fetchAllPostIds(
+  url: string,
+  username: string,
+  password: string,
+  statuses: string[]
+): Promise<Set<number> | null> {
+  const base = apiBase(url)
+  const headers = makeAuthHeaders(username, password)
+  const ids = new Set<number>()
+
+  let page = 1
+  let totalPages = 1
+  while (page <= totalPages) {
+    const params = new URLSearchParams({
+      status: statuses.join(','),
+      per_page: '100',
+      page: String(page),
+      _fields: 'id'
+    })
+    const res = await fetchWithTimeout(`${base}/wp/v2/posts?${params}`, { headers })
+    if (!res.ok) return null
+    totalPages = parseInt(res.headers.get('x-wp-totalpages') || '1', 10)
+    const batch = (await res.json()) as { id: number }[]
+    for (const b of batch) ids.add(b.id)
+    page++
+  }
+
+  return ids
+}
+
+/**
+ * Check whether a single post still exists on WordPress. Only a direct GET is
+ * trusted: absence from a list query can be caused by theme/plugin REST
+ * filtering, so it must never be read as deletion on its own.
+ * 'gone' = confirmed 404 or trashed; 'unknown' = auth/network/anything else.
+ */
+export async function fetchRemotePostExistence(
+  url: string,
+  username: string,
+  password: string,
+  wpId: number
+): Promise<'exists' | 'gone' | 'unknown'> {
+  const base = apiBase(url)
+  const headers = makeAuthHeaders(username, password)
+
+  let res: Response
+  try {
+    res = await fetchWithTimeout(`${base}/wp/v2/posts/${wpId}?_fields=id,status`, { headers })
+  } catch {
+    return 'unknown'
+  }
+
+  if (res.ok) {
+    const post = (await res.json().catch(() => null)) as { status?: string } | null
+    if (!post) return 'unknown'
+    return post.status === 'trash' ? 'gone' : 'exists'
+  }
+  if (res.status === 404) return 'gone'
+  return 'unknown'
+}
+
 // ── User name resolution ────────────────────────────────────────────────
 
 export async function fetchUserNames(

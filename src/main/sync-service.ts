@@ -19,7 +19,7 @@ import { pullMediaLibraryForSite, pushMediaLibraryPending } from './media-librar
 import { pullTaxonomyTerms } from './taxonomy-service'
 import { getScratchpadsForSite, getScratchpadById, getPendingDeleteScratchpads, hardDeleteScratchpad } from './scratchpad-service'
 import { refreshSiteCss, getSiteCssAgeMs } from './site-css-service'
-import type { PushResult, SyncResult } from '@shared/types'
+import type { PendingChanges, PushResult, SyncResult } from '@shared/types'
 
 /** Re-fetch cached preview CSS at most once per day. */
 const SITE_CSS_MAX_AGE_MS = 24 * 60 * 60 * 1000
@@ -269,6 +269,17 @@ export async function pushPostToWp(postId: string, options?: { skipTermResolutio
 
 async function pushPendingDeletions(siteId: string): Promise<{ deleted: number; errors: string[] }> {
   const db = getDb()
+
+  // Stranded local-only deletions (no WP counterpart) have nothing to push —
+  // hard-delete them now, or they'd sit invisible in every list forever while
+  // still counting toward the pending-changes badge.
+  const orphans = db
+    .prepare('SELECT id FROM posts WHERE site_id = ? AND pending_delete = 1 AND wp_id IS NULL')
+    .all(siteId) as { id: string }[]
+  for (const orphan of orphans) {
+    deletePost(orphan.id)
+  }
+
   const rows = db
     .prepare('SELECT id, wp_id FROM posts WHERE site_id = ? AND pending_delete = 1 AND wp_id IS NOT NULL')
     .all(siteId) as { id: string; wp_id: number }[]
@@ -661,21 +672,29 @@ async function doSyncSite(siteId: string, options?: { force?: boolean }): Promis
     }
   }
 
-  return { pushed, deleted: deletedCount, pushErrors, pull, schemaPull, mediaLibraryPull, pluginVersionWarning, massPushPaused }
+  // Conflicted posts are counted by the badge but never auto-pushed — report
+  // them so the renderer can say so instead of "Everything up to date".
+  const conflicts = (
+    db.prepare('SELECT COUNT(*) as count FROM posts WHERE site_id = ? AND conflict = 1').get(siteId) as { count: number }
+  ).count
+
+  return { pushed, deleted: deletedCount, pushErrors, pull, schemaPull, mediaLibraryPull, pluginVersionWarning, massPushPaused, conflicts }
 }
 
-export function getUnsyncedPostCount(siteId: string): number {
+export function getPendingChanges(siteId: string): PendingChanges {
   const db = getDb()
-  const row = db
-    .prepare('SELECT COUNT(*) as count FROM posts WHERE site_id = ? AND (synced = 0 OR pending_delete = 1)')
-    .get(siteId) as { count: number }
-  return row.count
-}
+  const count = (sql: string): number => (db.prepare(sql).get(siteId) as { count: number }).count
 
-export function getTotalUnsyncedCount(): number {
-  const db = getDb()
-  const row = db
-    .prepare('SELECT COUNT(*) as count FROM posts WHERE (synced = 0 OR pending_delete = 1)')
-    .get() as { count: number }
-  return row.count
+  const posts = count(
+    'SELECT COUNT(*) as count FROM posts WHERE site_id = ? AND (synced = 0 OR pending_delete = 1)'
+  )
+  const scratchpads = count(
+    'SELECT COUNT(*) as count FROM scratchpads WHERE site_id = ? AND (synced = 0 OR pending_delete = 1)'
+  )
+  const media =
+    count('SELECT COUNT(*) as count FROM media WHERE site_id = ? AND synced = 0') +
+    count('SELECT COUNT(*) as count FROM media_library_pending WHERE site_id = ?') +
+    count('SELECT COUNT(*) as count FROM media_library WHERE site_id = ? AND pending_alt_text IS NOT NULL')
+
+  return { posts, scratchpads, media, total: posts + scratchpads + media }
 }

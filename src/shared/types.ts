@@ -381,6 +381,16 @@ export interface SyncResult {
   mediaLibraryPull: MediaLibraryPullResult
   pluginVersionWarning?: string
   massPushPaused?: { count: number }
+  /** Posts still in conflict after this sync — counted but never auto-pushed. */
+  conflicts: number
+}
+
+/** Everything the next sync would move, per source. */
+export interface PendingChanges {
+  posts: number
+  scratchpads: number
+  media: number
+  total: number
 }
 
 // ── WP Connection ────────────────────────────────────────────────────────
@@ -435,8 +445,7 @@ export interface ElectronAPI {
   deletePost(id: string): Promise<void>
   pushPost(postId: string): Promise<PushResult>
   resolveConflict(postId: string, strategy: 'keep-mine' | 'keep-theirs' | 'fork'): Promise<void>
-  getUnsyncedPostCount(siteId: string): Promise<number>
-  getTotalUnsyncedCount(): Promise<number>
+  getPendingChanges(siteId: string): Promise<PendingChanges>
   syncSite(siteId: string, options?: { force?: boolean }): Promise<SyncResult>
 
   // ACF Schema

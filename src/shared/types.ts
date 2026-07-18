@@ -323,6 +323,15 @@ export interface SearchResult {
   rank: number
 }
 
+// ── Preview ──────────────────────────────────────────────────────────────
+
+export interface PreviewCss {
+  /** Concatenated cached stylesheet text; first line is a `body-class:` comment. */
+  css: string
+  /** ISO timestamp derived from the cache file's mtime. */
+  fetchedAt: string
+}
+
 // ── Revisions ───────────────────────────────────────────────────────────
 
 export interface Revision {
@@ -478,6 +487,9 @@ export interface ElectronAPI {
 
   // Search
   searchPosts(query: string, siteId: string): Promise<SearchResult[]>
+
+  // Preview
+  getPreviewCss(siteId: string): Promise<PreviewCss | null>
 
   // Revisions
   getRevisions(postId: string): Promise<Revision[]>

@@ -34,6 +34,7 @@ import {
   unlinkScratchpadFromPost
 } from './scratchpad-service'
 import { searchPosts, indexPost } from './search-service'
+import { getSiteCss } from './site-css-service'
 import { getRevisionsForPost, restoreRevision, captureRevisionForPost } from './revision-service'
 import { getWritingStats } from './stats-service'
 import { clearAllData } from './database'
@@ -168,6 +169,12 @@ export function registerIpcHandlers(): void {
       z.string().min(1).parse(query),
       uuidSchema.parse(siteId)
     )
+  })
+
+  // ── Preview ─────────────────────────────────────────────────────────────
+
+  ipcMain.handle('preview:get-css', (_event, siteId: unknown) => {
+    return getSiteCss(uuidSchema.parse(siteId))
   })
 
   // ── Revisions ───────────────────────────────────────────────────────────

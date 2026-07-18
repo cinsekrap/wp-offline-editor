@@ -73,6 +73,9 @@ const api: ElectronAPI = {
   // Search
   searchPosts: (query, siteId) => ipcRenderer.invoke('posts:search', query, siteId),
 
+  // Preview
+  getPreviewCss: (siteId) => ipcRenderer.invoke('preview:get-css', siteId),
+
   // Revisions
   getRevisions: (postId) => ipcRenderer.invoke('revisions:get-all', postId),
   captureRevision: (postId) => ipcRenderer.invoke('revisions:capture', postId),

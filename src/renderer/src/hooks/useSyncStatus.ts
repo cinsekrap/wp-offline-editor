@@ -70,6 +70,8 @@ export function useSyncStatus({
         if (result.deleted > 0) parts.push(`deleted ${result.deleted} from WordPress`)
         if (result.pull.created > 0) parts.push(`pulled ${result.pull.created} new`)
         if (result.pull.updated > 0) parts.push(`${result.pull.updated} updated`)
+        if (result.pull.removed > 0)
+          parts.push(`${result.pull.removed} removed (deleted on WordPress)`)
         if (result.schemaPull.groupsUpdated > 0)
           parts.push(`${result.schemaPull.groupsUpdated} schema updated`)
 

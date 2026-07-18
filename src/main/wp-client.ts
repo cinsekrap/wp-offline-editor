@@ -310,6 +310,36 @@ export async function fetchAllPostIds(
 }
 
 /**
+ * Fetch a post's current remote modified timestamp, distinguishing "deleted"
+ * from transient failures. Used as a pre-push check so a push can detect a
+ * remote-side edit (conflict) or deletion (recreate) it hasn't pulled yet.
+ */
+export async function fetchRemotePostMeta(
+  url: string,
+  username: string,
+  password: string,
+  wpId: number
+): Promise<{ state: 'exists'; modified: string } | { state: 'gone' } | { state: 'unknown' }> {
+  const base = apiBase(url)
+  const headers = makeAuthHeaders(username, password)
+
+  let res: Response
+  try {
+    res = await fetchWithTimeout(`${base}/wp/v2/posts/${wpId}?_fields=id,modified,status`, { headers })
+  } catch {
+    return { state: 'unknown' }
+  }
+
+  if (res.ok) {
+    const post = (await res.json().catch(() => null)) as { modified?: string; status?: string } | null
+    if (!post || typeof post.modified !== 'string') return { state: 'unknown' }
+    return post.status === 'trash' ? { state: 'gone' } : { state: 'exists', modified: post.modified }
+  }
+  if (res.status === 404) return { state: 'gone' }
+  return { state: 'unknown' }
+}
+
+/**
  * Check whether a single post still exists on WordPress. Only a direct GET is
  * trusted: absence from a list query can be caused by theme/plugin REST
  * filtering, so it must never be read as deletion on its own.

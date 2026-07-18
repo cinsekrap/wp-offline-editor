@@ -723,11 +723,16 @@ export async function fetchMediaLibrary(
 
 // ── Scratchpad fetching ──────────────────────────────────────────────────
 
+/**
+ * Returns null when the scratchpad endpoint is unavailable (old companion
+ * plugin) — callers must not treat that like an empty list, or every local
+ * scratchpad would look remotely deleted.
+ */
 export async function fetchScratchpads(
   url: string,
   username: string,
   password: string
-): Promise<WpScratchpadRaw[]> {
+): Promise<WpScratchpadRaw[] | null> {
   const base = apiBase(url)
   const headers = makeAuthHeaders(username, password)
   const allItems: WpScratchpadRaw[] = []
@@ -746,8 +751,8 @@ export async function fetchScratchpads(
     const res = await fetchWithTimeout(`${base}/wp/v2/scratchpads?${params}`, { headers })
 
     if (!res.ok) {
-      // 404 = old plugin without scratchpad CPT — return empty gracefully
-      if (res.status === 404 || res.status === 400) return []
+      // 404 = old plugin without scratchpad CPT
+      if (res.status === 404 || res.status === 400) return null
       throw new Error(`Failed to fetch scratchpads: HTTP ${res.status}`)
     }
 
@@ -815,6 +820,35 @@ export async function deleteRemoteScratchpad(
   if (!res.ok && res.status !== 404) {
     throw new Error(`Scratchpad delete failed: HTTP ${res.status}`)
   }
+}
+
+/**
+ * Check whether a single scratchpad still exists on WordPress. Mirrors
+ * fetchRemotePostExistence: only a direct GET is trusted as deletion evidence.
+ */
+export async function fetchRemoteScratchpadExistence(
+  url: string,
+  username: string,
+  password: string,
+  wpId: number
+): Promise<'exists' | 'gone' | 'unknown'> {
+  const base = apiBase(url)
+  const headers = makeAuthHeaders(username, password)
+
+  let res: Response
+  try {
+    res = await fetchWithTimeout(`${base}/wp/v2/scratchpads/${wpId}?_fields=id,status`, { headers })
+  } catch {
+    return 'unknown'
+  }
+
+  if (res.ok) {
+    const item = (await res.json().catch(() => null)) as { status?: string } | null
+    if (!item) return 'unknown'
+    return item.status === 'trash' ? 'gone' : 'exists'
+  }
+  if (res.status === 404) return 'gone'
+  return 'unknown'
 }
 
 export async function updatePostScratchpadMeta(
@@ -918,7 +952,7 @@ export async function updateMediaAltText(
   password: string,
   id: number,
   altText: string
-): Promise<void> {
+): Promise<'ok' | 'gone'> {
   const base = apiBase(url)
   const headers = {
     ...makeAuthHeaders(username, password),
@@ -931,8 +965,12 @@ export async function updateMediaAltText(
     body: JSON.stringify({ alt_text: altText })
   })
 
+  // Attachment deleted on WordPress — the edit is moot, not an error to retry
+  if (res.status === 404) return 'gone'
+
   if (!res.ok) {
     const text = await res.text().catch(() => '')
     throw new Error(`Failed to update alt text: HTTP ${res.status} ${text}`)
   }
+  return 'ok'
 }

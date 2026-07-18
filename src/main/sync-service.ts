@@ -8,7 +8,7 @@ import { getCredential } from './credentials'
 import { getPostById, deletePost, pullPostsForSite, downloadAndRewriteImages, rewriteAcfImageUrls, downloadFeaturedImage } from './post-service'
 import { indexPost } from './search-service'
 import { getMediaForPost, uploadMediaToWp } from './media-service'
-import { pushPost, deleteRemotePost, fetchSinglePost, fetchUserNames, fetchSiteIcon, fetchScratchpads, pushScratchpad as pushScratchpadToWp, updatePostScratchpadMeta, deleteRemoteScratchpad, fetchPluginVersion, createTerm } from './wp-client'
+import { pushPost, deleteRemotePost, fetchSinglePost, fetchUserNames, fetchSiteIcon, fetchScratchpads, pushScratchpad as pushScratchpadToWp, updatePostScratchpadMeta, deleteRemoteScratchpad, fetchRemoteScratchpadExistence, fetchPluginVersion, createTerm } from './wp-client'
 import { getPendingTermsForSite } from './taxonomy-service'
 import { isPluginVersionMismatch, pluginMismatchMessage } from '@shared/version-utils'
 import { decodeHtmlEntities } from './html-utils'
@@ -402,13 +402,14 @@ export async function resolveConflict(
   indexPost(postId, post.site_id, title, content, excerpt)
 }
 
-async function pushScratchpadsForSite(siteId: string): Promise<void> {
+async function pushScratchpadsForSite(siteId: string): Promise<{ errors: string[] }> {
   const db = getDb()
+  const errors: string[] = []
   const site = getSiteById(siteId)
-  if (!site) return
+  if (!site) return { errors }
 
   const password = getCredential(site.keychain_ref)
-  if (!password) return
+  if (!password) return { errors }
 
   // Push scratchpad deletions first (delete on WP, then locally)
   for (const pd of getPendingDeleteScratchpads(siteId)) {
@@ -418,7 +419,7 @@ async function pushScratchpadsForSite(siteId: string): Promise<void> {
       }
       hardDeleteScratchpad(pd.id)
     } catch (err) {
-      console.warn('[sync] Failed to delete scratchpad:', err instanceof Error ? err.message : err)
+      errors.push(`Delete scratchpad: ${err instanceof Error ? err.message : String(err)}`)
     }
   }
 
@@ -450,13 +451,18 @@ async function pushScratchpadsForSite(siteId: string): Promise<void> {
         try {
           await updatePostScratchpadMeta(site.url, site.username, password, lp.wp_id, result.id)
         } catch (err) {
+          // Metadata drift only — not worth failing the sync over
           console.warn('[sync] Failed to update scratchpad meta on post:', err instanceof Error ? err.message : err)
         }
       }
     } catch (err) {
-      console.warn('[sync] Failed to push scratchpad:', err instanceof Error ? err.message : err)
+      errors.push(
+        `Scratchpad "${sp.title || 'Untitled'}": ${err instanceof Error ? err.message : String(err)}`
+      )
     }
   }
+
+  return { errors }
 }
 
 /**
@@ -488,10 +494,9 @@ async function pullScratchpadsForSite(siteId: string): Promise<void> {
   try {
     remote = await fetchScratchpads(site.url, site.username, password)
   } catch {
-    return // Old plugin — gracefully skip
+    return // Transient fetch failure — skip this round
   }
-
-  if (remote.length === 0) return
+  if (remote === null) return // Old plugin without the scratchpad endpoint
 
   for (const wp of remote) {
     const title = decodeHtmlEntities(wp.title.rendered)
@@ -529,6 +534,27 @@ async function pullScratchpadsForSite(siteId: string): Promise<void> {
     }
     // synced=0 → local wins, skip (no conflict UI in Part 1)
   }
+
+  // Ghost pruning: scratchpads deleted on WordPress otherwise linger locally
+  // forever (the loop above only adds and updates). Same rules as posts —
+  // list absence is only a trigger; each candidate is verified with a direct
+  // GET and removed only on a confirmed 404/trash. Local edits always survive.
+  const remoteIds = new Set(remote.map((wp) => wp.id))
+  const candidates = (
+    db
+      .prepare(
+        'SELECT id, wp_id FROM scratchpads WHERE site_id = ? AND wp_id IS NOT NULL AND synced = 1 AND pending_delete = 0'
+      )
+      .all(siteId) as { id: string; wp_id: number }[]
+  ).filter((row) => !remoteIds.has(row.wp_id))
+
+  for (const row of candidates) {
+    const existence = await fetchRemoteScratchpadExistence(site.url, site.username, password, row.wp_id)
+    if (existence === 'gone') {
+      db.prepare('UPDATE posts SET scratchpad_id = NULL WHERE scratchpad_id = ?').run(row.id)
+      hardDeleteScratchpad(row.id)
+    }
+  }
 }
 
 const MASS_PUSH_THRESHOLD = 5
@@ -548,14 +574,15 @@ export function syncSite(siteId: string, options?: { force?: boolean }): Promise
 async function doSyncSite(siteId: string, options?: { force?: boolean }): Promise<SyncResult> {
   const db = getDb()
 
+  const pushErrors: string[] = []
+
   // Push scratchpads first (before posts, so wp_id is available for meta sync)
   try {
-    await pushScratchpadsForSite(siteId)
+    const scratchpadResult = await pushScratchpadsForSite(siteId)
+    pushErrors.push(...scratchpadResult.errors)
   } catch (err) {
-    console.warn('[sync] Failed to push scratchpads:', err instanceof Error ? err.message : err)
+    pushErrors.push(`Scratchpads: ${err instanceof Error ? err.message : String(err)}`)
   }
-
-  const pushErrors: string[] = []
 
   // Resolve offline-created (pending) terms before anything is pushed, so push
   // payloads carry real WP ids instead of temporary negative ones.

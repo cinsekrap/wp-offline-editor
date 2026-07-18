@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react'
 import type { TaxonomyTerm } from '@shared/types'
 
-/** Map of WP category term id → name for a site, for labelling post cards. */
-export function useCategoryNames(siteId: string | null): Map<number, string> {
+/** Map of WP term id → name for a site + taxonomy, for labelling post cards. */
+export function useTermNames(
+  siteId: string | null,
+  taxonomy: 'category' | 'post_tag'
+): Map<number, string> {
   const [names, setNames] = useState<Map<number, string>>(() => new Map())
 
   useEffect(() => {
@@ -12,21 +15,25 @@ export function useCategoryNames(siteId: string | null): Map<number, string> {
     }
     let cancelled = false
     window.electronAPI
-      .getTaxonomyTerms(siteId, 'category')
+      .getTaxonomyTerms(siteId, taxonomy)
       .then((terms) => {
         if (!cancelled) {
           setNames(new Map((terms as TaxonomyTerm[]).map((t) => [t.id, t.name])))
         }
       })
       .catch(() => {
-        /* offline or terms not yet pulled — cards just omit categories */
+        /* offline or terms not yet pulled — cards just omit term labels */
       })
     return () => {
       cancelled = true
     }
-  }, [siteId])
+  }, [siteId, taxonomy])
 
   return names
+}
+
+export function useCategoryNames(siteId: string | null): Map<number, string> {
+  return useTermNames(siteId, 'category')
 }
 
 export function categoryLabel(ids: number[] | undefined, names: Map<number, string>): string {

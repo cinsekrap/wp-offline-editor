@@ -49,6 +49,9 @@ export async function pullTaxonomyTerms(siteId: string): Promise<void> {
           .all(siteId, taxonomy) as { id: number }[]
 
         for (const row of existing) {
+          // Negative ids are provisional local terms awaiting creation on WP
+          // (pending_terms) — never prune them against the remote set
+          if (row.id < 0) continue
           if (!remoteIds.has(row.id)) {
             db.prepare('DELETE FROM taxonomy_terms WHERE site_id = ? AND taxonomy = ? AND id = ?')
               .run(siteId, taxonomy, row.id)

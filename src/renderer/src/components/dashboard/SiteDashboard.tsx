@@ -1,11 +1,11 @@
-import { useMemo } from 'react'
-import { Plus, ChevronRight, AlertTriangle } from 'lucide-react'
+import { useMemo, useState, useEffect, useCallback } from 'react'
+import { Plus, ChevronRight, AlertTriangle, StickyNote } from 'lucide-react'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
 import { StatusPill } from '@renderer/components/posts/StatusPill'
 import { useCategoryNames, categoryLabel } from '@renderer/hooks/useCategoryNames'
 import { WritingStats } from './WritingStats'
 import { useWindowSize } from '@renderer/hooks/useWindowSize'
-import type { Post } from '@shared/types'
+import type { Post, Scratchpad } from '@shared/types'
 import type { PostListFilter } from '@renderer/components/posts/PostList'
 
 interface SiteDashboardProps {
@@ -144,6 +144,33 @@ export function SiteDashboard({
       waitingToSyncCount: waiting.length
     }
   }, [posts])
+
+  // Scratchpads — direct access from home; open in the pop-out window
+  const [scratchpads, setScratchpads] = useState<Scratchpad[]>([])
+  const loadScratchpads = useCallback(async () => {
+    try {
+      const all = await window.electronAPI.getScratchpads(siteId)
+      all.sort((a, b) => new Date(b.modified_local).getTime() - new Date(a.modified_local).getTime())
+      setScratchpads(all)
+    } catch {
+      setScratchpads([])
+    }
+  }, [siteId])
+
+  useEffect(() => {
+    loadScratchpads()
+  }, [loadScratchpads])
+
+  // Keep titles/dates fresh while a pop-out is being edited
+  useEffect(() => {
+    return window.electronAPI.onScratchpadChanged(() => loadScratchpads())
+  }, [loadScratchpads])
+
+  const handleNewScratchpad = useCallback(async () => {
+    const sp = await window.electronAPI.createScratchpad({ site_id: siteId, title: 'Untitled' })
+    await window.electronAPI.openScratchpadWindow(sp.id)
+    loadScratchpads()
+  }, [siteId, loadScratchpads])
 
   const categoryNames = useCategoryNames(siteId)
   const { height } = useWindowSize()
@@ -291,6 +318,51 @@ export function SiteDashboard({
             <div className="border border-dashed rounded-lg p-4 text-center">
               <p className="text-xs text-muted-foreground">No scheduled posts</p>
             </div>
+          )}
+        </section>
+
+        {/* Scratchpads */}
+        <section className={compact ? 'mb-3' : 'mb-5'}>
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-sm font-medium text-muted-foreground">Scratchpads</h2>
+            <button
+              onClick={handleNewScratchpad}
+              className="flex items-center gap-0.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Plus className="h-3 w-3" />
+              New scratchpad
+            </button>
+          </div>
+          {scratchpads.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+              {scratchpads.slice(0, compact ? 3 : 6).map((sp) => (
+                <button
+                  key={sp.id}
+                  onClick={() => window.electronAPI.openScratchpadWindow(sp.id)}
+                  className="border rounded-lg p-3 hover:bg-accent/30 transition-colors cursor-pointer text-left w-full"
+                  title="Open in scratchpad window"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <StickyNote className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <p className="text-sm font-medium truncate flex-1">
+                      {sp.title || '(Untitled)'}
+                    </p>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1 ml-[22px]">
+                    {formatRelativeDate(sp.modified_local)}
+                  </p>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <button
+              onClick={handleNewScratchpad}
+              className="w-full border border-dashed rounded-lg p-4 text-center hover:bg-accent/20 transition-colors"
+            >
+              <p className="text-xs text-muted-foreground">
+                No scratchpads yet — jot something down
+              </p>
+            </button>
           )}
         </section>
 

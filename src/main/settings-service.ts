@@ -7,7 +7,8 @@ const defaults: AppSettings = {
   theme: 'system',
   editorFontSize: 16,
   forceOffline: false,
-  autoSyncInterval: 5
+  autoSyncInterval: 5,
+  writingChartMode: 'daily'
 }
 
 const store = new Store<AppSettings>({ defaults })
@@ -17,7 +18,8 @@ export function getSettings(): AppSettings {
     theme: store.get('theme'),
     editorFontSize: store.get('editorFontSize'),
     forceOffline: store.get('forceOffline'),
-    autoSyncInterval: store.get('autoSyncInterval')
+    autoSyncInterval: store.get('autoSyncInterval'),
+    writingChartMode: store.get('writingChartMode')
   }
 }
 
@@ -26,5 +28,6 @@ export function updateSettings(patch: Partial<AppSettings>): AppSettings {
   if (patch.editorFontSize !== undefined) store.set('editorFontSize', patch.editorFontSize)
   if (patch.forceOffline !== undefined) store.set('forceOffline', patch.forceOffline)
   if (patch.autoSyncInterval !== undefined) store.set('autoSyncInterval', patch.autoSyncInterval)
+  if (patch.writingChartMode !== undefined) store.set('writingChartMode', patch.writingChartMode)
   return getSettings()
 }

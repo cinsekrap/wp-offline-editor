@@ -400,6 +400,7 @@ export interface AppSettings {
   editorFontSize: number
   forceOffline: boolean
   autoSyncInterval: number // minutes — 0 means disabled
+  writingChartMode: 'daily' | 'weekly'
 }
 
 // ── IPC API surface exposed via contextBridge ────────────────────────────

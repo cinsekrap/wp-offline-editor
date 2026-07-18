@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Settings, RefreshCw, Loader2, LayoutGrid, ImageIcon, WifiOff, CloudUpload, ArrowLeftRight, Check, FileText, AlignLeft } from 'lucide-react'
+import { Settings, RefreshCw, Loader2, Home, ImageIcon, WifiOff, CloudUpload, ArrowLeftRight, Check, FileText, AlignLeft } from 'lucide-react'
 import { Badge } from '@renderer/components/ui/badge'
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/components/ui/popover'
 import { cn } from '@renderer/lib/utils'
@@ -92,9 +92,9 @@ export function Toolbar({
                 'p-2 rounded-md transition-colors no-drag',
                 activeView === 'dashboard' ? 'bg-accent text-accent-foreground' : 'hover:bg-accent'
               )}
-              title="Dashboard"
+              title="Home"
             >
-              <LayoutGrid className="h-4 w-4" />
+              <Home className="h-4 w-4" />
             </button>
             {onPostsClick && (
               <button

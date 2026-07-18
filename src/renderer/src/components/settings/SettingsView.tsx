@@ -165,6 +165,28 @@ function AppearanceSection({
         </div>
       </div>
 
+      {/* Writing activity chart */}
+      <div className="space-y-3 mb-8">
+        <div className="space-y-0.5">
+          <Label>Writing activity chart</Label>
+          <p className="text-xs text-muted-foreground">
+            Show the dashboard chart per day (last 30 days) or per week (last 12 weeks).
+          </p>
+        </div>
+        <div className="flex gap-2">
+          {(['daily', 'weekly'] as const).map((mode) => (
+            <Button
+              key={mode}
+              variant={settings.writingChartMode === mode ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => onUpdate({ writingChartMode: mode })}
+            >
+              {mode === 'daily' ? 'Daily' : 'Weekly'}
+            </Button>
+          ))}
+        </div>
+      </div>
+
       {/* Editor font size */}
       <div className="space-y-3">
         <Label>Editor font size</Label>

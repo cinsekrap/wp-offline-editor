@@ -1,33 +1,17 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import {
-  Plus, Loader2, AlertTriangle, CheckCircle, CloudUpload,
+  Plus, Loader2,
   Filter, ArrowUpDown, Search, X, CheckSquare
 } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
-import { Badge } from '@renderer/components/ui/badge'
 import { Input } from '@renderer/components/ui/input'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/components/ui/popover'
 import { cn } from '@renderer/lib/utils'
+import { FILTER_STATUSES } from '@renderer/lib/post-status'
+import { useCategoryNames, categoryLabel } from '@renderer/hooks/useCategoryNames'
+import { StatusPill } from './StatusPill'
 import type { Post, PostStatus, SearchResult } from '@shared/types'
-
-const STATUS_COLORS: Record<string, string> = {
-  publish: 'bg-green-100 text-green-800 border-green-200',
-  draft: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-  pending: 'bg-orange-100 text-orange-800 border-orange-200',
-  private: 'bg-purple-100 text-purple-800 border-purple-200',
-  future: 'bg-blue-100 text-blue-800 border-blue-200',
-  trash: 'bg-red-100 text-red-800 border-red-200'
-}
-
-export const STATUS_LABELS: Record<string, string> = {
-  draft: 'Draft',
-  publish: 'Published',
-  pending: 'Pending',
-  private: 'Private',
-  future: 'Scheduled',
-  trash: 'Trash'
-}
 
 /** Strip all HTML tags except <mark> from FTS5 snippets to prevent XSS. */
 function sanitizeSnippet(html: string): string {
@@ -35,13 +19,6 @@ function sanitizeSnippet(html: string): string {
 }
 
 type SortOption = 'date' | 'modified_local' | 'title'
-
-const FILTER_STATUSES: { value: PostStatus; label: string }[] = [
-  { value: 'draft', label: 'Draft' },
-  { value: 'pending', label: 'Pending' },
-  { value: 'publish', label: 'Published' },
-  { value: 'private', label: 'Private' }
-]
 
 const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: 'date', label: 'Date published' },
@@ -54,20 +31,29 @@ function formatRelativeDate(dateStr: string | null): string {
 
   const date = new Date(dateStr)
   const now = new Date()
-  const diffMs = now.getTime() - date.getTime()
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+  // Compare calendar dates in local timezone, not raw ms difference
+  const toDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+  const diffDays = Math.round((toDay(now) - toDay(date)) / (1000 * 60 * 60 * 24))
+
+  // Scheduled posts have future dates
+  if (diffDays < 0) {
+    const ahead = -diffDays
+    if (ahead === 1) return 'Tomorrow'
+    if (ahead < 30) return `In ${ahead} days`
+    return date.toLocaleDateString()
+  }
 
   if (diffDays === 0) return 'Today'
   if (diffDays === 1) return 'Yesterday'
-  if (diffDays < 7) return `${diffDays} days ago`
-  if (diffDays < 30) {
-    const weeks = Math.floor(diffDays / 7)
-    return `${weeks}w ago`
-  }
-  return date.toLocaleDateString()
+  if (diffDays < 30) return `${diffDays} days ago`
+  const diffMonths = Math.floor(diffDays / 30)
+  if (diffMonths === 1) return 'Last month'
+  if (diffMonths < 12) return `${diffMonths} months ago`
+  const diffYears = Math.floor(diffDays / 365)
+  return diffYears <= 1 ? 'Last year' : `${diffYears} years ago`
 }
 
-export type PostListFilter = 'drafts-unsynced' | 'published' | 'scheduled'
+export type PostListFilter = 'drafts' | 'published' | 'scheduled' | 'unsynced'
 
 interface PostListProps {
   posts: Post[]
@@ -90,16 +76,26 @@ export function PostList({
   onBulkStatus,
   onBulkDelete
 }: PostListProps): JSX.Element {
+  const categoryNames = useCategoryNames(siteId)
   const [activeFilters, setActiveFilters] = useState<Set<PostStatus>>(new Set())
   const [activeAuthorFilters, setActiveAuthorFilters] = useState<Set<number>>(new Set())
   const [syncFilter, setSyncFilter] = useState<'all' | 'synced' | 'unsynced'>('all')
   const [sortBy, setSortBy] = useState<SortOption>('date')
 
   // Search state
+  const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<SearchResult[] | null>(null)
   const [searching, setSearching] = useState(false)
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
+  // Closing the search bar clears the query so hidden results don't linger
+  const toggleSearch = useCallback(() => {
+    setSearchOpen((prev) => {
+      if (prev) setSearchQuery('')
+      return !prev
+    })
+  }, [])
 
   // Multi-select state
   const [selectMode, setSelectMode] = useState(false)
@@ -153,7 +149,7 @@ export function PostList({
   useEffect(() => {
     if (initialFilter && initialFilter !== appliedFilterRef.current) {
       appliedFilterRef.current = initialFilter
-      if (initialFilter === 'drafts-unsynced') {
+      if (initialFilter === 'drafts') {
         setActiveFilters(new Set<PostStatus>())
         setSyncFilter('all')
         setSortBy('modified_local')
@@ -165,6 +161,10 @@ export function PostList({
         setActiveFilters(new Set<PostStatus>(['future']))
         setSyncFilter('all')
         setSortBy('date')
+      } else if (initialFilter === 'unsynced') {
+        setActiveFilters(new Set<PostStatus>())
+        setSyncFilter('unsynced')
+        setSortBy('modified_local')
       }
     }
   }, [initialFilter])
@@ -207,8 +207,8 @@ export function PostList({
 
   const filteredAndSorted = useMemo(() => {
     let base = posts
-    if (initialFilter === 'drafts-unsynced') {
-      base = posts.filter((p) => p.status === 'draft' || !p.synced)
+    if (initialFilter === 'drafts') {
+      base = posts.filter((p) => p.status === 'draft' || p.status === 'pending')
     }
 
     let result = activeFilters.size === 0 ? base : base.filter((p) => activeFilters.has(p.status))
@@ -307,6 +307,20 @@ export function PostList({
       <div className="flex items-center justify-between px-6 py-3 border-b shrink-0">
         <h2 className="text-lg font-semibold">Posts</h2>
         <div className="flex items-center gap-1">
+          {/* Search toggle */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className={cn('h-8 w-8 relative', searchOpen && 'bg-accent')}
+            onClick={toggleSearch}
+            title={searchOpen ? 'Close search' : 'Search posts'}
+          >
+            <Search className="h-4 w-4" />
+            {searchQuery.trim() && (
+              <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-blue-500" />
+            )}
+          </Button>
+
           {/* Select mode toggle */}
           <Button
             variant="ghost"
@@ -421,33 +435,35 @@ export function PostList({
             </PopoverContent>
           </Popover>
 
-          <Button variant="outline" size="sm" onClick={onNewPost}>
-            <Plus className="h-4 w-4 mr-1.5" />
-            New post
-          </Button>
         </div>
       </div>
 
-      {/* Search bar */}
-      <div className="px-6 py-2 border-b shrink-0">
-        <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <Input
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search posts..."
-            className="pl-8 pr-8 h-8 text-sm"
-          />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          )}
+      {/* Search bar (toggled from the header icon) */}
+      {searchOpen && (
+        <div className="px-6 py-2 border-b shrink-0">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              autoFocus
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') toggleSearch()
+              }}
+              placeholder="Search posts..."
+              className="pl-8 pr-8 h-8 text-sm"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Select-all bar */}
       {selectMode && !isSearching && (
@@ -487,7 +503,7 @@ export function PostList({
               <p className="text-sm">No results for &ldquo;{searchQuery}&rdquo;</p>
             </div>
           ) : (
-            <div className="max-w-2xl mx-auto py-2">
+            <div className="py-2">
               {searchResults!.map((result) => (
                 <button
                   key={result.post_id}
@@ -510,83 +526,98 @@ export function PostList({
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           </div>
-        ) : filteredAndSorted.length === 0 ? (
+        ) : filteredAndSorted.length === 0 && hasActiveFilters ? (
           <div className="text-center py-12 text-muted-foreground">
-            <p className="text-sm">
-              {hasActiveFilters ? 'No matching posts' : 'No posts yet'}
-            </p>
-            {!hasActiveFilters && (
-              <p className="text-xs mt-1">Create a new post or pull from WordPress.</p>
-            )}
-            {hasActiveFilters && (
-              <button
-                onClick={clearAllFilters}
-                className="text-xs mt-1 underline hover:text-foreground"
-              >
-                Clear filters
-              </button>
-            )}
+            <p className="text-sm">No matching posts</p>
+            <button
+              onClick={clearAllFilters}
+              className="text-xs mt-1 underline hover:text-foreground"
+            >
+              Clear filters
+            </button>
           </div>
         ) : (
-          <div className="max-w-2xl mx-auto py-2">
-            {filteredAndSorted.map((post) => (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 px-6 py-4">
+            {/* Dummy "new post" card — mirrors the dashboard quick action */}
+            {!selectMode && (
               <button
-                key={post.id}
-                onClick={() => {
-                  if (selectMode) {
-                    toggleSelected(post.id)
-                  } else {
-                    onSelectPost(post.id)
-                  }
-                }}
-                className={cn(
-                  'w-full text-left px-6 py-3 transition-colors hover:bg-accent/50',
-                  selectMode && selectedIds.has(post.id) && 'bg-accent/40'
-                )}
+                onClick={onNewPost}
+                className="border-2 border-dashed border-green-400/50 rounded-lg p-4 hover:border-green-500 hover:bg-green-50 dark:hover:bg-green-950/20 transition-colors cursor-pointer flex items-center justify-center gap-2"
               >
-                <div className="flex items-center gap-2 min-w-0">
-                  {selectMode && (
-                    <div
-                      className={cn(
-                        'h-4 w-4 rounded border shrink-0 flex items-center justify-center',
-                        selectedIds.has(post.id)
-                          ? 'bg-foreground border-foreground'
-                          : 'border-border'
-                      )}
-                      onClick={(e) => { e.stopPropagation(); toggleSelected(post.id) }}
-                    >
-                      {selectedIds.has(post.id) && (
-                        <svg className="h-3 w-3 text-background" viewBox="0 0 16 16" fill="none">
-                          <path d="M3 8l3.5 3.5L13 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      )}
-                    </div>
+                <Plus className="h-5 w-5 text-green-600 dark:text-green-500" />
+                <span className="text-sm font-medium text-green-600 dark:text-green-500">
+                  New post
+                </span>
+              </button>
+            )}
+            {filteredAndSorted.map((post) => {
+              // Drafts and pending posts read as tentative; published/scheduled/private are "definite"
+              const definite = post.status !== 'draft' && post.status !== 'pending'
+              return (
+                <button
+                  key={post.id}
+                  onClick={() => {
+                    if (selectMode) {
+                      toggleSelected(post.id)
+                    } else {
+                      onSelectPost(post.id)
+                    }
+                  }}
+                  className={cn(
+                    'border rounded-lg p-4 text-left transition-colors flex flex-col',
+                    definite
+                      ? 'bg-card hover:bg-accent/30'
+                      : 'bg-muted/40 border-border/70 hover:bg-muted/70',
+                    selectMode && selectedIds.has(post.id) && 'ring-2 ring-foreground/40 bg-accent/40'
                   )}
-                  <p className="text-sm font-medium truncate flex-1">
+                >
+                  {/* Eyebrow: date (+ checkbox in select mode) */}
+                  <div className="flex items-center gap-2 min-w-0">
+                    {selectMode && (
+                      <div
+                        className={cn(
+                          'h-4 w-4 rounded border shrink-0 flex items-center justify-center',
+                          selectedIds.has(post.id)
+                            ? 'bg-foreground border-foreground'
+                            : 'border-border'
+                        )}
+                        onClick={(e) => { e.stopPropagation(); toggleSelected(post.id) }}
+                      >
+                        {selectedIds.has(post.id) && (
+                          <svg className="h-3 w-3 text-background" viewBox="0 0 16 16" fill="none">
+                            <path d="M3 8l3.5 3.5L13 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        )}
+                      </div>
+                    )}
+                    <span className="text-[11px] text-muted-foreground flex-1 truncate">
+                      {getDisplayDate(post)}
+                    </span>
+                    {categoryLabel(post.categories, categoryNames) && (
+                      <span className="text-[11px] text-muted-foreground truncate max-w-[55%] shrink-0 text-right">
+                        {categoryLabel(post.categories, categoryNames)}
+                      </span>
+                    )}
+                  </div>
+                  <p
+                    className={cn(
+                      'text-sm line-clamp-2 min-h-10 mt-1.5',
+                      definite ? 'font-semibold text-foreground' : 'font-medium text-muted-foreground'
+                    )}
+                  >
                     {post.title || '(Untitled)'}
                   </p>
-                  {post.conflict && (
-                    <AlertTriangle className="h-3.5 w-3.5 text-orange-500 shrink-0" />
-                  )}
-                  {!post.synced && !post.conflict && (
-                    <span title="Not synced" className="shrink-0">
-                      <CloudUpload className="h-3.5 w-3.5 text-blue-500" />
-                    </span>
-                  )}
-                  {post.synced && !post.conflict && (
-                    <CheckCircle className="h-3.5 w-3.5 text-green-500 shrink-0" />
-                  )}
-                </div>
-                <div className={cn('flex items-center gap-2 mt-1', selectMode && 'ml-6')}>
-                  <Badge className={cn('text-[10px] px-1.5 py-0', STATUS_COLORS[post.status] || '')} variant="outline">
-                    {STATUS_LABELS[post.status] || post.status}
-                  </Badge>
-                  <span className="text-[11px] text-muted-foreground">
-                    {getDisplayDate(post)}
-                  </span>
-                </div>
-              </button>
-            ))}
+                  <div className="mt-2">
+                    <StatusPill
+                      status={post.status}
+                      synced={post.synced}
+                      conflict={post.conflict}
+                      hasRemote={post.wp_id != null}
+                    />
+                  </div>
+                </button>
+              )
+            })}
           </div>
         )}
       </ScrollArea>

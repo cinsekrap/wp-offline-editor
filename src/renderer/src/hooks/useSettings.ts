@@ -5,7 +5,8 @@ const defaultSettings: AppSettings = {
   theme: 'system',
   editorFontSize: 16,
   forceOffline: false,
-  autoSyncInterval: 5
+  autoSyncInterval: 5,
+  writingChartMode: 'daily'
 }
 
 export function useSettings() {

@@ -321,6 +321,14 @@ const migrations: Array<(db: Database.Database) => void> = [
       CREATE INDEX IF NOT EXISTS idx_media_library_pending_site_id ON media_library_pending(site_id);
     `)
     safeAddColumn(db, 'media_library', 'pending_alt_text', 'TEXT')
+  },
+
+  // ── v8: scratchpad soft-delete ──
+  // Same local-first deletion model as posts (v4): deleting a synced
+  // scratchpad marks it pending_delete + synced=0; sync deletes it from WP
+  // then hard-deletes locally. Without this, a pull resurrects deletions.
+  (db) => {
+    safeAddColumn(db, 'scratchpads', 'pending_delete', 'INTEGER NOT NULL DEFAULT 0')
   }
 ]
 

@@ -8,7 +8,7 @@ import { getCredential } from './credentials'
 import { getPostById, deletePost, pullPostsForSite, downloadAndRewriteImages, rewriteAcfImageUrls, downloadFeaturedImage } from './post-service'
 import { indexPost } from './search-service'
 import { getMediaForPost, uploadMediaToWp } from './media-service'
-import { pushPost, deleteRemotePost, fetchSinglePost, fetchUserNames, fetchSiteIcon, fetchScratchpads, pushScratchpad as pushScratchpadToWp, updatePostScratchpadMeta, fetchPluginVersion, createTerm } from './wp-client'
+import { pushPost, deleteRemotePost, fetchSinglePost, fetchUserNames, fetchSiteIcon, fetchScratchpads, pushScratchpad as pushScratchpadToWp, updatePostScratchpadMeta, deleteRemoteScratchpad, fetchPluginVersion, createTerm } from './wp-client'
 import { getPendingTermsForSite } from './taxonomy-service'
 import { isPluginVersionMismatch, pluginMismatchMessage } from '@shared/version-utils'
 import { decodeHtmlEntities } from './html-utils'
@@ -17,7 +17,7 @@ import { normalizeAcf } from './acf-utils'
 import { pullAcfSchemaForSite } from './acf-service'
 import { pullMediaLibraryForSite, pushMediaLibraryPending } from './media-library-service'
 import { pullTaxonomyTerms } from './taxonomy-service'
-import { getScratchpadsForSite, getScratchpadById } from './scratchpad-service'
+import { getScratchpadsForSite, getScratchpadById, getPendingDeleteScratchpads, hardDeleteScratchpad } from './scratchpad-service'
 import { refreshSiteCss, getSiteCssAgeMs } from './site-css-service'
 import type { PushResult, SyncResult } from '@shared/types'
 
@@ -399,8 +399,20 @@ async function pushScratchpadsForSite(siteId: string): Promise<void> {
   const password = getCredential(site.keychain_ref)
   if (!password) return
 
+  // Push scratchpad deletions first (delete on WP, then locally)
+  for (const pd of getPendingDeleteScratchpads(siteId)) {
+    try {
+      if (pd.wp_id != null) {
+        await deleteRemoteScratchpad(site.url, site.username, password, pd.wp_id)
+      }
+      hardDeleteScratchpad(pd.id)
+    } catch (err) {
+      console.warn('[sync] Failed to delete scratchpad:', err instanceof Error ? err.message : err)
+    }
+  }
+
   const unsynced = db
-    .prepare('SELECT id FROM scratchpads WHERE site_id = ? AND synced = 0')
+    .prepare('SELECT id FROM scratchpads WHERE site_id = ? AND synced = 0 AND pending_delete = 0')
     .all(siteId) as { id: string }[]
 
   for (const row of unsynced) {
@@ -476,8 +488,11 @@ async function pullScratchpadsForSite(siteId: string): Promise<void> {
     const modifiedRemote = wp.modified
 
     const existing = db
-      .prepare('SELECT id, modified_remote, synced FROM scratchpads WHERE site_id = ? AND wp_id = ?')
-      .get(siteId, wp.id) as { id: string; modified_remote: string | null; synced: number } | undefined
+      .prepare('SELECT id, modified_remote, synced, pending_delete FROM scratchpads WHERE site_id = ? AND wp_id = ?')
+      .get(siteId, wp.id) as { id: string; modified_remote: string | null; synced: number; pending_delete: number } | undefined
+
+    // Deleted locally, awaiting remote delete — don't resurrect or overwrite
+    if (existing?.pending_delete) continue
 
     if (!existing) {
       // New remote scratchpad — insert locally

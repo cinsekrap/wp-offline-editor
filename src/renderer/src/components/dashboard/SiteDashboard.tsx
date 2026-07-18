@@ -1,6 +1,15 @@
 import { useMemo, useState, useEffect, useCallback } from 'react'
-import { Plus, ChevronRight, AlertTriangle, StickyNote } from 'lucide-react'
+import { Plus, ChevronRight, AlertTriangle, StickyNote, Trash2, Loader2 } from 'lucide-react'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
+import { Button } from '@renderer/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@renderer/components/ui/dialog'
 import { StatusPill } from '@renderer/components/posts/StatusPill'
 import { useCategoryNames, categoryLabel } from '@renderer/hooks/useCategoryNames'
 import { WritingStats } from './WritingStats'
@@ -166,6 +175,21 @@ export function SiteDashboard({
     return window.electronAPI.onScratchpadChanged(() => loadScratchpads())
   }, [loadScratchpads])
 
+  const [deletingScratchpad, setDeletingScratchpad] = useState<Scratchpad | null>(null)
+  const [deletingBusy, setDeletingBusy] = useState(false)
+
+  const handleDeleteScratchpad = useCallback(async () => {
+    if (!deletingScratchpad) return
+    setDeletingBusy(true)
+    try {
+      await window.electronAPI.deleteScratchpad(deletingScratchpad.id)
+      await loadScratchpads()
+    } finally {
+      setDeletingBusy(false)
+      setDeletingScratchpad(null)
+    }
+  }, [deletingScratchpad, loadScratchpads])
+
   const handleNewScratchpad = useCallback(async () => {
     const sp = await window.electronAPI.createScratchpad({ site_id: siteId, title: 'Untitled' })
     await window.electronAPI.openScratchpadWindow(sp.id)
@@ -323,48 +347,79 @@ export function SiteDashboard({
 
         {/* Scratchpads */}
         <section className={compact ? 'mb-3' : 'mb-5'}>
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="text-sm font-medium text-muted-foreground">Scratchpads</h2>
+          <h2 className="text-sm font-medium text-muted-foreground mb-2">Scratchpads</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+            {/* Dummy "new scratchpad" tile — mirrors the New post pattern */}
             <button
               onClick={handleNewScratchpad}
-              className="flex items-center gap-0.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              className="border-2 border-dashed border-green-400/50 rounded-lg p-3 hover:border-green-500 hover:bg-green-50 dark:hover:bg-green-950/20 transition-colors cursor-pointer flex items-center justify-center gap-2 min-h-[60px]"
             >
-              <Plus className="h-3 w-3" />
-              New scratchpad
+              <Plus className="h-4 w-4 text-green-600 dark:text-green-500" />
+              <span className="text-sm font-medium text-green-600 dark:text-green-500">
+                New scratchpad
+              </span>
             </button>
-          </div>
-          {scratchpads.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-              {scratchpads.slice(0, compact ? 3 : 6).map((sp) => (
-                <button
-                  key={sp.id}
-                  onClick={() => window.electronAPI.openScratchpadWindow(sp.id)}
-                  className="border rounded-lg p-3 hover:bg-accent/30 transition-colors cursor-pointer text-left w-full"
-                  title="Open in scratchpad window"
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <StickyNote className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                    <p className="text-sm font-medium truncate flex-1">
-                      {sp.title || '(Untitled)'}
-                    </p>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1 ml-[22px]">
-                    {formatRelativeDate(sp.modified_local)}
+            {scratchpads.slice(0, compact ? 2 : 5).map((sp) => (
+              <div
+                key={sp.id}
+                role="button"
+                tabIndex={0}
+                onClick={() => window.electronAPI.openScratchpadWindow(sp.id)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') window.electronAPI.openScratchpadWindow(sp.id)
+                }}
+                className="group relative border rounded-lg p-3 hover:bg-accent/30 transition-colors cursor-pointer text-left w-full"
+                title="Open in scratchpad window"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <StickyNote className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  <p className="text-sm font-medium truncate flex-1">
+                    {sp.title || '(Untitled)'}
                   </p>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1 ml-[22px]">
+                  {formatRelativeDate(sp.modified_local)}
+                </p>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setDeletingScratchpad(sp)
+                  }}
+                  className="absolute top-2 right-2 p-1 rounded opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all"
+                  title="Delete scratchpad"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
                 </button>
-              ))}
-            </div>
-          ) : (
-            <button
-              onClick={handleNewScratchpad}
-              className="w-full border border-dashed rounded-lg p-4 text-center hover:bg-accent/20 transition-colors"
-            >
-              <p className="text-xs text-muted-foreground">
-                No scratchpads yet — jot something down
-              </p>
-            </button>
-          )}
+              </div>
+            ))}
+          </div>
         </section>
+
+        <Dialog
+          open={deletingScratchpad !== null}
+          onOpenChange={(open) => { if (!open) setDeletingScratchpad(null) }}
+        >
+          <DialogContent className="sm:max-w-[400px]">
+            <DialogHeader>
+              <DialogTitle>Delete scratchpad</DialogTitle>
+              <DialogDescription>
+                Delete &ldquo;{deletingScratchpad?.title || 'Untitled'}&rdquo;?
+                {deletingScratchpad?.wp_id != null
+                  ? ' It will also be removed from WordPress on the next sync.'
+                  : ' It has never been synced, so it will be removed immediately.'}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDeletingScratchpad(null)} disabled={deletingBusy}>
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={handleDeleteScratchpad} disabled={deletingBusy}>
+                {deletingBusy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Delete
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Empty state */}
         {posts.length === 0 && (

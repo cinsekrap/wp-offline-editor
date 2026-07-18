@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { Settings, RefreshCw, Loader2, Home, ImageIcon, Images, WifiOff, CloudUpload, ArrowLeftRight, Check, FileText, AlignLeft } from 'lucide-react'
+import { Settings, RefreshCw, Loader2, Home, Images, WifiOff, CloudUpload, ArrowLeftRight, Check, FileText, AlignLeft } from 'lucide-react'
 import { Badge } from '@renderer/components/ui/badge'
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/components/ui/popover'
 import { cn } from '@renderer/lib/utils'
-import type { Site } from '@shared/types'
+import type { PendingChanges, Site } from '@shared/types'
 
 const AVATAR_COLORS = [
   'bg-blue-500', 'bg-emerald-500', 'bg-violet-500', 'bg-amber-500',
@@ -53,12 +53,20 @@ interface ToolbarProps {
   siteName?: string
   onSiteNameClick?: () => void
   activeView?: string
-  pendingMediaCount?: number
   online?: boolean
-  unsyncedPostCount?: number
+  pendingChanges?: PendingChanges
   sites?: Site[]
   selectedSiteId?: string | null
   onSwitchSite?: (site: Site) => void
+}
+
+function pendingChangesTooltip(changes: PendingChanges): string {
+  const parts: string[] = []
+  if (changes.posts > 0) parts.push(`${changes.posts} post${changes.posts > 1 ? 's' : ''}`)
+  if (changes.scratchpads > 0)
+    parts.push(`${changes.scratchpads} scratchpad${changes.scratchpads > 1 ? 's' : ''}`)
+  if (changes.media > 0) parts.push(`${changes.media} media item${changes.media > 1 ? 's' : ''}`)
+  return `Waiting to sync: ${parts.join(', ')}`
 }
 
 export function Toolbar({
@@ -72,9 +80,8 @@ export function Toolbar({
   siteName,
   onSiteNameClick,
   activeView,
-  pendingMediaCount,
   online = true,
-  unsyncedPostCount,
+  pendingChanges,
   sites,
   selectedSiteId,
   onSwitchSite
@@ -155,19 +162,11 @@ export function Toolbar({
             <span>Offline</span>
           </div>
         )}
-        {!!unsyncedPostCount && unsyncedPostCount > 0 && (
-          <div className="flex items-center gap-1 text-xs text-muted-foreground no-drag" title={`${unsyncedPostCount} post${unsyncedPostCount > 1 ? 's' : ''} not pushed`}>
+        {!!pendingChanges && pendingChanges.total > 0 && (
+          <div className="flex items-center gap-1 text-xs text-muted-foreground no-drag" title={pendingChangesTooltip(pendingChanges)}>
             <CloudUpload className="h-4 w-4" />
             <Badge variant="secondary" className="h-5 min-w-5 px-1.5 text-[10px]">
-              {unsyncedPostCount}
-            </Badge>
-          </div>
-        )}
-        {!!pendingMediaCount && pendingMediaCount > 0 && (
-          <div className="flex items-center gap-1 text-xs text-muted-foreground no-drag" title={`${pendingMediaCount} image${pendingMediaCount > 1 ? 's' : ''} pending upload`}>
-            <ImageIcon className="h-4 w-4" />
-            <Badge variant="secondary" className="h-5 min-w-5 px-1.5 text-[10px]">
-              {pendingMediaCount}
+              {pendingChanges.total}
             </Badge>
           </div>
         )}

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import type { PendingChanges } from '@shared/types'
 import type { ToastFn } from '@renderer/lib/types'
 
 interface UseSyncStatusParams {
@@ -7,11 +8,12 @@ interface UseSyncStatusParams {
   refreshPosts: () => Promise<void>
 }
 
+const NO_PENDING_CHANGES: PendingChanges = { posts: 0, scratchpads: 0, media: 0, total: 0 }
+
 interface UseSyncStatusReturn {
   syncing: boolean
   setSyncing: (v: boolean) => void
-  pendingMediaCount: number
-  unsyncedPostCount: number
+  pendingChanges: PendingChanges
   handleSync: () => Promise<void>
   refreshCounts: () => Promise<void>
   massPushPaused: { count: number } | null
@@ -25,49 +27,29 @@ export function useSyncStatus({
   refreshPosts
 }: UseSyncStatusParams): UseSyncStatusReturn {
   const [syncing, setSyncing] = useState(false)
-  const [pendingMediaCount, setPendingMediaCount] = useState(0)
-  const [unsyncedPostCount, setUnsyncedPostCount] = useState(0)
+  const [pendingChanges, setPendingChanges] = useState<PendingChanges>(NO_PENDING_CHANGES)
   const [massPushPaused, setMassPushPaused] = useState<{ count: number } | null>(null)
 
-  const refreshPendingMedia = useCallback(async () => {
-    if (!selectedSiteId) {
-      setPendingMediaCount(0)
-      return
-    }
-    try {
-      const queue = await window.electronAPI.getMediaQueue(selectedSiteId)
-      setPendingMediaCount(queue.length)
-    } catch {
-      setPendingMediaCount(0)
-    }
-  }, [selectedSiteId])
-
-  const refreshUnsyncedCount = useCallback(async () => {
-    if (!selectedSiteId) {
-      setUnsyncedPostCount(0)
-      return
-    }
-    try {
-      const count = await window.electronAPI.getUnsyncedPostCount(selectedSiteId)
-      setUnsyncedPostCount(count)
-    } catch {
-      setUnsyncedPostCount(0)
-    }
-  }, [selectedSiteId])
-
   const refreshCounts = useCallback(async () => {
-    await Promise.all([refreshPendingMedia(), refreshUnsyncedCount()])
-  }, [refreshPendingMedia, refreshUnsyncedCount])
+    if (!selectedSiteId) {
+      setPendingChanges(NO_PENDING_CHANGES)
+      return
+    }
+    try {
+      const changes = await window.electronAPI.getPendingChanges(selectedSiteId)
+      setPendingChanges(changes)
+    } catch {
+      setPendingChanges(NO_PENDING_CHANGES)
+    }
+  }, [selectedSiteId])
 
   useEffect(() => {
-    refreshPendingMedia()
-    refreshUnsyncedCount()
+    refreshCounts()
     const cleanup = window.electronAPI.onCountsChanged(() => {
-      refreshPendingMedia()
-      refreshUnsyncedCount()
+      refreshCounts()
     })
     return cleanup
-  }, [refreshPendingMedia, refreshUnsyncedCount])
+  }, [refreshCounts])
 
   const doSync = useCallback(async (options?: { force?: boolean }): Promise<void> => {
     if (!selectedSiteId) return
@@ -99,6 +81,14 @@ export function useSyncStatus({
             description: allErrors[0],
             variant: 'destructive'
           })
+        } else if (result.conflicts > 0) {
+          // Conflicted posts are never auto-pushed — without this the sync
+          // would claim "Everything up to date" while the badge still counts them
+          toast({
+            title: 'Sync complete — conflicts need review',
+            description: `${result.conflicts} post${result.conflicts > 1 ? 's' : ''} changed both here and on WordPress. Open ${result.conflicts > 1 ? 'them' : 'it'} to choose which version to keep.`,
+            variant: 'warning'
+          })
         } else {
           toast({
             title: 'Sync complete',
@@ -122,10 +112,10 @@ export function useSyncStatus({
       })
     } finally {
       setSyncing(false)
-      refreshUnsyncedCount()
+      refreshCounts()
       refreshPosts()
     }
-  }, [selectedSiteId, toast, refreshUnsyncedCount, refreshPosts])
+  }, [selectedSiteId, toast, refreshCounts, refreshPosts])
 
   const handleSync = useCallback(() => doSync(), [doSync])
 
@@ -139,8 +129,7 @@ export function useSyncStatus({
   return {
     syncing,
     setSyncing,
-    pendingMediaCount,
-    unsyncedPostCount,
+    pendingChanges,
     handleSync,
     refreshCounts,
     massPushPaused,

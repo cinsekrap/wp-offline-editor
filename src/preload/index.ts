@@ -21,8 +21,7 @@ const api: ElectronAPI = {
   pushPost: (postId) => ipcRenderer.invoke('posts:push', postId),
   resolveConflict: (postId, strategy) =>
     ipcRenderer.invoke('posts:resolve-conflict', postId, strategy),
-  getUnsyncedPostCount: (siteId) => ipcRenderer.invoke('posts:unsynced-count', siteId),
-  getTotalUnsyncedCount: () => ipcRenderer.invoke('posts:total-unsynced-count'),
+  getPendingChanges: (siteId) => ipcRenderer.invoke('site:pending-changes', siteId),
   syncSite: (siteId, options) => ipcRenderer.invoke('site:sync', siteId, options),
 
   // ACF Schema

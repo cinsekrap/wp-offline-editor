@@ -1,6 +1,6 @@
 import { ReactNode } from 'react'
 import { Toolbar } from './Toolbar'
-import type { Site } from '@shared/types'
+import type { PendingChanges, Site } from '@shared/types'
 
 interface AppShellProps {
   children: ReactNode
@@ -14,9 +14,8 @@ interface AppShellProps {
   siteName?: string
   onSiteNameClick?: () => void
   activeView?: string
-  pendingMediaCount?: number
   online?: boolean
-  unsyncedPostCount?: number
+  pendingChanges?: PendingChanges
   sites?: Site[]
   selectedSiteId?: string | null
   onSwitchSite?: (site: Site) => void
@@ -34,9 +33,8 @@ export function AppShell({
   siteName,
   onSiteNameClick,
   activeView,
-  pendingMediaCount,
   online,
-  unsyncedPostCount,
+  pendingChanges,
   sites,
   selectedSiteId,
   onSwitchSite
@@ -54,9 +52,8 @@ export function AppShell({
         siteName={siteName}
         onSiteNameClick={onSiteNameClick}
         activeView={activeView}
-        pendingMediaCount={pendingMediaCount}
         online={online}
-        unsyncedPostCount={unsyncedPostCount}
+        pendingChanges={pendingChanges}
         sites={sites}
         selectedSiteId={selectedSiteId}
         onSwitchSite={onSwitchSite}

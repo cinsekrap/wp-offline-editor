@@ -7,7 +7,7 @@ import { getAllSites, getSiteById, addSite, updateSite, deleteSite, clearSiteDat
 import { testWpConnection, fetchAuthors } from './wp-client'
 import { getCredential } from './credentials'
 import { pullPostsForSite, getAllPostsForSite, getPostById, createPost, updatePost, bulkUpdateStatus, softDeletePost, bulkSoftDeletePosts } from './post-service'
-import { pushPostToWp, resolveConflict, getUnsyncedPostCount, getTotalUnsyncedCount, syncSite } from './sync-service'
+import { pushPostToWp, resolveConflict, getPendingChanges, syncSite } from './sync-service'
 import { pullAcfSchemaForSite, getAcfSchemasForSite } from './acf-service'
 import {
   saveMediaLocally,
@@ -152,12 +152,8 @@ export function registerIpcHandlers(): void {
     }
   )
 
-  ipcMain.handle('posts:unsynced-count', (_event, siteId: unknown) => {
-    return getUnsyncedPostCount(uuidSchema.parse(siteId))
-  })
-
-  ipcMain.handle('posts:total-unsynced-count', () => {
-    return getTotalUnsyncedCount()
+  ipcMain.handle('site:pending-changes', (_event, siteId: unknown) => {
+    return getPendingChanges(uuidSchema.parse(siteId))
   })
 
   ipcMain.handle('site:sync', async (_event, siteId: unknown, options?: unknown) => {
@@ -258,28 +254,33 @@ export function registerIpcHandlers(): void {
       if (buffer.byteLength > MAX_MEDIA_SIZE) {
         throw new Error(`File too large (${Math.round(buffer.byteLength / 1024 / 1024)}MB). Maximum is 50MB.`)
       }
-      return uploadToMediaLibrary(
+      const item = await uploadToMediaLibrary(
         uuidSchema.parse(siteId),
         z.string().min(1).parse(filename),
         Buffer.from(buffer)
       )
+      notifyCountsChanged()
+      return item
     }
   )
 
   ipcMain.handle(
     'media-library:update-alt',
     async (_event, siteId: unknown, id: unknown, altText: unknown) => {
-      return updateMediaLibraryAltText(
+      const item = await updateMediaLibraryAltText(
         uuidSchema.parse(siteId),
         // Negative ids are staged (not yet uploaded) items
         z.number().int().parse(id),
         z.string().max(2000).parse(altText)
       )
+      notifyCountsChanged()
+      return item
     }
   )
 
   ipcMain.handle('media-library:delete-pending', (_event, siteId: unknown, id: unknown) => {
     deletePendingMediaLibraryItem(uuidSchema.parse(siteId), z.number().int().negative().parse(id))
+    notifyCountsChanged()
   })
 
   // ── Media ─────────────────────────────────────────────────────────────────
@@ -424,7 +425,9 @@ export function registerIpcHandlers(): void {
   })
 
   ipcMain.handle('scratchpads:create', (_event, input: unknown) => {
-    return createScratchpad(ScratchpadInputSchema.parse(input))
+    const scratchpad = createScratchpad(ScratchpadInputSchema.parse(input))
+    notifyCountsChanged()
+    return scratchpad
   })
 
   ipcMain.handle('scratchpads:update', (_event, update: unknown) => {
@@ -434,11 +437,13 @@ export function registerIpcHandlers(): void {
     for (const win of BrowserWindow.getAllWindows()) {
       win.webContents.send('scratchpad-changed', parsed.id)
     }
+    notifyCountsChanged()
     return result
   })
 
   ipcMain.handle('scratchpads:delete', (_event, id: unknown) => {
     deleteScratchpad(uuidSchema.parse(id))
+    notifyCountsChanged()
   })
 
   ipcMain.handle('scratchpads:link', (_event, postId: unknown, scratchpadId: unknown) => {

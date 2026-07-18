@@ -344,9 +344,8 @@ function App(): JSX.Element {
           notSettings && nav.currentView !== 'dashboard' ? nav.backToDashboard : undefined
         }
         activeView={notSettings ? nav.currentView : undefined}
-        pendingMediaCount={notSettings ? sync.pendingMediaCount : 0}
         online={effectiveOnline}
-        unsyncedPostCount={notSettings ? sync.unsyncedPostCount : 0}
+        pendingChanges={notSettings ? sync.pendingChanges : undefined}
         sites={sites}
         selectedSiteId={selectedSiteId}
         onSwitchSite={notSettings ? nav.handleSelectSite : undefined}

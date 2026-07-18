@@ -22,7 +22,8 @@ import {
   getMediaLibraryForSite,
   pullMediaLibraryForSite,
   uploadToMediaLibrary,
-  updateMediaLibraryAltText
+  updateMediaLibraryAltText,
+  deletePendingMediaLibraryItem
 } from './media-library-service'
 import { getTaxonomyTerms, createPendingTerm } from './taxonomy-service'
 import { getShortcodesForSite } from './shortcode-service'
@@ -270,11 +271,16 @@ export function registerIpcHandlers(): void {
     async (_event, siteId: unknown, id: unknown, altText: unknown) => {
       return updateMediaLibraryAltText(
         uuidSchema.parse(siteId),
-        z.number().int().positive().parse(id),
+        // Negative ids are staged (not yet uploaded) items
+        z.number().int().parse(id),
         z.string().max(2000).parse(altText)
       )
     }
   )
+
+  ipcMain.handle('media-library:delete-pending', (_event, siteId: unknown, id: unknown) => {
+    deletePendingMediaLibraryItem(uuidSchema.parse(siteId), z.number().int().negative().parse(id))
+  })
 
   // ── Media ─────────────────────────────────────────────────────────────────
 

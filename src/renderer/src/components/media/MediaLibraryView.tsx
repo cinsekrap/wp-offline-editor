@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Images, Upload, RefreshCw, Loader2, X, WifiOff } from 'lucide-react'
+import { Images, Upload, RefreshCw, Loader2, X, WifiOff, ArrowUp, Trash2 } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
 import { Input } from '@renderer/components/ui/input'
 import { Label } from '@renderer/components/ui/label'
@@ -121,32 +121,48 @@ export function MediaLibraryView({ siteId, online }: MediaLibraryViewProps): JSX
         }
       }
       setUploading(false)
+      // Reload for consistency (an online upload may have replaced a staged
+      // item with its real WP counterpart)
+      const data = await window.electronAPI.getMediaLibrary(siteId)
+      setItems(data)
       if (success > 0) {
         if (firstNewId !== null) setSelectedId(firstNewId)
+        const anyPending = firstNewId !== null && firstNewId < 0
         toast({
-          title: 'Upload complete',
-          description: `${success} file${success > 1 ? 's' : ''} added to the media library.`
+          title: anyPending ? 'Added to library' : 'Upload complete',
+          description: anyPending
+            ? `${success} file${success > 1 ? 's' : ''} saved locally — will upload on next sync.`
+            : `${success} file${success > 1 ? 's' : ''} added to the media library.`
         })
       }
     },
     [siteId, toast]
   )
 
+  const handleDeletePending = useCallback(async () => {
+    if (!selected || selected.id >= 0) return
+    await window.electronAPI.deletePendingMediaLibraryItem(siteId, selected.id)
+    setSelectedId(null)
+    const data = await window.electronAPI.getMediaLibrary(siteId)
+    setItems(data)
+    toast({ title: 'Removed', description: 'Staged file removed before upload.' })
+  }, [selected, siteId, toast])
+
   const handleSaveAlt = useCallback(async () => {
-    if (!selected || !online) return
-    const previous = selected.alt_text
+    if (!selected) return
     const next = altDraft
-    if (next === previous) return
+    if (next === selected.alt_text) return
     setSavingAlt(true)
-    // Optimistic update
-    setItems((prev) => prev.map((i) => (i.id === selected.id ? { ...i, alt_text: next } : i)))
     try {
-      await window.electronAPI.updateMediaLibraryAlt(siteId, selected.id, next)
-      toast({ title: 'Alt text saved' })
+      // Local-first: always saves; applies to WordPress now or on next sync
+      const updated = await window.electronAPI.updateMediaLibraryAlt(siteId, selected.id, next)
+      setItems((prev) => prev.map((i) => (i.id === selected.id ? updated : i)))
+      const queued = selected.id < 0 || updated.pending_alt_text != null
+      toast({
+        title: 'Alt text saved',
+        description: queued ? 'Will apply to WordPress on next sync.' : undefined
+      })
     } catch (err) {
-      // Reconcile on failure
-      setItems((prev) => prev.map((i) => (i.id === selected.id ? { ...i, alt_text: previous } : i)))
-      setAltDraft(previous)
       toast({
         title: 'Could not save alt text',
         description: err instanceof Error ? err.message : 'Unknown error.',
@@ -155,7 +171,7 @@ export function MediaLibraryView({ siteId, online }: MediaLibraryViewProps): JSX
     } finally {
       setSavingAlt(false)
     }
-  }, [selected, online, altDraft, siteId, toast])
+  }, [selected, altDraft, siteId, toast])
 
   const altDirty = !!selected && altDraft !== selected.alt_text
 
@@ -193,8 +209,8 @@ export function MediaLibraryView({ siteId, online }: MediaLibraryViewProps): JSX
             <Button
               size="sm"
               onClick={() => fileInputRef.current?.click()}
-              disabled={!online || uploading}
-              title={online ? 'Upload files to WordPress' : OFFLINE_TOOLTIP}
+              disabled={uploading}
+              title={online ? 'Upload files to WordPress' : 'Add files — they upload on next sync'}
             >
               {uploading ? (
                 <Loader2 className="h-4 w-4 mr-1 animate-spin" />
@@ -227,7 +243,7 @@ export function MediaLibraryView({ siteId, online }: MediaLibraryViewProps): JSX
               <p className="text-xs">
                 {online
                   ? 'Refresh to cache your WordPress library, or upload a new file.'
-                  : 'Connect to the internet to sync or upload media.'}
+                  : 'Add files now — they upload next time you sync.'}
               </p>
             </div>
           ) : (
@@ -249,6 +265,14 @@ export function MediaLibraryView({ siteId, online }: MediaLibraryViewProps): JSX
                     alt={item.alt_text || item.title}
                     className="w-full h-full object-cover"
                   />
+                  {item.id < 0 && (
+                    <span
+                      title="Awaiting sync"
+                      className="absolute top-1.5 right-1.5 h-4 w-4 rounded-full bg-blue-500 ring-2 ring-background flex items-center justify-center"
+                    >
+                      <ArrowUp className="h-2.5 w-2.5 text-white" strokeWidth={3.5} />
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
@@ -297,9 +321,19 @@ export function MediaLibraryView({ siteId, online }: MediaLibraryViewProps): JSX
                 </div>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Uploaded</p>
+                <p className="text-xs text-muted-foreground">
+                  {selected.id < 0 ? 'Added' : 'Uploaded'}
+                </p>
                 <p>{formatDate(selected.uploaded_at)}</p>
               </div>
+              {selected.id < 0 && (
+                <div className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400">
+                  <span className="h-3.5 w-3.5 rounded-full bg-blue-500 flex items-center justify-center shrink-0">
+                    <ArrowUp className="h-2.5 w-2.5 text-white" strokeWidth={3.5} />
+                  </span>
+                  Awaiting sync — uploads to WordPress next time you sync
+                </div>
+              )}
             </div>
 
             <div className="space-y-2 pt-2 border-t">
@@ -311,14 +345,13 @@ export function MediaLibraryView({ siteId, online }: MediaLibraryViewProps): JSX
                 value={altDraft}
                 onChange={(e) => setAltDraft(e.target.value)}
                 placeholder="Describe this image…"
-                disabled={!online || savingAlt}
+                disabled={savingAlt}
               />
               <Button
                 size="sm"
                 className="w-full"
                 onClick={handleSaveAlt}
-                disabled={!online || savingAlt || !altDirty}
-                title={online ? 'Save alt text to WordPress' : OFFLINE_TOOLTIP}
+                disabled={savingAlt || !altDirty}
               >
                 {savingAlt ? (
                   <>
@@ -329,12 +362,26 @@ export function MediaLibraryView({ siteId, online }: MediaLibraryViewProps): JSX
                   'Save alt text'
                 )}
               </Button>
-              {!online && (
-                <p className="text-xs text-muted-foreground flex items-center gap-1">
-                  <WifiOff className="h-3 w-3" /> Editing alt text requires a connection.
+              {selected.pending_alt_text != null && selected.id >= 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Alt text change queued — applies on next sync.
                 </p>
               )}
             </div>
+
+            {selected.id < 0 && (
+              <div className="pt-2 border-t">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full text-destructive hover:text-destructive"
+                  onClick={handleDeletePending}
+                >
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  Remove before upload
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       )}

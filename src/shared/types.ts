@@ -121,6 +121,8 @@ export interface MediaLibraryItem {
   width: number | null
   height: number | null
   uploaded_at: string
+  /** Set when an offline alt-text edit is queued for the next sync. */
+  pending_alt_text?: string | null
 }
 
 export interface MediaLibraryPullResult {
@@ -458,6 +460,7 @@ export interface ElectronAPI {
     buffer: ArrayBuffer
   ): Promise<MediaLibraryItem>
   updateMediaLibraryAlt(siteId: string, id: number, altText: string): Promise<MediaLibraryItem>
+  deletePendingMediaLibraryItem(siteId: string, id: number): Promise<void>
 
   // Media
   saveMediaLocal(

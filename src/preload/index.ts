@@ -41,6 +41,8 @@ const api: ElectronAPI = {
     ipcRenderer.invoke('media-library:upload', siteId, filename, buffer),
   updateMediaLibraryAlt: (siteId, id, altText) =>
     ipcRenderer.invoke('media-library:update-alt', siteId, id, altText),
+  deletePendingMediaLibraryItem: (siteId, id) =>
+    ipcRenderer.invoke('media-library:delete-pending', siteId, id),
 
   // Media
   saveMediaLocal: (siteId, postLocalId, filename, buffer) =>

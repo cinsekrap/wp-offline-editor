@@ -279,6 +279,26 @@ const migrations: Array<(db: Database.Database) => void> = [
   // sites once (the off state was the old default, not a user choice).
   (db) => {
     db.exec('UPDATE sites SET auto_sync = 1')
+  },
+
+  // ── v6: offline term creation (pending_terms) ──
+  // Tracks tags/categories the user created while offline. Each row also has a
+  // matching taxonomy_terms row with the same NEGATIVE id so every existing
+  // display path (card labels, PostMeta chips, template resolution) works
+  // unchanged. Negative ids are allocated per-site as min(existing)-1 so they
+  // can never collide with real WP term ids (which are positive).
+  (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS pending_terms (
+        id INTEGER PRIMARY KEY,
+        site_id TEXT NOT NULL,
+        taxonomy TEXT NOT NULL,
+        name TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS idx_pending_terms_site_id ON pending_terms(site_id);
+    `)
   }
 ]
 

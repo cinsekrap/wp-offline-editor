@@ -114,6 +114,12 @@ export const SyncOptionsSchema = z.object({
   force: z.boolean().optional()
 }).optional()
 
+export const CreatePendingTermSchema = z.object({
+  siteId: uuidSchema,
+  taxonomy: TaxonomySchema,
+  name: z.string().min(1)
+})
+
 export const AppSettingsSchema = z.object({
   theme: z.enum(['light', 'dark', 'system']).optional(),
   editorFontSize: z.number().int().min(8).max(32).optional(),

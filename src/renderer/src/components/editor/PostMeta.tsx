@@ -8,7 +8,7 @@ import { Textarea } from '@renderer/components/ui/textarea'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
 import { Checkbox } from '@renderer/components/ui/checkbox'
 import { Badge } from '@renderer/components/ui/badge'
-import { CalendarIcon, ImageIcon, X, Upload, Loader2, Lock, Globe, KeyRound, AlertTriangle } from 'lucide-react'
+import { CalendarIcon, ImageIcon, X, Upload, Loader2, Lock, Globe, KeyRound, AlertTriangle, Plus } from 'lucide-react'
 import { format } from 'date-fns'
 import { cn } from '@renderer/lib/utils'
 import { STATUS_COLORS, STATUS_LABELS } from '@renderer/lib/post-status'
@@ -158,6 +158,12 @@ export function PostMeta({
     window.electronAPI.getTaxonomyTerms(siteId, 'category').then(setCategoryTerms).catch(() => {})
     window.electronAPI.getTaxonomyTerms(siteId, 'post_tag').then(setTagTerms).catch(() => {})
   }, [siteId])
+
+  // Add a newly-created (pending) term to the local cache so its chip renders
+  const handleTermCreated = useCallback((term: TaxonomyTerm) => {
+    const setter = term.taxonomy === 'category' ? setCategoryTerms : setTagTerms
+    setter((prev) => (prev.some((t) => t.id === term.id) ? prev : [...prev, term]))
+  }, [])
 
   // Find the media item for the current featured image
   const featuredMedia = featuredImage
@@ -578,24 +584,24 @@ export function PostMeta({
       </div>
 
       {/* Categories */}
-      {categoryTerms.length > 0 && (
-        <CategoriesSection
-          terms={categoryTerms}
-          selected={categories}
-          onChange={onCategoriesChange}
-        />
-      )}
+      <CategoriesSection
+        terms={categoryTerms}
+        selected={categories}
+        onChange={onCategoriesChange}
+        siteId={siteId}
+        onTermCreated={handleTermCreated}
+      />
 
       {/* Tags */}
-      {tagTerms.length > 0 && (
-        <TagsSection
-          terms={tagTerms}
-          selected={tags}
-          onChange={onTagsChange}
-          tagInput={tagInput}
-          onTagInputChange={setTagInput}
-        />
-      )}
+      <TagsSection
+        terms={tagTerms}
+        selected={tags}
+        onChange={onTagsChange}
+        tagInput={tagInput}
+        onTagInputChange={setTagInput}
+        siteId={siteId}
+        onTermCreated={handleTermCreated}
+      />
     </div>
     </ScrollArea>
   )
@@ -606,12 +612,33 @@ export function PostMeta({
 function CategoriesSection({
   terms,
   selected,
-  onChange
+  onChange,
+  siteId,
+  onTermCreated
 }: {
   terms: TaxonomyTerm[]
   selected: number[]
   onChange: (ids: number[]) => void
+  siteId: string
+  onTermCreated: (term: TaxonomyTerm) => void
 }): JSX.Element {
+  const [adding, setAdding] = useState(false)
+  const [newName, setNewName] = useState('')
+
+  const createCategory = useCallback(async () => {
+    const name = newName.trim()
+    if (!name) return
+    try {
+      const term = await window.electronAPI.createPendingTerm(siteId, 'category', name)
+      onTermCreated(term)
+      onChange(selected.includes(term.id) ? selected : [...selected, term.id])
+    } catch {
+      // Ignore — creation guards against duplicates server-side
+    }
+    setNewName('')
+    setAdding(false)
+  }, [newName, siteId, selected, onChange, onTermCreated])
+
   // Build parent→children map for hierarchy
   const { roots, childrenMap } = useMemo(() => {
     const cMap = new Map<number, TaxonomyTerm[]>()
@@ -648,7 +675,12 @@ function CategoriesSection({
           onCheckedChange={() => toggle(term.id)}
           className="h-3.5 w-3.5"
         />
-        <span className="text-sm truncate">{term.name}</span>
+        <span
+          className={cn('text-sm truncate', term.id < 0 && 'italic text-muted-foreground')}
+          title={term.id < 0 ? 'Will be created on next sync' : undefined}
+        >
+          {term.name}
+        </span>
       </label>
       {childrenMap.get(term.id)?.map((child) => renderTerm(child, depth + 1))}
     </div>
@@ -659,9 +691,42 @@ function CategoriesSection({
       <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
         Categories
       </Label>
-      <div className="max-h-48 overflow-y-auto border rounded-md p-1">
-        {roots.map((t) => renderTerm(t, 0))}
-      </div>
+      {terms.length > 0 && (
+        <div className="max-h-48 overflow-y-auto border rounded-md p-1">
+          {roots.map((t) => renderTerm(t, 0))}
+        </div>
+      )}
+      {adding ? (
+        <div className="flex gap-1">
+          <Input
+            autoFocus
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                void createCategory()
+              } else if (e.key === 'Escape') {
+                setAdding(false)
+                setNewName('')
+              }
+            }}
+            placeholder="New category name"
+            className="h-8 text-sm"
+          />
+          <Button size="sm" className="h-8 px-2 text-xs" onClick={() => void createCategory()}>
+            Add
+          </Button>
+        </div>
+      ) : (
+        <button
+          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          onClick={() => setAdding(true)}
+        >
+          <Plus className="h-3.5 w-3.5" />
+          Add category
+        </button>
+      )}
     </div>
   )
 }
@@ -673,13 +738,17 @@ function TagsSection({
   selected,
   onChange,
   tagInput,
-  onTagInputChange
+  onTagInputChange,
+  siteId,
+  onTermCreated
 }: {
   terms: TaxonomyTerm[]
   selected: number[]
   onChange: (ids: number[]) => void
   tagInput: string
   onTagInputChange: (v: string) => void
+  siteId: string
+  onTermCreated: (term: TaxonomyTerm) => void
 }): JSX.Element {
   const [showDropdown, setShowDropdown] = useState(false)
 
@@ -693,6 +762,12 @@ function TagsSection({
       .slice(0, 8)
   }, [tagInput, terms, selected])
 
+  // Whether the typed text exactly matches an existing term (case-insensitive)
+  const hasExactMatch = useMemo(() => {
+    const q = tagInput.trim().toLowerCase()
+    return q.length > 0 && terms.some((t) => t.name.toLowerCase() === q)
+  }, [tagInput, terms])
+
   const addTag = useCallback(
     (id: number) => {
       if (!selected.includes(id)) {
@@ -704,6 +779,20 @@ function TagsSection({
     [selected, onChange, onTagInputChange]
   )
 
+  const createTag = useCallback(async () => {
+    const name = tagInput.trim()
+    if (!name) return
+    try {
+      const term = await window.electronAPI.createPendingTerm(siteId, 'post_tag', name)
+      onTermCreated(term)
+      if (!selected.includes(term.id)) onChange([...selected, term.id])
+    } catch {
+      // Ignore — creation guards against duplicates server-side
+    }
+    onTagInputChange('')
+    setShowDropdown(false)
+  }, [tagInput, siteId, selected, onChange, onTermCreated, onTagInputChange])
+
   const removeTag = useCallback(
     (id: number) => {
       onChange(selected.filter((x) => x !== id))
@@ -713,12 +802,15 @@ function TagsSection({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === 'Enter' && filtered.length > 0) {
-        e.preventDefault()
+      if (e.key !== 'Enter') return
+      e.preventDefault()
+      if (filtered.length > 0) {
         addTag(filtered[0].id)
+      } else if (tagInput.trim() && !hasExactMatch) {
+        void createTag()
       }
     },
-    [filtered, addTag]
+    [filtered, addTag, tagInput, hasExactMatch, createTag]
   )
 
   return (
@@ -731,8 +823,17 @@ function TagsSection({
           {selected.map((id) => {
             const term = termMap.get(id)
             if (!term) return null
+            const pending = term.id < 0
             return (
-              <Badge key={id} variant="secondary" className="text-xs pl-2 pr-1 py-0 h-6 gap-1">
+              <Badge
+                key={id}
+                variant="secondary"
+                className={cn(
+                  'text-xs pl-2 pr-1 py-0 h-6 gap-1',
+                  pending && 'border border-dashed border-muted-foreground/50 bg-transparent italic'
+                )}
+                title={pending ? 'Will be created on next sync' : undefined}
+              >
                 {term.name}
                 <button
                   className="ml-0.5 hover:text-destructive"
@@ -755,10 +856,10 @@ function TagsSection({
           onFocus={() => setShowDropdown(true)}
           onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
           onKeyDown={handleKeyDown}
-          placeholder="Search tags..."
+          placeholder="Search or add tags..."
           className="h-8 text-sm"
         />
-        {showDropdown && filtered.length > 0 && (
+        {showDropdown && (filtered.length > 0 || (tagInput.trim() && !hasExactMatch)) && (
           <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-md">
             {filtered.map((t) => (
               <button
@@ -770,6 +871,16 @@ function TagsSection({
                 {t.name}
               </button>
             ))}
+            {tagInput.trim() && !hasExactMatch && (
+              <button
+                className="flex items-center gap-1.5 w-full text-left px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground border-t"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => void createTag()}
+              >
+                <Plus className="h-3.5 w-3.5 shrink-0" />
+                Create &ldquo;{tagInput.trim()}&rdquo;
+              </button>
+            )}
           </div>
         )}
       </div>

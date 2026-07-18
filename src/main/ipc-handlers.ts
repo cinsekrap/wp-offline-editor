@@ -19,7 +19,7 @@ import {
   replaceMediaFile
 } from './media-service'
 import { getMediaLibraryForSite } from './media-library-service'
-import { getTaxonomyTerms } from './taxonomy-service'
+import { getTaxonomyTerms, createPendingTerm } from './taxonomy-service'
 import { getShortcodesForSite } from './shortcode-service'
 import { getSettings, updateSettings } from './settings-service'
 import { htmlToMarkdown, markdownToHtml } from './markdown-service'
@@ -47,6 +47,7 @@ import {
   PostUpdateSchema,
   ConflictStrategySchema,
   TaxonomySchema,
+  CreatePendingTermSchema,
   AppSettingsSchema,
   TemplateInputSchema,
   TemplateUpdateSchema,
@@ -219,6 +220,11 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('taxonomy:get-terms', (_event, siteId: unknown, taxonomy: unknown) => {
     return getTaxonomyTerms(uuidSchema.parse(siteId), TaxonomySchema.parse(taxonomy))
+  })
+
+  ipcMain.handle('taxonomy:create-pending', (_event, input: unknown) => {
+    const { siteId, taxonomy, name } = CreatePendingTermSchema.parse(input)
+    return createPendingTerm(siteId, taxonomy, name)
   })
 
   // ── Media Library ──────────────────────────────────────────────────────────

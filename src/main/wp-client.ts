@@ -366,6 +366,52 @@ export async function fetchTaxonomyTerms(
   return allTerms
 }
 
+/**
+ * Create a category or tag on WordPress. Returns the new term's id.
+ *
+ * WP responds HTTP 400 with code `term_exists` (and `data.term_id`) when a term
+ * with the same name already exists — we treat that as success and return the
+ * existing id, so offline-created terms converge on the canonical WP term.
+ */
+export async function createTerm(
+  url: string,
+  username: string,
+  password: string,
+  taxonomy: 'categories' | 'tags',
+  name: string
+): Promise<{ id: number }> {
+  const base = apiBase(url)
+  const headers = {
+    ...makeAuthHeaders(username, password),
+    'Content-Type': 'application/json'
+  }
+
+  const res = await fetchWithTimeout(`${base}/wp/v2/${taxonomy}`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ name })
+  })
+
+  if (res.ok) {
+    const data = (await res.json()) as { id: number }
+    return { id: data.id }
+  }
+
+  // term_exists → recover the existing term id from the error payload
+  if (res.status === 400) {
+    const err = (await res.json().catch(() => null)) as
+      | { code?: string; data?: { term_id?: number } }
+      | null
+    if (err?.code === 'term_exists' && typeof err.data?.term_id === 'number') {
+      return { id: err.data.term_id }
+    }
+    throw new Error(`Failed to create ${taxonomy} term: ${err?.code ?? 'HTTP 400'}`)
+  }
+
+  const text = await res.text().catch(() => '')
+  throw new Error(`Failed to create ${taxonomy} term: HTTP ${res.status} ${text}`)
+}
+
 // ── ACF field group fetching (via companion plugin wpoe/v1) ─────────────
 
 export async function fetchAcfFieldGroups(

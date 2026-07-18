@@ -434,6 +434,11 @@ export interface ElectronAPI {
 
   // Taxonomy
   getTaxonomyTerms(siteId: string, taxonomy: 'category' | 'post_tag'): Promise<TaxonomyTerm[]>
+  createPendingTerm(
+    siteId: string,
+    taxonomy: 'category' | 'post_tag',
+    name: string
+  ): Promise<TaxonomyTerm>
 
   // Media Library
   getMediaLibrary(siteId: string): Promise<MediaLibraryItem[]>

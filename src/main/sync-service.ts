@@ -18,7 +18,11 @@ import { pullAcfSchemaForSite } from './acf-service'
 import { pullMediaLibraryForSite } from './media-library-service'
 import { pullTaxonomyTerms } from './taxonomy-service'
 import { getScratchpadsForSite, getScratchpadById } from './scratchpad-service'
+import { refreshSiteCss, getSiteCssAgeMs } from './site-css-service'
 import type { PushResult, SyncResult } from '@shared/types'
+
+/** Re-fetch cached preview CSS at most once per day. */
+const SITE_CSS_MAX_AGE_MS = 24 * 60 * 60 * 1000
 
 /**
  * Rewrite a JSON array of term ids, replacing any negative (pending) id with its
@@ -611,6 +615,14 @@ async function doSyncSite(siteId: string, options?: { force?: boolean }): Promis
     } catch (err) {
       console.warn('[sync] Failed to refresh site icon:', err instanceof Error ? err.message : err)
     }
+  }
+
+  // Refresh cached preview CSS in the background if missing or stale (>24h).
+  // Never fatal — offline sites, unreachable homepages, etc. must not fail sync.
+  if (site && getSiteCssAgeMs(siteId) > SITE_CSS_MAX_AGE_MS) {
+    refreshSiteCss(siteId, site.url).catch((err) => {
+      console.warn('[sync] Failed to refresh site CSS:', err instanceof Error ? err.message : err)
+    })
   }
 
   // Check companion plugin version

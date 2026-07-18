@@ -9,7 +9,8 @@ import {
   AlertTriangle,
   Trash2,
   Maximize2,
-  Clock
+  Clock,
+  Eye
 } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
 import { Input } from '@renderer/components/ui/input'
@@ -26,6 +27,7 @@ import { ImageCropDialog } from './ImageCropDialog'
 import { ImageContextMenu } from './ImageContextMenu'
 import { MediaQueuePopover } from './MediaQueuePopover'
 import { PostActionsMenu } from './PostActionsMenu'
+import { PreviewDialog } from './PreviewDialog'
 import { useAutoSave, type SaveStatus } from '@renderer/hooks/useAutoSave'
 import { useMediaQueue } from '@renderer/hooks/useMediaQueue'
 import { useAcfSchema } from '@renderer/hooks/useAcfSchema'
@@ -102,6 +104,7 @@ export function PostEditor({
   const [duplicateToOpen, setDuplicateToOpen] = useState(false)
   const [duplicating, setDuplicating] = useState(false)
   const [focusMode, setFocusMode] = useState(false)
+  const [previewOpen, setPreviewOpen] = useState(false)
   const [cropTarget, setCropTarget] = useState<{ mediaId: string; src: string } | null>(null)
   const [imageMenu, setImageMenu] = useState<{
     mediaId: string
@@ -552,6 +555,16 @@ export function PostEditor({
             variant="ghost"
             size="icon"
             className="h-8 w-8"
+            onClick={() => setPreviewOpen(true)}
+            title="Preview"
+          >
+            <Eye className="h-4 w-4" />
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
             onClick={() => setFocusMode(true)}
             title="Focus mode (Cmd+Shift+F)"
           >
@@ -729,6 +742,14 @@ export function PostEditor({
           onClose={() => setCropTarget(null)}
         />
       )}
+
+      <PreviewDialog
+        open={previewOpen}
+        onOpenChange={setPreviewOpen}
+        siteId={siteId}
+        title={title}
+        contentHtml={content}
+      />
     </div>
   )
 }

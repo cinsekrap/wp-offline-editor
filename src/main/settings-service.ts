@@ -8,7 +8,8 @@ const defaults: AppSettings = {
   editorFontSize: 16,
   forceOffline: false,
   autoSyncInterval: 5,
-  writingChartMode: 'daily'
+  writingChartMode: 'daily',
+  autoDownloadUpdates: false
 }
 
 const store = new Store<AppSettings>({ defaults })
@@ -19,7 +20,8 @@ export function getSettings(): AppSettings {
     editorFontSize: store.get('editorFontSize'),
     forceOffline: store.get('forceOffline'),
     autoSyncInterval: store.get('autoSyncInterval'),
-    writingChartMode: store.get('writingChartMode')
+    writingChartMode: store.get('writingChartMode'),
+    autoDownloadUpdates: store.get('autoDownloadUpdates')
   }
 }
 
@@ -29,5 +31,6 @@ export function updateSettings(patch: Partial<AppSettings>): AppSettings {
   if (patch.forceOffline !== undefined) store.set('forceOffline', patch.forceOffline)
   if (patch.autoSyncInterval !== undefined) store.set('autoSyncInterval', patch.autoSyncInterval)
   if (patch.writingChartMode !== undefined) store.set('writingChartMode', patch.writingChartMode)
+  if (patch.autoDownloadUpdates !== undefined) store.set('autoDownloadUpdates', patch.autoDownloadUpdates)
   return getSettings()
 }

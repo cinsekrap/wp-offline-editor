@@ -1,5 +1,6 @@
 import { autoUpdater } from 'electron-updater'
 import { BrowserWindow } from 'electron'
+import { getSettings } from './settings-service'
 
 // Whether the current check was triggered automatically (piggybacked on a
 // sync) rather than by the user. Auto checks stay silent unless there's news.
@@ -8,7 +9,7 @@ let lastAutoCheck = 0
 const AUTO_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000 // at most every 6 hours
 
 export function initAutoUpdater(): void {
-  autoUpdater.autoDownload = false
+  autoUpdater.autoDownload = getSettings().autoDownloadUpdates
   autoUpdater.autoInstallOnAppQuit = true
 
   autoUpdater.on('checking-for-update', () => {
@@ -16,7 +17,13 @@ export function initAutoUpdater(): void {
   })
 
   autoUpdater.on('update-available', (info) => {
-    sendToAllWindows('updater:status', 'available', { version: info.version, auto: currentCheckIsAuto })
+    sendToAllWindows('updater:status', 'available', {
+      version: info.version,
+      auto: currentCheckIsAuto,
+      // When auto-download is on, the download is already starting — the
+      // renderer skips the "Download?" toast and waits for 'ready'
+      autoDownload: autoUpdater.autoDownload
+    })
   })
 
   autoUpdater.on('update-not-available', () => {
@@ -39,6 +46,10 @@ export function initAutoUpdater(): void {
 export function checkForUpdates(): void {
   currentCheckIsAuto = false
   autoUpdater.checkForUpdates()
+}
+
+export function setAutoDownloadUpdates(enabled: boolean): void {
+  autoUpdater.autoDownload = enabled
 }
 
 /**

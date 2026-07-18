@@ -172,7 +172,9 @@ function App(): JSX.Element {
   useEffect(() => {
     return window.electronAPI.onUpdaterEvent((status, data) => {
       const notified = updateNotifiedRef.current
-      if (status === 'available' && data?.auto) {
+      // With auto-download on, the download is already underway — stay quiet
+      // until it's ready
+      if (status === 'available' && data?.auto && !data?.autoDownload) {
         const version = (data?.version as string) ?? ''
         if (notified.availableVersion === version) return
         notified.availableVersion = version

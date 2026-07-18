@@ -119,5 +119,6 @@ export const AppSettingsSchema = z.object({
   editorFontSize: z.number().int().min(8).max(32).optional(),
   forceOffline: z.boolean().optional(),
   autoSyncInterval: z.number().int().min(0).optional(),
-  writingChartMode: z.enum(['daily', 'weekly']).optional()
+  writingChartMode: z.enum(['daily', 'weekly']).optional(),
+  autoDownloadUpdates: z.boolean().optional()
 })

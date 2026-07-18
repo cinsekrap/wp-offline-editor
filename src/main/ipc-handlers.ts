@@ -38,7 +38,7 @@ import { getRevisionsForPost, restoreRevision, captureRevisionForPost } from './
 import { getWritingStats } from './stats-service'
 import { clearAllData } from './database'
 import { exportData, readExportMetadata, importData } from './export-service'
-import { checkForUpdates, downloadUpdate, installUpdate, maybeAutoCheckForUpdates } from './updater'
+import { checkForUpdates, downloadUpdate, installUpdate, maybeAutoCheckForUpdates, setAutoDownloadUpdates } from './updater'
 import {
   uuidSchema,
   SiteInputSchema,
@@ -463,7 +463,12 @@ export function registerIpcHandlers(): void {
   })
 
   ipcMain.handle('settings:update', (_event, patch: unknown) => {
-    return updateSettings(AppSettingsSchema.parse(patch))
+    const parsed = AppSettingsSchema.parse(patch)
+    const updated = updateSettings(parsed)
+    if (parsed.autoDownloadUpdates !== undefined) {
+      setAutoDownloadUpdates(parsed.autoDownloadUpdates)
+    }
+    return updated
   })
 
   // ── App ──────────────────────────────────────────────────────────────────

@@ -9,7 +9,7 @@ import { ScrollArea } from '@renderer/components/ui/scroll-area'
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/components/ui/popover'
 import { cn } from '@renderer/lib/utils'
 import { FILTER_STATUSES } from '@renderer/lib/post-status'
-import { useCategoryNames, categoryLabel } from '@renderer/hooks/useCategoryNames'
+import { useCategoryNames, useTermNames, categoryLabel } from '@renderer/hooks/useCategoryNames'
 import { StatusPill } from './StatusPill'
 import type { Post, PostStatus, SearchResult } from '@shared/types'
 
@@ -77,7 +77,10 @@ export function PostList({
   onBulkDelete
 }: PostListProps): JSX.Element {
   const categoryNames = useCategoryNames(siteId)
+  const tagNames = useTermNames(siteId, 'post_tag')
   const [activeFilters, setActiveFilters] = useState<Set<PostStatus>>(new Set())
+  const [activeCategoryFilters, setActiveCategoryFilters] = useState<Set<number>>(new Set())
+  const [activeTagFilters, setActiveTagFilters] = useState<Set<number>>(new Set())
   const [activeAuthorFilters, setActiveAuthorFilters] = useState<Set<number>>(new Set())
   const [syncFilter, setSyncFilter] = useState<'all' | 'synced' | 'unsynced'>('all')
   const [sortBy, setSortBy] = useState<SortOption>('date')
@@ -169,6 +172,21 @@ export function PostList({
     }
   }, [initialFilter])
 
+  const usedTerms = useMemo(() => {
+    const catIds = new Set<number>()
+    const tagIds = new Set<number>()
+    for (const p of posts) {
+      for (const id of p.categories) catIds.add(id)
+      for (const id of p.tags) tagIds.add(id)
+    }
+    const toNamed = (ids: Set<number>, names: Map<number, string>) =>
+      [...ids]
+        .map((id) => ({ id, name: names.get(id) }))
+        .filter((t): t is { id: number; name: string } => !!t.name)
+        .sort((a, b) => a.name.localeCompare(b.name))
+    return { categories: toNamed(catIds, categoryNames), tags: toNamed(tagIds, tagNames) }
+  }, [posts, categoryNames, tagNames])
+
   const uniqueAuthors = useMemo(() => {
     const map = new Map<number, string>()
     for (const p of posts) {
@@ -205,6 +223,18 @@ export function PostList({
     })
   }
 
+  function toggleTermFilter(
+    setter: React.Dispatch<React.SetStateAction<Set<number>>>,
+    id: number
+  ): void {
+    setter((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
   const filteredAndSorted = useMemo(() => {
     let base = posts
     if (initialFilter === 'drafts') {
@@ -214,6 +244,12 @@ export function PostList({
     let result = activeFilters.size === 0 ? base : base.filter((p) => activeFilters.has(p.status))
     if (activeAuthorFilters.size > 0) {
       result = result.filter((p) => p.author_id != null && activeAuthorFilters.has(p.author_id))
+    }
+    if (activeCategoryFilters.size > 0) {
+      result = result.filter((p) => p.categories.some((id) => activeCategoryFilters.has(id)))
+    }
+    if (activeTagFilters.size > 0) {
+      result = result.filter((p) => p.tags.some((id) => activeTagFilters.has(id)))
     }
     if (syncFilter === 'synced') {
       result = result.filter((p) => p.synced)
@@ -237,7 +273,7 @@ export function PostList({
     })
 
     return result
-  }, [posts, activeFilters, activeAuthorFilters, syncFilter, sortBy, initialFilter])
+  }, [posts, activeFilters, activeAuthorFilters, activeCategoryFilters, activeTagFilters, syncFilter, sortBy, initialFilter])
 
   function getDisplayDate(post: Post): string {
     switch (sortBy) {
@@ -250,11 +286,18 @@ export function PostList({
     }
   }
 
-  const hasActiveFilters = activeFilters.size > 0 || activeAuthorFilters.size > 0 || syncFilter !== 'all'
+  const hasActiveFilters =
+    activeFilters.size > 0 ||
+    activeAuthorFilters.size > 0 ||
+    activeCategoryFilters.size > 0 ||
+    activeTagFilters.size > 0 ||
+    syncFilter !== 'all'
 
   function clearAllFilters(): void {
     setActiveFilters(new Set())
     setActiveAuthorFilters(new Set())
+    setActiveCategoryFilters(new Set())
+    setActiveTagFilters(new Set())
     setSyncFilter('all')
   }
 
@@ -342,7 +385,7 @@ export function PostList({
                 )}
               </Button>
             </PopoverTrigger>
-            <PopoverContent align="end" className="w-48 p-3">
+            <PopoverContent align="end" className="w-64 p-3">
               <p className="text-xs font-medium text-muted-foreground mb-2">Filter by status</p>
               <div className="flex flex-wrap gap-1.5">
                 {FILTER_STATUSES.map((f) => (
@@ -376,6 +419,48 @@ export function PostList({
                         )}
                       >
                         {a.name}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+              {usedTerms.categories.length > 0 && (
+                <>
+                  <p className="text-xs font-medium text-muted-foreground mb-2 mt-3">Category</p>
+                  <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">
+                    {usedTerms.categories.map((t) => (
+                      <button
+                        key={t.id}
+                        onClick={() => toggleTermFilter(setActiveCategoryFilters, t.id)}
+                        className={cn(
+                          'px-2.5 py-1 text-xs rounded-full border transition-colors',
+                          activeCategoryFilters.has(t.id)
+                            ? 'bg-foreground text-background border-foreground'
+                            : 'bg-background text-muted-foreground border-border hover:border-foreground/30'
+                        )}
+                      >
+                        {t.name}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+              {usedTerms.tags.length > 0 && (
+                <>
+                  <p className="text-xs font-medium text-muted-foreground mb-2 mt-3">Tag</p>
+                  <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">
+                    {usedTerms.tags.map((t) => (
+                      <button
+                        key={t.id}
+                        onClick={() => toggleTermFilter(setActiveTagFilters, t.id)}
+                        className={cn(
+                          'px-2.5 py-1 text-xs rounded-full border transition-colors',
+                          activeTagFilters.has(t.id)
+                            ? 'bg-foreground text-background border-foreground'
+                            : 'bg-background text-muted-foreground border-border hover:border-foreground/30'
+                        )}
+                      >
+                        #{t.name}
                       </button>
                     ))}
                   </div>
@@ -607,13 +692,22 @@ export function PostList({
                   >
                     {post.title || '(Untitled)'}
                   </p>
-                  <div className="mt-2">
+                  <div className="mt-2 flex items-center justify-between gap-2 min-w-0">
                     <StatusPill
                       status={post.status}
                       synced={post.synced}
                       conflict={post.conflict}
                       hasRemote={post.wp_id != null}
                     />
+                    {post.tags.length > 0 && (
+                      <span className="text-[11px] text-muted-foreground truncate text-right">
+                        {post.tags
+                          .map((id) => tagNames.get(id))
+                          .filter(Boolean)
+                          .map((n) => `#${n}`)
+                          .join(' ')}
+                      </span>
+                    )}
                   </div>
                 </button>
               )

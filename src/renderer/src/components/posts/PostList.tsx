@@ -433,10 +433,6 @@ export function PostList({
             </PopoverContent>
           </Popover>
 
-          <Button variant="outline" size="sm" onClick={onNewPost}>
-            <Plus className="h-4 w-4 mr-1.5" />
-            New post
-          </Button>
         </div>
       </div>
 
@@ -528,25 +524,30 @@ export function PostList({
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           </div>
-        ) : filteredAndSorted.length === 0 ? (
+        ) : filteredAndSorted.length === 0 && hasActiveFilters ? (
           <div className="text-center py-12 text-muted-foreground">
-            <p className="text-sm">
-              {hasActiveFilters ? 'No matching posts' : 'No posts yet'}
-            </p>
-            {!hasActiveFilters && (
-              <p className="text-xs mt-1">Create a new post or pull from WordPress.</p>
-            )}
-            {hasActiveFilters && (
-              <button
-                onClick={clearAllFilters}
-                className="text-xs mt-1 underline hover:text-foreground"
-              >
-                Clear filters
-              </button>
-            )}
+            <p className="text-sm">No matching posts</p>
+            <button
+              onClick={clearAllFilters}
+              className="text-xs mt-1 underline hover:text-foreground"
+            >
+              Clear filters
+            </button>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 px-6 py-4">
+            {/* Dummy "new post" card — mirrors the dashboard quick action */}
+            {!selectMode && (
+              <button
+                onClick={onNewPost}
+                className="border-2 border-dashed border-green-400/50 rounded-lg p-4 hover:border-green-500 hover:bg-green-50 dark:hover:bg-green-950/20 transition-colors cursor-pointer flex items-center justify-center gap-2"
+              >
+                <Plus className="h-5 w-5 text-green-600 dark:text-green-500" />
+                <span className="text-sm font-medium text-green-600 dark:text-green-500">
+                  New post
+                </span>
+              </button>
+            )}
             {filteredAndSorted.map((post) => {
               // Drafts and pending posts read as tentative; published/scheduled/private are "definite"
               const definite = post.status !== 'draft' && post.status !== 'pending'

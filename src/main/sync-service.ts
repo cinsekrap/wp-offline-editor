@@ -12,6 +12,7 @@ import { pushPost, deleteRemotePost, fetchSinglePost, fetchUserNames, fetchSiteI
 import { isPluginVersionMismatch, pluginMismatchMessage } from '@shared/version-utils'
 import { decodeHtmlEntities } from './html-utils'
 import { sanitizeHtml } from './sanitize'
+import { normalizeAcf } from './acf-utils'
 import { pullAcfSchemaForSite } from './acf-service'
 import { pullMediaLibraryForSite } from './media-library-service'
 import { pullTaxonomyTerms } from './taxonomy-service'
@@ -130,7 +131,7 @@ export async function pushPostToWp(postId: string): Promise<PushResult> {
   const storedContent = await downloadAndRewriteImages(post.site_id, postId, result.content, site.url)
   // Prefer the server-echoed ACF (post-filter), fall back to what we sent if the
   // response omitted it (older companion plugin / non-ACF site / partial echo).
-  const acfForStorage = result.acf ?? swappedAcf
+  const acfForStorage = normalizeAcf(result.acf ?? swappedAcf)
   const responseAcfJson: string | null = acfForStorage ? JSON.stringify(acfForStorage) : null
   const storedAcfJson = await rewriteAcfImageUrls(post.site_id, postId, responseAcfJson, site.url)
 
@@ -195,7 +196,8 @@ export async function resolveConflict(
 
   if (strategy === 'fork') {
     // Create a copy of the current local post as a new draft
-    const forkAcfJson = post.acf ? JSON.stringify(post.acf) : null
+    const forkAcf = normalizeAcf(post.acf)
+    const forkAcfJson = forkAcf ? JSON.stringify(forkAcf) : null
     const forkCategoriesJson = JSON.stringify(post.categories)
     const forkTagsJson = JSON.stringify(post.tags)
     db.prepare(`
@@ -226,7 +228,8 @@ export async function resolveConflict(
   const now = new Date().toISOString()
   const title = decodeHtmlEntities(wpPost.title.rendered)
   let content = sanitizeHtml(wpPost.content.rendered)
-  let acfJson = wpPost.acf ? JSON.stringify(wpPost.acf) : null
+  const theirAcf = normalizeAcf(wpPost.acf)
+  let acfJson = theirAcf ? JSON.stringify(theirAcf) : null
 
   // Download external images and rewrite to media:// protocol
   content = await downloadAndRewriteImages(post.site_id, postId, content, site.url)

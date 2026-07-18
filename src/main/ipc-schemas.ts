@@ -26,12 +26,19 @@ export const SiteUpdateSchema = z.object({
   wp_author_id: z.number().int().nullable().optional()
 })
 
+// WP REST serializes an empty PHP array as [] — accept it and normalize to null
+// so posts pulled with acf: [] can still be saved (and heal to null on save).
+const acfSchema = z.preprocess(
+  (v) => (Array.isArray(v) && v.length === 0 ? null : v),
+  z.record(z.string(), z.unknown()).nullable().optional()
+)
+
 export const PostInputSchema = z.object({
   site_id: uuidSchema,
   title: z.string().optional(),
   content: z.string().optional(),
   status: postStatusSchema.optional(),
-  acf: z.record(z.string(), z.unknown()).nullable().optional(),
+  acf: acfSchema,
   excerpt: z.string().optional(),
   slug: z.string().optional()
 })
@@ -41,7 +48,7 @@ export const PostUpdateSchema = z.object({
   title: z.string().optional(),
   content: z.string().optional(),
   status: postStatusSchema.optional(),
-  acf: z.record(z.string(), z.unknown()).nullable().optional(),
+  acf: acfSchema,
   date: z.string().nullable().optional(),
   featured_image: z.string().nullable().optional(),
   excerpt: z.string().optional(),

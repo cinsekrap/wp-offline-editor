@@ -6,6 +6,7 @@ import { getCredential } from './credentials'
 import { fetchPosts, fetchUserNames, fetchAttachmentUrl } from './wp-client'
 import { decodeHtmlEntities } from './html-utils'
 import { sanitizeHtml } from './sanitize'
+import { normalizeAcf } from './acf-utils'
 import { saveMediaFromWp } from './media-service'
 import { net } from 'electron'
 import { existsSync } from 'fs'
@@ -204,7 +205,8 @@ async function upsertPost(
   const modifiedRemote = wpPost.modified
   const wpDate = wpPost.date || null
   const authorId = wpPost.author || null
-  let acfJson = wpPost.acf ? JSON.stringify(wpPost.acf) : null
+  const normalizedAcf = normalizeAcf(wpPost.acf)
+  let acfJson = normalizedAcf ? JSON.stringify(normalizedAcf) : null
   const categoriesJson = wpPost.categories ? JSON.stringify(wpPost.categories) : '[]'
   const tagsJson = wpPost.tags ? JSON.stringify(wpPost.tags) : '[]'
   const now = new Date().toISOString()

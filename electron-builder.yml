@@ -17,16 +17,14 @@ publish:
   owner: cinsekrap
   repo: wp-offline-editor
 mac:
-  # TODO: restore signing for v1.0
-  # identity: "Nicolas Chambers-Parkes (J3ZA4LV4K6)"
-  identity: null
+  identity: "Nicolas Chambers-Parkes (J3ZA4LV4K6)"
   hardenedRuntime: true
   gatekeeperAssess: false
   entitlements: resources/entitlements.mac.plist
   entitlementsInherit: resources/entitlements.mac.plist
   extendInfo:
     - NSDocumentsFolderUsageDescription: Application needs access to store offline content.
-  notarize: false
+  notarize: true
   target:
     - target: dmg
       arch:

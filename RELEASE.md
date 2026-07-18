@@ -70,5 +70,4 @@ cp -R dist/mac-arm64/NP\ Presspad.app /Applications/
 
 ## Known issues
 
-- **Signing/notarization disabled**: `identity: null`, `notarize: false` in `electron-builder.yml`. Restore for v1.0.
 - **Tag before commit push**: If you push the tag before its commit is on `main`, the workflow checks out the wrong code. Always push the commit first.

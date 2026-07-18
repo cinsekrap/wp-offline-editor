@@ -99,7 +99,11 @@ function App(): JSX.Element {
     selectedSiteId,
     toast,
     onSiteAdded: handleSiteAdded,
-    onSiteDeleted: useCallback(() => setSelectedSiteId(null), [])
+    // Fall back to another site so settings keeps its Close button; null only when none remain
+    onSiteDeleted: useCallback(
+      (id: string) => setSelectedSiteId(sites.find((s) => s.id !== id)?.id ?? null),
+      [sites]
+    )
   })
 
   const tmpl = useTemplateActions({

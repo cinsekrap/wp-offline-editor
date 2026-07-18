@@ -15,6 +15,7 @@ interface SiteDashboardProps {
   onSelectPost: (id: string) => void
   onNewPost: () => void
   onSeeAllPosts: (filter?: PostListFilter) => void
+  writingChartMode?: 'daily' | 'weekly'
 }
 
 function formatRelativeDate(dateStr: string | null): string {
@@ -95,7 +96,8 @@ export function SiteDashboard({
   loading,
   onSelectPost,
   onNewPost,
-  onSeeAllPosts
+  onSeeAllPosts,
+  writingChartMode
 }: SiteDashboardProps): JSX.Element {
   const {
     pickBackUp,
@@ -164,7 +166,7 @@ export function SiteDashboard({
     <ScrollArea className="h-full">
       <div className={`max-w-4xl mx-auto px-6 ${compact ? 'py-3' : 'py-4'}`}>
         {/* Writing Stats */}
-        <WritingStats siteId={siteId} compact={compact} />
+        <WritingStats siteId={siteId} compact={compact} chartMode={writingChartMode} />
 
         {/* Quick actions */}
         <section className={compact ? 'mb-3' : 'mb-5'}>

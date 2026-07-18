@@ -217,6 +217,7 @@ function App(): JSX.Element {
             onSelectPost={nav.selectPostFromDashboard}
             onNewPost={tmpl.handleNewPost}
             onSeeAllPosts={nav.seeAllFromDashboard}
+            writingChartMode={settings.writingChartMode}
           />
         )
       case 'posts':

@@ -16,9 +16,10 @@ export function getWritingStats(siteId: string): WritingStats {
   monday.setDate(monday.getDate() - diff)
   const mondayStr = toDateStr(monday)
 
-  // 30 days ago
+  // Chart history: 84 days (12 weeks). The renderer shows the last 30 for
+  // the daily view and aggregates into weeks for the weekly view.
   const thirtyAgo = new Date(today)
-  thirtyAgo.setDate(thirtyAgo.getDate() - 29)
+  thirtyAgo.setDate(thirtyAgo.getDate() - 83)
   const thirtyAgoStr = toDateStr(thirtyAgo)
 
   // Build author filter
@@ -58,7 +59,7 @@ export function getWritingStats(siteId: string): WritingStats {
 
   const dailyMap = new Map(dailyRows.map((r) => [r.date, r.total]))
   const dailyCounts: DailyWordCount[] = []
-  for (let i = 0; i < 30; i++) {
+  for (let i = 0; i < 84; i++) {
     const d = new Date(thirtyAgo)
     d.setDate(d.getDate() + i)
     const ds = toDateStr(d)

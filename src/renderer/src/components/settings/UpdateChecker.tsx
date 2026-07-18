@@ -17,6 +17,11 @@ export function UpdateChecker(): JSX.Element {
     api.getVersion().then(setVersion)
 
     const cleanup = api.onUpdaterEvent((eventStatus, data) => {
+      // Background (sync-triggered) checks shouldn't flip this UI's idle
+      // state — only their positive outcomes matter here
+      if (data?.auto && (eventStatus === 'checking' || eventStatus === 'up-to-date' || eventStatus === 'error')) {
+        return
+      }
       switch (eventStatus) {
         case 'checking':
           setStatus('checking')

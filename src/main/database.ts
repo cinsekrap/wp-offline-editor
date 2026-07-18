@@ -271,6 +271,14 @@ const migrations: Array<(db: Database.Database) => void> = [
   // ── v4: soft-delete support ──
   (db) => {
     safeAddColumn(db, 'posts', 'pending_delete', 'INTEGER NOT NULL DEFAULT 0')
+  },
+
+  // ── v5: auto-sync on for existing sites ──
+  // Auto-sync used to default to off in the Add Site dialog, which fights the
+  // app's offline-first premise. New sites now default on; this flips existing
+  // sites once (the off state was the old default, not a user choice).
+  (db) => {
+    db.exec('UPDATE sites SET auto_sync = 1')
   }
 ]
 

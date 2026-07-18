@@ -42,7 +42,7 @@ export function addSite(input: SiteInput): Site {
   db.prepare(`
     INSERT INTO sites (id, label, url, username, keychain_ref, auto_sync, pull_published, media_library_limit, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(id, label, url, input.username, keychainRef, input.auto_sync ? 1 : 0, input.pull_published ?? 50, input.media_library_limit ?? 100, now, now)
+  `).run(id, label, url, input.username, keychainRef, (input.auto_sync ?? true) ? 1 : 0, input.pull_published ?? 50, input.media_library_limit ?? 100, now, now)
 
   return getSiteById(id)!
 }

@@ -600,7 +600,12 @@ export function PostList({
                     {post.title || '(Untitled)'}
                   </p>
                   <div className="mt-2">
-                    <StatusPill status={post.status} synced={post.synced} conflict={post.conflict} />
+                    <StatusPill
+                      status={post.status}
+                      synced={post.synced}
+                      conflict={post.conflict}
+                      hasRemote={post.wp_id != null}
+                    />
                   </div>
                 </button>
               )

@@ -70,7 +70,12 @@ function PostCard({
         {post.title || '(Untitled)'}
       </p>
       <div className="flex items-center gap-2 mt-1.5">
-        <StatusPill status={post.status} synced={post.synced} conflict={post.conflict} />
+        <StatusPill
+          status={post.status}
+          synced={post.synced}
+          conflict={post.conflict}
+          hasRemote={post.wp_id != null}
+        />
         <span className="text-xs text-muted-foreground">
           {subtitle ?? formatRelativeDate(post.date ?? post.modified_local)}
         </span>

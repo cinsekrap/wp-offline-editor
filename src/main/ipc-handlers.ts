@@ -18,7 +18,12 @@ import {
   deleteMedia,
   replaceMediaFile
 } from './media-service'
-import { getMediaLibraryForSite } from './media-library-service'
+import {
+  getMediaLibraryForSite,
+  pullMediaLibraryForSite,
+  uploadToMediaLibrary,
+  updateMediaLibraryAltText
+} from './media-library-service'
 import { getTaxonomyTerms } from './taxonomy-service'
 import { getShortcodesForSite } from './shortcode-service'
 import { getSettings, updateSettings } from './settings-service'
@@ -226,6 +231,37 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('media-library:get', (_event, siteId: unknown) => {
     return getMediaLibraryForSite(uuidSchema.parse(siteId))
   })
+
+  ipcMain.handle('media-library:pull', async (_event, siteId: unknown) => {
+    return pullMediaLibraryForSite(uuidSchema.parse(siteId))
+  })
+
+  ipcMain.handle(
+    'media-library:upload',
+    async (_event, siteId: unknown, filename: unknown, buffer: unknown) => {
+      if (!(buffer instanceof ArrayBuffer)) throw new Error('Expected ArrayBuffer for media buffer')
+      const MAX_MEDIA_SIZE = 50 * 1024 * 1024 // 50 MB
+      if (buffer.byteLength > MAX_MEDIA_SIZE) {
+        throw new Error(`File too large (${Math.round(buffer.byteLength / 1024 / 1024)}MB). Maximum is 50MB.`)
+      }
+      return uploadToMediaLibrary(
+        uuidSchema.parse(siteId),
+        z.string().min(1).parse(filename),
+        Buffer.from(buffer)
+      )
+    }
+  )
+
+  ipcMain.handle(
+    'media-library:update-alt',
+    async (_event, siteId: unknown, id: unknown, altText: unknown) => {
+      return updateMediaLibraryAltText(
+        uuidSchema.parse(siteId),
+        z.number().int().positive().parse(id),
+        z.string().max(2000).parse(altText)
+      )
+    }
+  )
 
   // ── Media ─────────────────────────────────────────────────────────────────
 

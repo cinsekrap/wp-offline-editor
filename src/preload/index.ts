@@ -34,6 +34,11 @@ const api: ElectronAPI = {
 
   // Media Library
   getMediaLibrary: (siteId) => ipcRenderer.invoke('media-library:get', siteId),
+  pullMediaLibrary: (siteId) => ipcRenderer.invoke('media-library:pull', siteId),
+  uploadToMediaLibrary: (siteId, filename, buffer) =>
+    ipcRenderer.invoke('media-library:upload', siteId, filename, buffer),
+  updateMediaLibraryAlt: (siteId, id, altText) =>
+    ipcRenderer.invoke('media-library:update-alt', siteId, id, altText),
 
   // Media
   saveMediaLocal: (siteId, postLocalId, filename, buffer) =>

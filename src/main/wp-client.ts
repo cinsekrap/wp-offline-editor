@@ -710,20 +710,24 @@ export async function updatePostScratchpadMeta(
 
 // ── Media upload ────────────────────────────────────────────────────────
 
-export async function uploadMedia(
+/**
+ * Core multipart upload to `wp/v2/media` from an in-memory buffer.
+ * Shared by the per-post media queue (via {@link uploadMedia}) and the
+ * standalone media-library uploader.
+ */
+export async function uploadMediaBuffer(
   url: string,
   username: string,
   password: string,
-  filePath: string,
+  buffer: Buffer,
   filename: string
 ): Promise<WpMediaUploadResult> {
   const base = apiBase(url)
   const headers = makeAuthHeaders(username, password)
 
-  const fileBuffer = readFileSync(filePath)
   const ext = extname(filename).toLowerCase()
   const mimeType = MIME_TYPES[ext] || 'application/octet-stream'
-  const blob = new Blob([fileBuffer], { type: mimeType })
+  const blob = new Blob([new Uint8Array(buffer)], { type: mimeType })
 
   const form = new FormData()
   form.append('file', blob, basename(filename))
@@ -741,4 +745,60 @@ export async function uploadMedia(
 
   const data = (await res.json()) as { id: number; source_url: string }
   return { id: data.id, source_url: data.source_url }
+}
+
+export async function uploadMedia(
+  url: string,
+  username: string,
+  password: string,
+  filePath: string,
+  filename: string
+): Promise<WpMediaUploadResult> {
+  return uploadMediaBuffer(url, username, password, readFileSync(filePath), filename)
+}
+
+/** Fetch a single attachment's details (used after a fresh upload). */
+export async function fetchMediaItem(
+  url: string,
+  username: string,
+  password: string,
+  id: number
+): Promise<WpMediaItemRaw> {
+  const base = apiBase(url)
+  const headers = makeAuthHeaders(username, password)
+  const params = new URLSearchParams({
+    _fields: 'id,title,mime_type,alt_text,source_url,media_details,date'
+  })
+
+  const res = await fetchWithTimeout(`${base}/wp/v2/media/${id}?${params}`, { headers })
+  if (!res.ok) {
+    throw new Error(`Failed to fetch media #${id}: HTTP ${res.status}`)
+  }
+  return (await res.json()) as WpMediaItemRaw
+}
+
+/** Update an attachment's alt text on WordPress. */
+export async function updateMediaAltText(
+  url: string,
+  username: string,
+  password: string,
+  id: number,
+  altText: string
+): Promise<void> {
+  const base = apiBase(url)
+  const headers = {
+    ...makeAuthHeaders(username, password),
+    'Content-Type': 'application/json'
+  }
+
+  const res = await fetchWithTimeout(`${base}/wp/v2/media/${id}`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ alt_text: altText })
+  })
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(`Failed to update alt text: HTTP ${res.status} ${text}`)
+  }
 }

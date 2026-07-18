@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Settings, RefreshCw, Loader2, Home, ImageIcon, WifiOff, CloudUpload, ArrowLeftRight, Check, FileText, AlignLeft } from 'lucide-react'
+import { Settings, RefreshCw, Loader2, Home, ImageIcon, Images, WifiOff, CloudUpload, ArrowLeftRight, Check, FileText, AlignLeft } from 'lucide-react'
 import { Badge } from '@renderer/components/ui/badge'
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/components/ui/popover'
 import { cn } from '@renderer/lib/utils'
@@ -46,6 +46,7 @@ interface ToolbarProps {
   onSettingsClick: () => void
   onPostsClick?: () => void
   onTemplatesClick?: () => void
+  onMediaClick?: () => void
   onSyncClick?: () => void
   syncing?: boolean
   showSync?: boolean
@@ -64,6 +65,7 @@ export function Toolbar({
   onSettingsClick,
   onPostsClick,
   onTemplatesClick,
+  onMediaClick,
   onSyncClick,
   syncing,
   showSync,
@@ -118,6 +120,18 @@ export function Toolbar({
                 title="Templates"
               >
                 <FileText className="h-4 w-4" />
+              </button>
+            )}
+            {onMediaClick && (
+              <button
+                onClick={onMediaClick}
+                className={cn(
+                  'p-2 rounded-md transition-colors no-drag',
+                  activeView === 'media' ? 'bg-accent text-accent-foreground' : 'hover:bg-accent'
+                )}
+                title="Media library"
+              >
+                <Images className="h-4 w-4" />
               </button>
             )}
           </>

@@ -306,7 +306,14 @@ export async function pushMediaLibraryPending(
 
   for (const row of altRows) {
     try {
-      await updateMediaAltText(site.url, site.username, password, row.id, row.pending_alt_text)
+      const outcome = await updateMediaAltText(site.url, site.username, password, row.id, row.pending_alt_text)
+      if (outcome === 'gone') {
+        // Attachment deleted on WordPress — drop the queued edit so the row
+        // stops retrying forever and the next pull's prune can remove it.
+        db.prepare('UPDATE media_library SET pending_alt_text = NULL WHERE site_id = ? AND id = ?')
+          .run(siteId, row.id)
+        continue
+      }
       db.prepare('UPDATE media_library SET alt_text = ?, pending_alt_text = NULL WHERE site_id = ? AND id = ?')
         .run(row.pending_alt_text, siteId, row.id)
       altApplied++

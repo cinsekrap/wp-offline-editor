@@ -351,6 +351,8 @@ export interface Revision {
 export interface PushResult {
   wp_id: number
   modified_remote: string
+  /** True when the remote copy had been deleted and the post was pushed as new. */
+  recreated: boolean
 }
 
 // ── Pull Results ────────────────────────────────────────────────────────
@@ -376,6 +378,8 @@ export interface AcfPullResult {
 
 export interface SyncResult {
   pushed: number
+  /** Posts re-created on WordPress because their remote copy had been deleted. */
+  recreated: number
   deleted: number
   pushErrors: string[]
   pull: PullResult

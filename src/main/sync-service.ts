@@ -8,7 +8,7 @@ import { getCredential } from './credentials'
 import { getPostById, deletePost, pullPostsForSite, downloadAndRewriteImages, rewriteAcfImageUrls, downloadFeaturedImage } from './post-service'
 import { indexPost } from './search-service'
 import { getMediaForPost, uploadMediaToWp } from './media-service'
-import { pushPost, deleteRemotePost, fetchSinglePost, fetchUserNames, fetchSiteIcon, fetchScratchpads, pushScratchpad as pushScratchpadToWp, updatePostScratchpadMeta, deleteRemoteScratchpad, fetchRemoteScratchpadExistence, fetchPluginVersion, createTerm } from './wp-client'
+import { pushPost, deleteRemotePost, fetchSinglePost, fetchUserNames, fetchSiteIcon, fetchScratchpads, pushScratchpad as pushScratchpadToWp, updatePostScratchpadMeta, deleteRemoteScratchpad, fetchRemoteScratchpadExistence, fetchRemotePostMeta, fetchPluginVersion, createTerm } from './wp-client'
 import { getPendingTermsForSite } from './taxonomy-service'
 import { isPluginVersionMismatch, pluginMismatchMessage } from '@shared/version-utils'
 import { decodeHtmlEntities } from './html-utils'
@@ -126,7 +126,17 @@ function postHasNegativeTerms(post: { categories: number[]; tags: number[] }): b
   return post.categories.some((id) => id < 0) || post.tags.some((id) => id < 0)
 }
 
-export async function pushPostToWp(postId: string, options?: { skipTermResolution?: boolean }): Promise<PushResult> {
+/**
+ * A push refused because the remote copy changed since the last pull. Not a
+ * failure: the post is flagged conflict=1 and surfaced through the normal
+ * conflict flow rather than the sync error list.
+ */
+export class PushConflictError extends Error {}
+
+export async function pushPostToWp(
+  postId: string,
+  options?: { skipTermResolution?: boolean; skipConflictCheck?: boolean }
+): Promise<PushResult> {
   const db = getDb()
 
   const pre = getPostById(postId)
@@ -155,6 +165,34 @@ export async function pushPostToWp(postId: string, options?: { skipTermResolutio
 
   const password = getCredential(site.keychain_ref)
   if (!password) throw new Error(`No credential found for site: ${site.label}`)
+
+  // Pre-push safety check against the live remote copy. Pull-time conflict
+  // detection alone can't catch a remote edit made after the last pull, or a
+  // post outside the pull-published window — pushing blind would overwrite it.
+  let recreated = false
+  if (post.wp_id != null) {
+    const remote = await fetchRemotePostMeta(site.url, site.username, password, post.wp_id)
+    if (remote.state === 'gone') {
+      // Deleted (or trashed) on WordPress while edited locally: the WP
+      // identity is dead but the content lives here — push as a new post.
+      db.prepare('UPDATE posts SET wp_id = NULL, modified_remote = NULL WHERE id = ?').run(post.id)
+      post.wp_id = null
+      post.modified_remote = null
+      recreated = true
+    } else if (
+      !options?.skipConflictCheck &&
+      remote.state === 'exists' &&
+      post.modified_remote != null &&
+      remote.modified !== post.modified_remote
+    ) {
+      db.prepare('UPDATE posts SET conflict = 1, modified_remote = ? WHERE id = ?').run(remote.modified, post.id)
+      throw new PushConflictError(
+        `"${post.title || 'Untitled'}" changed on WordPress since the last sync — resolve the conflict before pushing`
+      )
+    }
+    // 'unknown' (network blip, auth hiccup) → push as before; the check is an
+    // extra guard, not a gate that can wedge syncing.
+  }
 
   // Upload any unsynced media for this post
   const mediaItems = getMediaForPost(postId)
@@ -264,7 +302,7 @@ export async function pushPostToWp(postId: string, options?: { skipTermResolutio
     WHERE id = ?
   `).run(result.id, storedContent, storedAcfJson, result.modified, now, postId)
 
-  return { wp_id: result.id, modified_remote: result.modified }
+  return { wp_id: result.id, modified_remote: result.modified, recreated }
 }
 
 async function pushPendingDeletions(siteId: string): Promise<{ deleted: number; errors: string[] }> {
@@ -313,7 +351,7 @@ export async function resolveConflict(
   const db = getDb()
 
   if (strategy === 'keep-mine') {
-    await pushPostToWp(postId)
+    await pushPostToWp(postId, { skipConflictCheck: true })
     return
   }
 
@@ -618,6 +656,7 @@ async function doSyncSite(siteId: string, options?: { force?: boolean }): Promis
 
   // Push each one, collecting errors
   let pushed = 0
+  let recreated = 0
   let massPushPaused: { count: number } | undefined
 
   if (unsyncedPosts.length > MASS_PUSH_THRESHOLD && !options?.force) {
@@ -633,9 +672,13 @@ async function doSyncSite(siteId: string, options?: { force?: boolean }): Promis
         continue
       }
       try {
-        await pushPostToWp(row.id, { skipTermResolution: true })
+        const pushResult = await pushPostToWp(row.id, { skipTermResolution: true })
         pushed++
+        if (pushResult.recreated) recreated++
       } catch (err) {
+        // Push-time conflicts are not failures — the post is now flagged and
+        // reported through the conflicts count / conflict UI instead.
+        if (err instanceof PushConflictError) continue
         pushErrors.push(err instanceof Error ? err.message : String(err))
       }
     }
@@ -705,7 +748,7 @@ async function doSyncSite(siteId: string, options?: { force?: boolean }): Promis
     db.prepare('SELECT COUNT(*) as count FROM posts WHERE site_id = ? AND conflict = 1').get(siteId) as { count: number }
   ).count
 
-  return { pushed, deleted: deletedCount, pushErrors, pull, schemaPull, mediaLibraryPull, pluginVersionWarning, massPushPaused, conflicts }
+  return { pushed, recreated, deleted: deletedCount, pushErrors, pull, schemaPull, mediaLibraryPull, pluginVersionWarning, massPushPaused, conflicts }
 }
 
 export function getPendingChanges(siteId: string): PendingChanges {

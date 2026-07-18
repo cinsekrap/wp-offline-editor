@@ -9,25 +9,8 @@ import { Input } from '@renderer/components/ui/input'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/components/ui/popover'
 import { cn } from '@renderer/lib/utils'
+import { STATUS_COLORS, STATUS_LABELS, FILTER_STATUSES } from '@renderer/lib/post-status'
 import type { Post, PostStatus, SearchResult } from '@shared/types'
-
-const STATUS_COLORS: Record<string, string> = {
-  publish: 'bg-green-100 text-green-800 border-green-200',
-  draft: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-  pending: 'bg-orange-100 text-orange-800 border-orange-200',
-  private: 'bg-purple-100 text-purple-800 border-purple-200',
-  future: 'bg-blue-100 text-blue-800 border-blue-200',
-  trash: 'bg-red-100 text-red-800 border-red-200'
-}
-
-export const STATUS_LABELS: Record<string, string> = {
-  draft: 'Draft',
-  publish: 'Published',
-  pending: 'Pending',
-  private: 'Private',
-  future: 'Scheduled',
-  trash: 'Trash'
-}
 
 /** Strip all HTML tags except <mark> from FTS5 snippets to prevent XSS. */
 function sanitizeSnippet(html: string): string {
@@ -35,13 +18,6 @@ function sanitizeSnippet(html: string): string {
 }
 
 type SortOption = 'date' | 'modified_local' | 'title'
-
-const FILTER_STATUSES: { value: PostStatus; label: string }[] = [
-  { value: 'draft', label: 'Draft' },
-  { value: 'pending', label: 'Pending' },
-  { value: 'publish', label: 'Published' },
-  { value: 'private', label: 'Private' }
-]
 
 const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: 'date', label: 'Date published' },
@@ -54,17 +30,26 @@ function formatRelativeDate(dateStr: string | null): string {
 
   const date = new Date(dateStr)
   const now = new Date()
-  const diffMs = now.getTime() - date.getTime()
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+  // Compare calendar dates in local timezone, not raw ms difference
+  const toDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+  const diffDays = Math.round((toDay(now) - toDay(date)) / (1000 * 60 * 60 * 24))
+
+  // Scheduled posts have future dates
+  if (diffDays < 0) {
+    const ahead = -diffDays
+    if (ahead === 1) return 'Tomorrow'
+    if (ahead < 30) return `In ${ahead} days`
+    return date.toLocaleDateString()
+  }
 
   if (diffDays === 0) return 'Today'
   if (diffDays === 1) return 'Yesterday'
-  if (diffDays < 7) return `${diffDays} days ago`
-  if (diffDays < 30) {
-    const weeks = Math.floor(diffDays / 7)
-    return `${weeks}w ago`
-  }
-  return date.toLocaleDateString()
+  if (diffDays < 30) return `${diffDays} days ago`
+  const diffMonths = Math.floor(diffDays / 30)
+  if (diffMonths === 1) return 'Last month'
+  if (diffMonths < 12) return `${diffMonths} months ago`
+  const diffYears = Math.floor(diffDays / 365)
+  return diffYears <= 1 ? 'Last year' : `${diffYears} years ago`
 }
 
 export type PostListFilter = 'drafts-unsynced' | 'published' | 'scheduled'
@@ -579,11 +564,12 @@ export function PostList({
                     selectMode && selectedIds.has(post.id) && 'ring-2 ring-foreground/40 bg-accent/40'
                   )}
                 >
-                  <div className="flex items-start gap-2 min-w-0">
+                  {/* Eyebrow: date + sync state */}
+                  <div className="flex items-center gap-2 min-w-0">
                     {selectMode && (
                       <div
                         className={cn(
-                          'h-4 w-4 rounded border shrink-0 flex items-center justify-center mt-0.5',
+                          'h-4 w-4 rounded border shrink-0 flex items-center justify-center',
                           selectedIds.has(post.id)
                             ? 'bg-foreground border-foreground'
                             : 'border-border'
@@ -597,33 +583,33 @@ export function PostList({
                         )}
                       </div>
                     )}
-                    <p
-                      className={cn(
-                        'text-sm flex-1 line-clamp-2 min-h-10',
-                        definite ? 'font-semibold text-foreground' : 'font-medium text-muted-foreground'
-                      )}
-                    >
-                      {post.title || '(Untitled)'}
-                    </p>
+                    <span className="text-[11px] text-muted-foreground flex-1 truncate">
+                      {getDisplayDate(post)}
+                    </span>
                     {post.conflict && (
-                      <AlertTriangle className="h-3.5 w-3.5 text-orange-500 shrink-0 mt-0.5" />
+                      <AlertTriangle className="h-3.5 w-3.5 text-orange-500 shrink-0" />
                     )}
                     {!post.synced && !post.conflict && (
-                      <span title="Not synced" className="shrink-0 mt-0.5">
+                      <span title="Not synced" className="shrink-0">
                         <CloudUpload className="h-3.5 w-3.5 text-blue-500" />
                       </span>
                     )}
                     {post.synced && !post.conflict && (
-                      <CheckCircle className="h-3.5 w-3.5 text-green-500 shrink-0 mt-0.5" />
+                      <CheckCircle className="h-3.5 w-3.5 text-green-500 shrink-0" />
                     )}
                   </div>
-                  <div className="flex items-center gap-2 mt-2">
+                  <p
+                    className={cn(
+                      'text-sm line-clamp-2 min-h-10 mt-1.5',
+                      definite ? 'font-semibold text-foreground' : 'font-medium text-muted-foreground'
+                    )}
+                  >
+                    {post.title || '(Untitled)'}
+                  </p>
+                  <div className="mt-2">
                     <Badge className={cn('text-[10px] px-1.5 py-0', STATUS_COLORS[post.status] || '')} variant="outline">
                       {STATUS_LABELS[post.status] || post.status}
                     </Badge>
-                    <span className="text-[11px] text-muted-foreground">
-                      {getDisplayDate(post)}
-                    </span>
                   </div>
                 </button>
               )

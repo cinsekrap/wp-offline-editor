@@ -11,6 +11,7 @@ import { Badge } from '@renderer/components/ui/badge'
 import { CalendarIcon, ImageIcon, X, Upload, Loader2, Lock, Globe, KeyRound, AlertTriangle } from 'lucide-react'
 import { format } from 'date-fns'
 import { cn } from '@renderer/lib/utils'
+import { STATUS_COLORS, STATUS_LABELS } from '@renderer/lib/post-status'
 import type { PostStatus, Media, TaxonomyTerm } from '@shared/types'
 
 type Visibility = 'public' | 'private' | 'password'
@@ -199,8 +200,11 @@ export function PostMeta({
         {!published ? (
           <>
             <div className="w-full h-8 flex items-center justify-center rounded-md border text-sm">
-              <Badge variant="outline" className="text-xs bg-yellow-100 text-yellow-800 border-yellow-200 border-0">
-                Draft
+              <Badge
+                variant="outline"
+                className={cn('text-xs border-0', STATUS_COLORS[status] ?? STATUS_COLORS.draft)}
+              >
+                {STATUS_LABELS[status] ?? 'Draft'}
               </Badge>
             </div>
 
@@ -319,13 +323,11 @@ export function PostMeta({
         ) : (
           <div className="space-y-1.5">
             <div className="w-full h-8 flex items-center justify-center rounded-md border text-sm">
-              <Badge variant="outline" className={cn(
-                'text-xs border-0',
-                status === 'future'
-                  ? 'bg-blue-100 text-blue-800'
-                  : 'bg-green-100 text-green-800'
-              )}>
-                {status === 'future' ? 'Scheduled' : status === 'private' ? 'Private' : 'Published'}
+              <Badge
+                variant="outline"
+                className={cn('text-xs border-0', STATUS_COLORS[status] ?? STATUS_COLORS.publish)}
+              >
+                {STATUS_LABELS[status] ?? 'Published'}
               </Badge>
             </div>
             {status === 'future' && scheduledDate && (

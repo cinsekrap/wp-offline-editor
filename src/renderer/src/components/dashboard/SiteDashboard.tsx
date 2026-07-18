@@ -3,6 +3,7 @@ import { Plus, CloudUpload, CheckCircle, ChevronRight, AlertTriangle } from 'luc
 import { Badge } from '@renderer/components/ui/badge'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
 import { cn } from '@renderer/lib/utils'
+import { STATUS_COLORS, UNSYNCED_PILL_COLOR } from '@renderer/lib/post-status'
 import { WritingStats } from './WritingStats'
 import { useWindowSize } from '@renderer/hooks/useWindowSize'
 import type { Post } from '@shared/types'
@@ -15,15 +16,6 @@ interface SiteDashboardProps {
   onSelectPost: (id: string) => void
   onNewPost: () => void
   onSeeAllPosts: (filter?: PostListFilter) => void
-}
-
-const STATUS_COLORS: Record<string, string> = {
-  publish: 'bg-green-100 text-green-800 border-green-200',
-  draft: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-  pending: 'bg-orange-100 text-orange-800 border-orange-200',
-  private: 'bg-purple-100 text-purple-800 border-purple-200',
-  future: 'bg-blue-100 text-blue-800 border-blue-200',
-  trash: 'bg-red-100 text-red-800 border-red-200'
 }
 
 function formatRelativeDate(dateStr: string | null): string {
@@ -145,7 +137,7 @@ export function SiteDashboard({
     if (post.status === 'draft') {
       return { label: 'Draft', color: STATUS_COLORS.draft }
     }
-    return { label: 'Unsynced', color: 'bg-blue-100 text-blue-800 border-blue-200' }
+    return { label: 'Unsynced', color: UNSYNCED_PILL_COLOR }
   }
 
   const { height } = useWindowSize()

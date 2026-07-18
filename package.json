@@ -1,6 +1,6 @@
 {
   "name": "np-presspad",
-  "version": "0.13.0",
+  "version": "0.14.0",
   "description": "NP Presspad",
   "main": "./out/main/index.js",
   "author": "",
@@ -16,6 +16,9 @@
     "build:mac": "node scripts/bump-build.js && pnpm build && electron-builder --mac"
   },
   "pnpm": {
+    "overrides": {
+      "node-abi": "^4.33.0"
+    },
     "onlyBuiltDependencies": [
       "electron",
       "esbuild",
@@ -41,7 +44,7 @@
     "autoprefixer": "^10.5.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "electron": "^41.6.0",
+    "electron": "^43.1.1",
     "electron-builder": "^26.8.1",
     "electron-vite": "^5.0.0",
     "lucide-react": "^1.14.0",
@@ -75,7 +78,7 @@
     "@tiptap/pm": "^3.22.5",
     "@tiptap/react": "^3.22.5",
     "@tiptap/starter-kit": "^3.22.5",
-    "better-sqlite3-multiple-ciphers": "^12.9.0",
+    "better-sqlite3-multiple-ciphers": "^12.11.1",
     "date-fns": "^4.1.0",
     "diff": "^8.0.4",
     "electron-store": "^11.0.2",

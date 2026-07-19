@@ -51,6 +51,19 @@ jobs:
 
       - run: pnpm build
 
+      # The plugin's update checker derives the available version from the
+      # release TAG, so the shipped plugin header must match the tag or
+      # WordPress offers an update that can never complete (installs, version
+      # doesn't advance, offered again forever). Stamp at build time — the
+      # plugin source in git stays untouched by app-only releases.
+      - name: Stamp companion plugin version from tag
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          sed -i '' -E "s/^( \* Version: ).*/\1${VERSION}/" companion-plugin/wp-offline-editor-companion.php
+          sed -i '' -E "s/define\( 'WPOE_VERSION', '[^']*' \);/define( 'WPOE_VERSION', '${VERSION}' );/" companion-plugin/wp-offline-editor-companion.php
+          grep -q "^ \* Version: ${VERSION}$" companion-plugin/wp-offline-editor-companion.php
+          grep -q "define( 'WPOE_VERSION', '${VERSION}' );" companion-plugin/wp-offline-editor-companion.php
+
       - name: Build companion plugin ZIP
         run: pnpm build:plugin
 

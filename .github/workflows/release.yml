@@ -8,7 +8,39 @@ permissions:
   contents: write
 
 jobs:
+  # Gate the release: no signed build unless typecheck, build, and tests pass.
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v5
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Typecheck (main / preload / shared)
+        run: npx tsc --noEmit -p tsconfig.node.json
+
+      - name: Typecheck (renderer)
+        run: npx tsc --noEmit -p tsconfig.web.json
+
+      - run: pnpm build
+
+      # Native module is built for Electron's ABI by postinstall; rebuild for the
+      # Node ABI so vitest can load it (ERR_DLOPEN otherwise).
+      - name: Rebuild native module for Node
+        run: pnpm rebuild better-sqlite3-multiple-ciphers
+
+      - name: Run tests
+        run: pnpm test:ci
+
   build-mac:
+    needs: test
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v6

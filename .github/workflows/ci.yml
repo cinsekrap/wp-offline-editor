@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v5
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Typecheck (main / preload / shared)
+        run: npx tsc --noEmit -p tsconfig.node.json
+
+      - name: Typecheck (renderer)
+        run: npx tsc --noEmit -p tsconfig.web.json
+
+      - run: pnpm build
+
+      # Native module was compiled for Electron's ABI by postinstall; vitest runs
+      # under plain Node and would hit ERR_DLOPEN. Rebuild it for the Node ABI.
+      # (No restore needed — this runner never packages the app.)
+      - name: Rebuild native module for Node
+        run: pnpm rebuild better-sqlite3-multiple-ciphers
+
+      - name: Run tests
+        run: pnpm test:ci

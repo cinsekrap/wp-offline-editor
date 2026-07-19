@@ -29,7 +29,7 @@ const SITE_CSS_MAX_AGE_MS = 24 * 60 * 60 * 1000
  * resolved real WP id, de-duplicating in the process. Returns the new JSON and
  * whether anything changed.
  */
-function rewriteTermIds(json: string | null, idMap: Map<number, number>): { json: string; changed: boolean } {
+export function rewriteTermIds(json: string | null, idMap: Map<number, number>): { json: string; changed: boolean } {
   let ids: number[]
   try {
     ids = json ? (JSON.parse(json) as number[]) : []
@@ -329,7 +329,7 @@ export async function pushPostToWp(
   return { wp_id: result.id, modified_remote: result.modified, recreated }
 }
 
-async function pushPendingDeletions(siteId: string): Promise<{ deleted: number; errors: string[] }> {
+export async function pushPendingDeletions(siteId: string): Promise<{ deleted: number; errors: string[] }> {
   const db = getDb()
 
   // Stranded local-only deletions (no WP counterpart) have nothing to push —

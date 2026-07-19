@@ -194,6 +194,48 @@ export async function saveMediaFromLibrary(
   return getMediaById(id)!
 }
 
+/**
+ * Adopt a STAGED media-library upload (negative id, not yet on WordPress)
+ * into a post. This is a transfer of ownership, not a copy: the post's push
+ * uploads the image, so the staged row is removed — leaving it queued would
+ * upload the same file twice and create a duplicate attachment. The image
+ * reappears in the media library on the pull after the post pushes.
+ */
+export function saveMediaFromStagedLibrary(
+  siteId: string,
+  postLocalId: string,
+  stagedId: number
+): Media {
+  const db = getDb()
+
+  const staged = db
+    .prepare('SELECT * FROM media_library_pending WHERE site_id = ? AND id = ?')
+    .get(siteId, stagedId) as
+    | { id: number; filename: string; local_path: string; mime_type: string; alt_text: string }
+    | undefined
+  if (!staged) throw new Error(`Staged library item not found: ${stagedId}`)
+  if (!existsSync(staged.local_path)) throw new Error('Staged file is missing from disk')
+
+  const id = uuidv4()
+  const filename = staged.filename || `staged${stagedId}`
+  const localPath = join(getMediaDir(siteId), `${id}-${basename(filename)}`)
+  copyFileSync(staged.local_path, localPath)
+
+  db.prepare('DELETE FROM media_library_pending WHERE site_id = ? AND id = ?').run(siteId, stagedId)
+  try {
+    unlinkSync(staged.local_path)
+  } catch {
+    // already copied — a leftover staging file is harmless
+  }
+
+  db.prepare(`
+    INSERT INTO media (id, site_id, post_local_id, local_path, wp_id, wp_url, filename, synced)
+    VALUES (?, ?, ?, ?, NULL, NULL, ?, 0)
+  `).run(id, siteId, postLocalId, localPath, filename)
+
+  return getMediaById(id)!
+}
+
 export function deleteMedia(id: string): void {
   const media = getMediaById(id)
   if (!media) return

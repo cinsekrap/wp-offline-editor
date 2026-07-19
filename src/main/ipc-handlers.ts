@@ -12,6 +12,7 @@ import { pullAcfSchemaForSite, getAcfSchemasForSite } from './acf-service'
 import {
   saveMediaLocally,
   saveMediaFromLibrary,
+  saveMediaFromStagedLibrary,
   getMediaForPost,
   getMediaQueue,
   uploadMediaToWp,
@@ -331,11 +332,13 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(
     'media:save-from-library',
     async (_event, siteId: unknown, postLocalId: unknown, libraryItemId: unknown) => {
-      const media = await saveMediaFromLibrary(
-        uuidSchema.parse(siteId),
-        uuidSchema.parse(postLocalId),
-        z.number().int().positive().parse(libraryItemId)
-      )
+      // Positive ids are synced attachments; negative ids are staged uploads
+      // (adopted into the post and removed from the staging queue).
+      const id = z.number().int().parse(libraryItemId)
+      const media =
+        id > 0
+          ? await saveMediaFromLibrary(uuidSchema.parse(siteId), uuidSchema.parse(postLocalId), id)
+          : saveMediaFromStagedLibrary(uuidSchema.parse(siteId), uuidSchema.parse(postLocalId), id)
       notifyCountsChanged()
       return media
     }

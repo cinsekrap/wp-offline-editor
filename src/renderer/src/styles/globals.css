@@ -4,6 +4,9 @@
 
 @layer base {
   :root {
+    /* Native chrome (scrollbars, form controls, pickers) follows this, not
+       the CSS variables — without it dark mode gets light scrollbars. */
+    color-scheme: light;
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
 
@@ -36,6 +39,7 @@
   }
 
   .dark {
+    color-scheme: dark;
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
 

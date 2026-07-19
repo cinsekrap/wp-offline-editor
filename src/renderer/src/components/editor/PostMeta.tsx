@@ -12,7 +12,7 @@ import { CalendarIcon, ImageIcon, X, Upload, Loader2, Lock, Globe, KeyRound, Ale
 import { format } from 'date-fns'
 import { cn } from '@renderer/lib/utils'
 import { STATUS_COLORS, STATUS_LABELS } from '@renderer/lib/post-status'
-import type { PostStatus, Media, TaxonomyTerm } from '@shared/types'
+import type { PostStatus, Media, MediaLibraryItem, TaxonomyTerm } from '@shared/types'
 
 type Visibility = 'public' | 'private' | 'password'
 
@@ -196,6 +196,41 @@ export function PostMeta({
       setPickerOpen(false)
     },
     [onFeaturedImageChange]
+  )
+
+  // Site media library (cached locally) — loaded lazily when the picker opens.
+  // Staged uploads (negative ids) can't be materialized into a post yet, so
+  // only synced items are offered.
+  const [libraryItems, setLibraryItems] = useState<MediaLibraryItem[]>([])
+  const [libraryLoading, setLibraryLoading] = useState(false)
+  const [pickingLibraryId, setPickingLibraryId] = useState<number | null>(null)
+
+  useEffect(() => {
+    if (!pickerOpen) return
+    setLibraryLoading(true)
+    window.electronAPI
+      .getMediaLibrary(siteId)
+      .then((items) =>
+        setLibraryItems(items.filter((i) => i.id > 0 && i.mime_type.startsWith('image/')))
+      )
+      .catch(() => setLibraryItems([]))
+      .finally(() => setLibraryLoading(false))
+  }, [pickerOpen, siteId])
+
+  const handlePickFromMediaLibrary = useCallback(
+    async (item: MediaLibraryItem) => {
+      setPickingLibraryId(item.id)
+      try {
+        const media = await window.electronAPI.saveMediaFromLibrary(siteId, postId, item.id)
+        onFeaturedImageChange(media.id)
+        setPickerOpen(false)
+      } catch {
+        // Leave the picker open so the user can try another image
+      } finally {
+        setPickingLibraryId(null)
+      }
+    },
+    [siteId, postId, onFeaturedImageChange]
   )
 
   return (
@@ -554,30 +589,71 @@ export function PostMeta({
               </div>
               {/* Pick from post media */}
               {mediaItems.length > 0 && (
-                <ScrollArea className="max-h-48">
-                  <div className="p-2 space-y-1">
-                    {mediaItems.map((media) => (
-                      <button
-                        key={media.id}
-                        className="flex items-center gap-2 w-full p-2 rounded-md text-sm hover:bg-muted/50 transition-colors"
-                        onClick={() => handlePickFromLibrary(media.id)}
-                      >
-                        <img
-                          src={`media://file${encodeURI(media.local_path)}`}
-                          alt={media.filename}
-                          className="h-8 w-8 rounded object-cover shrink-0"
-                        />
-                        <span className="truncate flex-1 text-left">{media.filename}</span>
-                      </button>
-                    ))}
+                <div className="border-b">
+                  <div className="px-3 pt-2 pb-1 text-xs font-medium text-muted-foreground">
+                    In this post
                   </div>
-                </ScrollArea>
-              )}
-              {mediaItems.length === 0 && (
-                <div className="p-3 text-xs text-muted-foreground text-center">
-                  No images in this post yet
+                  <ScrollArea className="max-h-36">
+                    <div className="p-2 pt-0 space-y-1">
+                      {mediaItems.map((media) => (
+                        <button
+                          key={media.id}
+                          className="flex items-center gap-2 w-full p-2 rounded-md text-sm hover:bg-muted/50 transition-colors"
+                          onClick={() => handlePickFromLibrary(media.id)}
+                        >
+                          <img
+                            src={`media://file${encodeURI(media.local_path)}`}
+                            alt={media.filename}
+                            className="h-8 w-8 rounded object-cover shrink-0"
+                          />
+                          <span className="truncate flex-1 text-left">{media.filename}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </ScrollArea>
                 </div>
               )}
+              {/* Pick from the site's media library */}
+              <div>
+                <div className="px-3 pt-2 pb-1 text-xs font-medium text-muted-foreground">
+                  Media library
+                </div>
+                {libraryLoading ? (
+                  <div className="p-3 pt-1 flex justify-center">
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  </div>
+                ) : libraryItems.length === 0 ? (
+                  <div className="p-3 pt-1 text-xs text-muted-foreground text-center">
+                    No images in the media library yet
+                  </div>
+                ) : (
+                  <ScrollArea className="max-h-48">
+                    <div className="grid grid-cols-4 gap-1.5 p-2 pt-0">
+                      {libraryItems.map((item) => (
+                        <button
+                          key={item.id}
+                          className="relative aspect-square rounded-md overflow-hidden border hover:ring-2 hover:ring-primary/50 transition-shadow disabled:opacity-50"
+                          onClick={() => handlePickFromMediaLibrary(item)}
+                          disabled={pickingLibraryId !== null}
+                          title={item.title || item.filename}
+                        >
+                          <img
+                            src={`media://file${encodeURI(item.thumbnail_path)}`}
+                            alt={item.alt_text || item.filename}
+                            className="h-full w-full object-cover"
+                            loading="lazy"
+                          />
+                          {pickingLibraryId === item.id && (
+                            <div className="absolute inset-0 bg-background/60 flex items-center justify-center">
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            </div>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                )}
+              </div>
             </PopoverContent>
           </Popover>
         )}

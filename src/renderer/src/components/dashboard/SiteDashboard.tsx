@@ -376,9 +376,15 @@ export function SiteDashboard({
                   <p className="text-sm font-medium truncate flex-1">
                     {sp.title || '(Untitled)'}
                   </p>
+                  {sp.conflict && (
+                    <AlertTriangle
+                      className="h-3.5 w-3.5 text-amber-500 shrink-0"
+                      aria-label="Changed here and on WordPress"
+                    />
+                  )}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1 ml-[22px]">
-                  {formatRelativeDate(sp.modified_local)}
+                  {sp.conflict ? 'Conflict — open to resolve' : formatRelativeDate(sp.modified_local)}
                 </p>
                 <button
                   onClick={(e) => {

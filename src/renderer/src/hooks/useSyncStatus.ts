@@ -86,11 +86,11 @@ export function useSyncStatus({
             variant: 'destructive'
           })
         } else if (result.conflicts > 0) {
-          // Conflicted posts are never auto-pushed — without this the sync
-          // would claim "Everything up to date" while the badge still counts them
+          // Conflicted posts/scratchpads are never auto-pushed — without this the
+          // sync would claim "Everything up to date" while the badge still counts them
           toast({
             title: 'Sync complete — conflicts need review',
-            description: `${result.conflicts} post${result.conflicts > 1 ? 's' : ''} changed both here and on WordPress. Open ${result.conflicts > 1 ? 'them' : 'it'} to choose which version to keep.`,
+            description: `${result.conflicts} item${result.conflicts > 1 ? 's' : ''} changed both here and on WordPress. Open ${result.conflicts > 1 ? 'them' : 'it'} to choose which version to keep.`,
             variant: 'warning'
           })
         } else {

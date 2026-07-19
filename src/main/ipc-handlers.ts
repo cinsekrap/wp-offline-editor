@@ -7,7 +7,7 @@ import { getAllSites, getSiteById, addSite, updateSite, deleteSite, clearSiteDat
 import { testWpConnection, fetchAuthors } from './wp-client'
 import { getCredential } from './credentials'
 import { pullPostsForSite, getAllPostsForSite, getPostById, createPost, updatePost, bulkUpdateStatus, softDeletePost, bulkSoftDeletePosts } from './post-service'
-import { pushPostToWp, resolveConflict, getPendingChanges, syncSite } from './sync-service'
+import { pushPostToWp, resolveConflict, resolveScratchpadConflict, getPendingChanges, syncSite } from './sync-service'
 import { pullAcfSchemaForSite, getAcfSchemasForSite } from './acf-service'
 import {
   saveMediaLocally,
@@ -54,6 +54,7 @@ import {
   PostInputSchema,
   PostUpdateSchema,
   ConflictStrategySchema,
+  ScratchpadConflictStrategySchema,
   TaxonomySchema,
   CreatePendingTermSchema,
   AppSettingsSchema,
@@ -455,6 +456,17 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('scratchpads:unlink', (_event, postId: unknown) => {
     unlinkScratchpadFromPost(uuidSchema.parse(postId))
+  })
+
+  ipcMain.handle('scratchpads:resolve-conflict', async (_event, id: unknown, strategy: unknown) => {
+    const scratchpadId = uuidSchema.parse(id)
+    await resolveScratchpadConflict(scratchpadId, ScratchpadConflictStrategySchema.parse(strategy))
+    // Resolution rewrites the row (keep-theirs) or clears its flag (keep-mine);
+    // refresh any open pop-out / inline editor and the pending-changes badge.
+    for (const win of BrowserWindow.getAllWindows()) {
+      win.webContents.send('scratchpad-changed', scratchpadId)
+    }
+    notifyCountsChanged()
   })
 
   // ── Writing Stats ──────────────────────────────────────────────────────

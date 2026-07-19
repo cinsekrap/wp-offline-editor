@@ -274,6 +274,8 @@ export interface Scratchpad {
   modified_local: string
   modified_remote: string | null
   synced: boolean
+  /** Changed both locally and on WordPress; needs keep-mine / keep-theirs. */
+  conflict: boolean
 }
 
 export interface ScratchpadInput {
@@ -387,7 +389,7 @@ export interface SyncResult {
   mediaLibraryPull: MediaLibraryPullResult
   pluginVersionWarning?: string
   massPushPaused?: { count: number }
-  /** Posts still in conflict after this sync — counted but never auto-pushed. */
+  /** Posts + scratchpads still in conflict after this sync — counted but never auto-pushed. */
   conflicts: number
 }
 
@@ -510,6 +512,7 @@ export interface ElectronAPI {
   deleteScratchpad(id: string): Promise<void>
   linkScratchpad(postId: string, scratchpadId: string): Promise<void>
   unlinkScratchpad(postId: string): Promise<void>
+  resolveScratchpadConflict(id: string, strategy: 'keep-mine' | 'keep-theirs'): Promise<void>
 
   // Writing Stats
   getWritingStats(siteId: string): Promise<WritingStats>

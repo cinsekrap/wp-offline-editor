@@ -329,6 +329,15 @@ const migrations: Array<(db: Database.Database) => void> = [
   // then hard-deletes locally. Without this, a pull resurrects deletions.
   (db) => {
     safeAddColumn(db, 'scratchpads', 'pending_delete', 'INTEGER NOT NULL DEFAULT 0')
+  },
+
+  // ── v9: scratchpad conflict flag ──
+  // Same model as posts (posts.conflict): when a pull sees a remote edit while
+  // local edits are unsynced, the row is flagged instead of silently discarding
+  // one side. Flagged rows are excluded from the push loop and resolved via
+  // keep-mine / keep-theirs.
+  (db) => {
+    safeAddColumn(db, 'scratchpads', 'conflict', 'INTEGER NOT NULL DEFAULT 0')
   }
 ]
 

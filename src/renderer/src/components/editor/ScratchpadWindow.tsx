@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { Loader2, CheckCircle, AlertCircle } from 'lucide-react'
 import { Input } from '@renderer/components/ui/input'
 import { ScratchpadEditor } from './ScratchpadEditor'
+import { ScratchpadConflictBanner } from './ScratchpadConflictBanner'
 import type { Scratchpad, AppSettings } from '@shared/types'
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
@@ -104,6 +105,9 @@ export function ScratchpadWindow({ scratchpadId }: { scratchpadId: string }): JS
         const sp = await window.electronAPI.getScratchpad(scratchpadId)
         if (!sp) return
 
+        // Keep the conflict flag fresh (e.g. resolved in another window)
+        setScratchpad(sp)
+
         const currentSerialized = JSON.stringify({ title, content })
         const remoteSerialized = JSON.stringify({ title: sp.title, content: sp.content })
 
@@ -189,6 +193,12 @@ export function ScratchpadWindow({ scratchpadId }: { scratchpadId: string }): JS
         />
         <SaveIndicator status={saveStatus} />
       </div>
+
+      {scratchpad?.conflict && (
+        <div className="px-1 shrink-0">
+          <ScratchpadConflictBanner scratchpadId={scratchpadId} onResolved={load} />
+        </div>
+      )}
 
       <div className="flex-1 min-h-0 px-4 pb-4">
         <ScratchpadEditor

@@ -274,6 +274,8 @@ export interface Scratchpad {
   modified_local: string
   modified_remote: string | null
   synced: boolean
+  /** Changed both locally and on WordPress; needs keep-mine / keep-theirs. */
+  conflict: boolean
 }
 
 export interface ScratchpadInput {
@@ -371,6 +373,8 @@ export interface AcfPullResult {
   groupsFound: number
   groupsUpdated: number
   groupsUnchanged: number
+  /** Local schemas pruned because their group no longer exists remotely. */
+  groupsRemoved?: number
   errors: string[]
 }
 
@@ -387,7 +391,7 @@ export interface SyncResult {
   mediaLibraryPull: MediaLibraryPullResult
   pluginVersionWarning?: string
   massPushPaused?: { count: number }
-  /** Posts still in conflict after this sync — counted but never auto-pushed. */
+  /** Posts + scratchpads still in conflict after this sync — counted but never auto-pushed. */
   conflicts: number
 }
 
@@ -452,7 +456,7 @@ export interface ElectronAPI {
   pushPost(postId: string): Promise<PushResult>
   resolveConflict(postId: string, strategy: 'keep-mine' | 'keep-theirs' | 'fork'): Promise<void>
   getPendingChanges(siteId: string): Promise<PendingChanges>
-  syncSite(siteId: string, options?: { force?: boolean }): Promise<SyncResult>
+  syncSite(siteId: string, options?: { force?: boolean; manual?: boolean }): Promise<SyncResult>
 
   // ACF Schema
   pullAcfSchema(siteId: string): Promise<AcfPullResult>
@@ -510,6 +514,7 @@ export interface ElectronAPI {
   deleteScratchpad(id: string): Promise<void>
   linkScratchpad(postId: string, scratchpadId: string): Promise<void>
   unlinkScratchpad(postId: string): Promise<void>
+  resolveScratchpadConflict(id: string, strategy: 'keep-mine' | 'keep-theirs'): Promise<void>
 
   // Writing Stats
   getWritingStats(siteId: string): Promise<WritingStats>

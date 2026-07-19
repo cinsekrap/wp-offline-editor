@@ -15,6 +15,7 @@ interface UseSyncStatusReturn {
   setSyncing: (v: boolean) => void
   pendingChanges: PendingChanges
   handleSync: () => Promise<void>
+  handleAutoSync: () => Promise<void>
   refreshCounts: () => Promise<void>
   massPushPaused: { count: number } | null
   handleForceSync: () => Promise<void>
@@ -51,7 +52,7 @@ export function useSyncStatus({
     return cleanup
   }, [refreshCounts])
 
-  const doSync = useCallback(async (options?: { force?: boolean }): Promise<void> => {
+  const doSync = useCallback(async (options?: { force?: boolean; manual?: boolean }): Promise<void> => {
     if (!selectedSiteId) return
     try {
       setSyncing(true)
@@ -86,11 +87,11 @@ export function useSyncStatus({
             variant: 'destructive'
           })
         } else if (result.conflicts > 0) {
-          // Conflicted posts are never auto-pushed — without this the sync
-          // would claim "Everything up to date" while the badge still counts them
+          // Conflicted posts/scratchpads are never auto-pushed — without this the
+          // sync would claim "Everything up to date" while the badge still counts them
           toast({
             title: 'Sync complete — conflicts need review',
-            description: `${result.conflicts} post${result.conflicts > 1 ? 's' : ''} changed both here and on WordPress. Open ${result.conflicts > 1 ? 'them' : 'it'} to choose which version to keep.`,
+            description: `${result.conflicts} item${result.conflicts > 1 ? 's' : ''} changed both here and on WordPress. Open ${result.conflicts > 1 ? 'them' : 'it'} to choose which version to keep.`,
             variant: 'warning'
           })
         } else {
@@ -121,11 +122,15 @@ export function useSyncStatus({
     }
   }, [selectedSiteId, toast, refreshCounts, refreshPosts])
 
-  const handleSync = useCallback(() => doSync(), [doSync])
+  // User-initiated syncs bypass the background update-check throttle;
+  // the interval-driven auto-sync does not.
+  const handleSync = useCallback(() => doSync({ manual: true }), [doSync])
+
+  const handleAutoSync = useCallback(() => doSync(), [doSync])
 
   const handleForceSync = useCallback(async () => {
     setMassPushPaused(null)
-    await doSync({ force: true })
+    await doSync({ force: true, manual: true })
   }, [doSync])
 
   const clearMassPushPaused = useCallback(() => setMassPushPaused(null), [])
@@ -135,6 +140,7 @@ export function useSyncStatus({
     setSyncing,
     pendingChanges,
     handleSync,
+    handleAutoSync,
     refreshCounts,
     massPushPaused,
     handleForceSync,

@@ -7,7 +7,7 @@ import { getAllSites, getSiteById, addSite, updateSite, deleteSite, clearSiteDat
 import { testWpConnection, fetchAuthors } from './wp-client'
 import { getCredential } from './credentials'
 import { pullPostsForSite, getAllPostsForSite, getPostById, createPost, updatePost, bulkUpdateStatus, softDeletePost, bulkSoftDeletePosts } from './post-service'
-import { pushPostToWp, resolveConflict, getPendingChanges, syncSite } from './sync-service'
+import { pushPostToWp, resolveConflict, resolveScratchpadConflict, getPendingChanges, syncSite } from './sync-service'
 import { pullAcfSchemaForSite, getAcfSchemasForSite } from './acf-service'
 import {
   saveMediaLocally,
@@ -54,6 +54,7 @@ import {
   PostInputSchema,
   PostUpdateSchema,
   ConflictStrategySchema,
+  ScratchpadConflictStrategySchema,
   TaxonomySchema,
   CreatePendingTermSchema,
   AppSettingsSchema,
@@ -158,11 +159,15 @@ export function registerIpcHandlers(): void {
   })
 
   ipcMain.handle('site:sync', async (_event, siteId: unknown, options?: unknown) => {
-    const result = await syncSite(uuidSchema.parse(siteId), SyncOptionsSchema.parse(options))
+    // `manual` is an updater concern, not a sync one — peel it off so
+    // sync-service stays unaware of it.
+    const { manual, ...syncOptions } = SyncOptionsSchema.parse(options) ?? {}
+    const result = await syncSite(uuidSchema.parse(siteId), syncOptions)
     notifyCountsChanged()
-    // A successful sync proves we're online — good moment for a (throttled)
-    // background update check
-    maybeAutoCheckForUpdates()
+    // A successful sync proves we're online — good moment for a background
+    // update check. A user-initiated sync bypasses the throttle: an engaged
+    // user is worth one cheap request.
+    maybeAutoCheckForUpdates({ bypassThrottle: manual })
     return result
   })
 
@@ -455,6 +460,17 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('scratchpads:unlink', (_event, postId: unknown) => {
     unlinkScratchpadFromPost(uuidSchema.parse(postId))
+  })
+
+  ipcMain.handle('scratchpads:resolve-conflict', async (_event, id: unknown, strategy: unknown) => {
+    const scratchpadId = uuidSchema.parse(id)
+    await resolveScratchpadConflict(scratchpadId, ScratchpadConflictStrategySchema.parse(strategy))
+    // Resolution rewrites the row (keep-theirs) or clears its flag (keep-mine);
+    // refresh any open pop-out / inline editor and the pending-changes badge.
+    for (const win of BrowserWindow.getAllWindows()) {
+      win.webContents.send('scratchpad-changed', scratchpadId)
+    }
+    notifyCountsChanged()
   })
 
   // ── Writing Stats ──────────────────────────────────────────────────────

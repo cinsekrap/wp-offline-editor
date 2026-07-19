@@ -795,6 +795,25 @@ export async function fetchScratchpads(
   return allItems
 }
 
+/** Fetch a single scratchpad by WP id — used by keep-theirs conflict resolution. */
+export async function fetchSingleScratchpad(
+  url: string,
+  username: string,
+  password: string,
+  wpId: number
+): Promise<WpScratchpadRaw> {
+  const base = apiBase(url)
+  const headers = makeAuthHeaders(username, password)
+  const res = await fetchWithTimeout(
+    `${base}/wp/v2/scratchpads/${wpId}?_fields=id,title,content,modified,status`,
+    { headers }
+  )
+  if (!res.ok) {
+    throw new Error(`Failed to fetch scratchpad ${wpId}: HTTP ${res.status}`)
+  }
+  return (await res.json()) as WpScratchpadRaw
+}
+
 export async function pushScratchpad(
   url: string,
   username: string,

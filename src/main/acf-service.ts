@@ -70,8 +70,36 @@ export async function pullAcfSchemaForSite(siteId: string): Promise<AcfPullResul
     }
   }
 
-  // Update last_schema_pull_at
   const db = getDb()
+
+  // Prune local schemas whose group no longer exists remotely, so a field group
+  // deleted (or deactivated) on WordPress stops rendering stale fields forever.
+  //
+  // Absence-from-list is only trustworthy here because we reach this point ONLY
+  // after a successful, parseable `fetchAcfFieldGroups` response: a missing/old
+  // companion plugin or an absent ACF returns HTTP 404, which the catch above
+  // turns into an early error return (no prune); any other transport/HTTP error
+  // throws before here (no prune). The companion endpoint's ONLY failure path is
+  // that 404 — every 200 body is the authoritative `acf_get_field_groups()`
+  // list — so an empty-but-successful list genuinely means "no active groups"
+  // (all deleted) and is safe to prune against. Groups are keyed by `key`
+  // (group_xxx); code-registered groups with id 0 fall back to the string id,
+  // matching how rows are stored above.
+  const remoteKeys = new Set(groups.map((g) => g.key || String(g.id)))
+  const localRows = db
+    .prepare('SELECT id, group_id FROM acf_schema WHERE site_id = ?')
+    .all(siteId) as { id: string; group_id: string }[]
+  const stale = localRows.filter((row) => !remoteKeys.has(row.group_id))
+  if (stale.length > 0) {
+    const del = db.prepare('DELETE FROM acf_schema WHERE id = ?')
+    const pruneAll = db.transaction((rows: { id: string }[]) => {
+      for (const row of rows) del.run(row.id)
+    })
+    pruneAll(stale)
+    result.groupsRemoved = stale.length
+  }
+
+  // Update last_schema_pull_at
   db.prepare('UPDATE sites SET last_schema_pull_at = ? WHERE id = ?').run(
     new Date().toISOString(),
     siteId

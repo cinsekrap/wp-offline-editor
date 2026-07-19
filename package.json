@@ -11,6 +11,8 @@
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "postinstall": "electron-builder install-app-deps",
+    "test": "node scripts/run-tests.mjs",
+    "test:ci": "vitest run",
     "build:unpack": "pnpm build && electron-builder --dir",
     "build:plugin": "rm -f resources/wp-offline-editor-companion.zip && ln -sfn companion-plugin wp-offline-editor-companion && zip -r resources/wp-offline-editor-companion.zip wp-offline-editor-companion/ -x 'wp-offline-editor-companion/.*' && rm wp-offline-editor-companion",
     "build:mac": "node scripts/bump-build.js && pnpm build && electron-builder --mac"
@@ -54,7 +56,8 @@
     "tailwind-merge": "^3.5.0",
     "tailwindcss": "^3.4.19",
     "tailwindcss-animate": "^1.0.7",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.7"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

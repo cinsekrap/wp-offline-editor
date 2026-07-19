@@ -199,8 +199,8 @@ export function PostMeta({
   )
 
   // Site media library (cached locally) — loaded lazily when the picker opens.
-  // Staged uploads (negative ids) can't be materialized into a post yet, so
-  // only synced items are offered.
+  // Includes staged uploads (negative ids); picking one adopts it into the
+  // post, so it uploads with the post's push instead of the library queue.
   const [libraryItems, setLibraryItems] = useState<MediaLibraryItem[]>([])
   const [libraryLoading, setLibraryLoading] = useState(false)
   const [pickingLibraryId, setPickingLibraryId] = useState<number | null>(null)
@@ -210,9 +210,7 @@ export function PostMeta({
     setLibraryLoading(true)
     window.electronAPI
       .getMediaLibrary(siteId)
-      .then((items) =>
-        setLibraryItems(items.filter((i) => i.id > 0 && i.mime_type.startsWith('image/')))
-      )
+      .then((items) => setLibraryItems(items.filter((i) => i.mime_type.startsWith('image/'))))
       .catch(() => setLibraryItems([]))
       .finally(() => setLibraryLoading(false))
   }, [pickerOpen, siteId])

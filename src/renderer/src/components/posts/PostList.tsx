@@ -104,6 +104,25 @@ export function PostList({
   const [selectMode, setSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkAction, setBulkAction] = useState<'publish' | 'delete' | null>(null)
+
+  // Never-synced images are destroyed with their posts — count them when the
+  // delete confirmation appears so the warning states the real cost.
+  const [bulkUnsyncedImages, setBulkUnsyncedImages] = useState(0)
+  useEffect(() => {
+    if (bulkAction !== 'delete') {
+      setBulkUnsyncedImages(0)
+      return
+    }
+    let cancelled = false
+    Promise.all(
+      [...selectedIds].map((id) => window.electronAPI.getMediaForPost(id).catch(() => []))
+    ).then((lists) => {
+      if (!cancelled) setBulkUnsyncedImages(lists.flat().filter((m) => !m.synced).length)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [bulkAction, selectedIds])
   const [bulkLoading, setBulkLoading] = useState(false)
 
   // Debounced search
@@ -745,6 +764,15 @@ export function PostList({
             {bulkAction === 'publish'
               ? `Publish ${selectedIds.size} post${selectedIds.size > 1 ? 's' : ''}? They will be pushed to WordPress on next sync.`
               : `Delete ${selectedIds.size} post${selectedIds.size > 1 ? 's' : ''}? They will be removed locally and deleted from WordPress on the next sync.`}
+            {bulkAction === 'delete' && bulkUnsyncedImages > 0 && (
+              <>
+                {' '}
+                {bulkUnsyncedImages === 1
+                  ? '1 image that has never been synced to WordPress'
+                  : `${bulkUnsyncedImages} images that have never been synced to WordPress`}{' '}
+                will be permanently deleted too.
+              </>
+            )}
           </p>
           <div className="flex items-center gap-2 justify-end">
             <Button size="sm" variant="outline" onClick={() => setBulkAction(null)} disabled={bulkLoading}>

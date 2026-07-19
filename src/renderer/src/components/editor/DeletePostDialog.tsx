@@ -15,13 +15,16 @@ interface DeletePostDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onConfirm: () => Promise<void>
+  /** Images in this post that have never synced — destroyed with the post. */
+  unsyncedImageCount?: number
 }
 
 export function DeletePostDialog({
   postTitle,
   open,
   onOpenChange,
-  onConfirm
+  onConfirm,
+  unsyncedImageCount = 0
 }: DeletePostDialogProps): JSX.Element {
   const [deleting, setDeleting] = useState(false)
 
@@ -43,6 +46,15 @@ export function DeletePostDialog({
           <DialogDescription>
             Are you sure you want to delete <strong>{postTitle || 'Untitled'}</strong>? The post will
             be removed locally and deleted from WordPress on the next sync.
+            {unsyncedImageCount > 0 && (
+              <>
+                {' '}
+                {unsyncedImageCount === 1
+                  ? '1 image that has never been synced to WordPress'
+                  : `${unsyncedImageCount} images that have never been synced to WordPress`}{' '}
+                will be permanently deleted with it.
+              </>
+            )}
           </DialogDescription>
         </DialogHeader>
 

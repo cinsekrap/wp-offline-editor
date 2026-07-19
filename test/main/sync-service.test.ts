@@ -6,7 +6,10 @@ import {
   rewriteTermIds,
   pushPendingDeletions,
   pushPostToWp,
-  PushConflictError
+  PushConflictError,
+  pullScratchpadsForSite,
+  pushScratchpadsForSite,
+  resolveScratchpadConflict
 } from '../../src/main/sync-service'
 import * as wpClient from '../../src/main/wp-client'
 
@@ -226,5 +229,111 @@ describe('pushPostToWp conflict handling', () => {
     }
     expect(row.wp_id).toBe(900)
     expect(row.synced).toBe(1)
+  })
+})
+
+describe('pushPostToWp media hygiene', () => {
+  it('deletes unreferenced never-synced media instead of uploading it', async () => {
+    const site = seedSite()
+    const db = getDb()
+    const referencedPath = '/tmp/np-test-media/kept.png'
+    insertPostRow({
+      id: 'post',
+      site_id: site.id,
+      wp_id: 100,
+      title: 'Post',
+      content: `<p><img src="media://file${encodeURI(referencedPath)}"></p>`,
+      synced: 0
+    })
+    const insertMedia = db.prepare(
+      'INSERT INTO media (id, site_id, post_local_id, local_path, wp_id, wp_url, filename, synced) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    )
+    insertMedia.run('m-kept', site.id, 'post', referencedPath, 10, 'https://x/kept.png', 'kept.png', 1)
+    insertMedia.run('m-orphan', site.id, 'post', '/tmp/np-test-media/orphan.png', null, null, 'orphan.png', 0)
+
+    vi.mocked(wpClient.fetchRemotePostMeta).mockResolvedValue({
+      state: 'exists',
+      modified: '2026-01-01T00:00:00'
+    })
+    vi.mocked(wpClient.pushPost).mockResolvedValue({
+      id: 100,
+      modified: '2026-06-06T00:00:00',
+      content: '<p>ok</p>',
+      acf: null
+    })
+
+    await pushPostToWp('post')
+
+    const rows = db.prepare('SELECT id FROM media WHERE post_local_id = ? ORDER BY id').all('post') as { id: string }[]
+    expect(rows.map((r) => r.id)).toEqual(['m-kept'])
+  })
+})
+
+describe('scratchpad conflicts', () => {
+  function insertScratchpad(siteId: string, overrides?: Record<string, unknown>): void {
+    const row = {
+      id: 'sp',
+      site_id: siteId,
+      wp_id: 7,
+      title: 'Local title',
+      content: 'local body',
+      modified_local: '2026-01-02T00:00:00',
+      modified_remote: '2026-01-01T00:00:00',
+      synced: 0,
+      pending_delete: 0,
+      conflict: 0,
+      ...overrides
+    }
+    getDb()
+      .prepare(
+        'INSERT INTO scratchpads (id, site_id, wp_id, title, content, modified_local, modified_remote, synced, pending_delete, conflict) VALUES (@id, @site_id, @wp_id, @title, @content, @modified_local, @modified_remote, @synced, @pending_delete, @conflict)'
+      )
+      .run(row)
+  }
+
+  it('pull flags a conflict when both sides changed, keeping local content', async () => {
+    const site = seedSite()
+    insertScratchpad(site.id)
+    vi.mocked(wpClient.fetchScratchpads).mockResolvedValue([
+      {
+        id: 7,
+        title: { rendered: 'Remote title' },
+        content: { rendered: '<p>remote body</p>' },
+        modified: '2026-02-02T00:00:00',
+        status: 'private'
+      }
+    ])
+
+    await pullScratchpadsForSite(site.id)
+
+    const row = getDb()
+      .prepare('SELECT conflict, content, modified_remote FROM scratchpads WHERE id = ?')
+      .get('sp') as { conflict: number; content: string; modified_remote: string }
+    expect(row.conflict).toBe(1)
+    expect(row.content).toBe('local body')
+    expect(row.modified_remote).toBe('2026-02-02T00:00:00')
+  })
+
+  it('push skips conflicted scratchpads without reporting an error', async () => {
+    const site = seedSite()
+    insertScratchpad(site.id, { conflict: 1 })
+
+    const { errors } = await pushScratchpadsForSite(site.id)
+
+    expect(errors).toEqual([])
+    expect(vi.mocked(wpClient.pushScratchpad)).not.toHaveBeenCalled()
+  })
+
+  it('keep-mine clears the conflict and queues a push', async () => {
+    const site = seedSite()
+    insertScratchpad(site.id, { conflict: 1 })
+
+    await resolveScratchpadConflict('sp', 'keep-mine')
+
+    const row = getDb()
+      .prepare('SELECT conflict, synced FROM scratchpads WHERE id = ?')
+      .get('sp') as { conflict: number; synced: number }
+    expect(row.conflict).toBe(0)
+    expect(row.synced).toBe(0)
   })
 })

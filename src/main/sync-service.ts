@@ -8,7 +8,7 @@ import { getCredential } from './credentials'
 import { getPostById, deletePost, pullPostsForSite, downloadAndRewriteImages, rewriteAcfImageUrls, downloadFeaturedImage } from './post-service'
 import { indexPost } from './search-service'
 import { getMediaForPost, uploadMediaToWp, deleteMedia } from './media-service'
-import { pushPost, deleteRemotePost, fetchSinglePost, fetchUserNames, fetchSiteIcon, fetchScratchpads, pushScratchpad as pushScratchpadToWp, updatePostScratchpadMeta, deleteRemoteScratchpad, fetchRemoteScratchpadExistence, fetchRemotePostMeta, fetchPluginVersion, createTerm } from './wp-client'
+import { pushPost, deleteRemotePost, fetchSinglePost, fetchUserNames, fetchSiteIcon, fetchScratchpads, fetchSingleScratchpad, pushScratchpad as pushScratchpadToWp, updatePostScratchpadMeta, deleteRemoteScratchpad, fetchRemoteScratchpadExistence, fetchRemotePostMeta, fetchPluginVersion, createTerm } from './wp-client'
 import { getPendingTermsForSite } from './taxonomy-service'
 import { isPluginVersionMismatch, pluginMismatchMessage } from '@shared/version-utils'
 import { decodeHtmlEntities } from './html-utils'
@@ -464,6 +464,47 @@ export async function resolveConflict(
   indexPost(postId, post.site_id, title, content, excerpt)
 }
 
+/**
+ * Two-option resolution for a conflicted scratchpad (no fork — this is a notes
+ * feature, not the post editor). Mirrors resolveConflict's shape.
+ *
+ * keep-mine works fully offline: it just clears the flag and marks the row
+ * unsynced, so the next sync pushes local content over remote. keep-theirs
+ * needs the network to fetch the remote copy and overwrites local with it.
+ */
+export async function resolveScratchpadConflict(
+  scratchpadId: string,
+  strategy: 'keep-mine' | 'keep-theirs'
+): Promise<void> {
+  const db = getDb()
+
+  if (strategy === 'keep-mine') {
+    db.prepare('UPDATE scratchpads SET conflict = 0, synced = 0 WHERE id = ?').run(scratchpadId)
+    return
+  }
+
+  // keep-theirs — fetch and overwrite local with the remote version
+  const sp = getScratchpadById(scratchpadId)
+  if (!sp) throw new Error(`Scratchpad not found: ${scratchpadId}`)
+  if (!sp.wp_id) throw new Error('Scratchpad has no WP ID — cannot pull remote version')
+
+  const site = getSiteById(sp.site_id)
+  if (!site) throw new Error(`Site not found: ${sp.site_id}`)
+
+  const password = getCredential(site.keychain_ref)
+  if (!password) throw new Error(`No credential found for site: ${site.label}`)
+
+  const wp = await fetchSingleScratchpad(site.url, site.username, password, sp.wp_id)
+  const title = decodeHtmlEntities(wp.title.rendered)
+  const content = stripBasicHtml(wp.content.rendered)
+  const now = new Date().toISOString()
+
+  db.prepare(`
+    UPDATE scratchpads SET title = ?, content = ?, modified_local = ?, modified_remote = ?, synced = 1, conflict = 0
+    WHERE id = ?
+  `).run(title, content, now, wp.modified, scratchpadId)
+}
+
 async function pushScratchpadsForSite(siteId: string): Promise<{ errors: string[] }> {
   const db = getDb()
   const errors: string[] = []
@@ -485,8 +526,10 @@ async function pushScratchpadsForSite(siteId: string): Promise<{ errors: string[
     }
   }
 
+  // Conflicted scratchpads are excluded — pushing would silently overwrite the
+  // remote edit. They stay flagged until resolved (mirrors the post push loop).
   const unsynced = db
-    .prepare('SELECT id FROM scratchpads WHERE site_id = ? AND synced = 0 AND pending_delete = 0')
+    .prepare('SELECT id FROM scratchpads WHERE site_id = ? AND synced = 0 AND conflict = 0 AND pending_delete = 0')
     .all(siteId) as { id: string }[]
 
   for (const row of unsynced) {
@@ -593,8 +636,15 @@ async function pullScratchpadsForSite(siteId: string): Promise<void> {
         UPDATE scratchpads SET title = ?, content = ?, modified_local = ?, modified_remote = ?, synced = 1
         WHERE id = ?
       `).run(title, content, now, modifiedRemote, existing.id)
+      continue
     }
-    // synced=0 → local wins, skip (no conflict UI in Part 1)
+
+    // Remote changed AND local edits exist (synced=0) → conflict. Record the
+    // remote timestamp so this same remote edit isn't re-flagged every pull
+    // (matches upsertPost); local content is never overwritten. The user
+    // resolves via keep-mine / keep-theirs.
+    db.prepare('UPDATE scratchpads SET conflict = 1, modified_remote = ? WHERE id = ?')
+      .run(modifiedRemote, existing.id)
   }
 
   // Ghost pruning: scratchpads deleted on WordPress otherwise linger locally
@@ -605,7 +655,7 @@ async function pullScratchpadsForSite(siteId: string): Promise<void> {
   const candidates = (
     db
       .prepare(
-        'SELECT id, wp_id FROM scratchpads WHERE site_id = ? AND wp_id IS NOT NULL AND synced = 1 AND pending_delete = 0'
+        'SELECT id, wp_id FROM scratchpads WHERE site_id = ? AND wp_id IS NOT NULL AND synced = 1 AND conflict = 0 AND pending_delete = 0'
       )
       .all(siteId) as { id: string; wp_id: number }[]
   ).filter((row) => !remoteIds.has(row.wp_id))
@@ -766,11 +816,13 @@ async function doSyncSite(siteId: string, options?: { force?: boolean }): Promis
     }
   }
 
-  // Conflicted posts are counted by the badge but never auto-pushed — report
-  // them so the renderer can say so instead of "Everything up to date".
-  const conflicts = (
-    db.prepare('SELECT COUNT(*) as count FROM posts WHERE site_id = ? AND conflict = 1').get(siteId) as { count: number }
-  ).count
+  // Conflicted posts + scratchpads are counted by the badge but never
+  // auto-pushed — report them so the renderer can say so instead of
+  // "Everything up to date". Folded into one count: the "needs review" signal
+  // is identical for both; only the surface the user opens to resolve differs.
+  const conflicts =
+    (db.prepare('SELECT COUNT(*) as count FROM posts WHERE site_id = ? AND conflict = 1').get(siteId) as { count: number }).count +
+    (db.prepare('SELECT COUNT(*) as count FROM scratchpads WHERE site_id = ? AND conflict = 1 AND pending_delete = 0').get(siteId) as { count: number }).count
 
   return { pushed, recreated, deleted: deletedCount, pushErrors, pull, schemaPull, mediaLibraryPull, pluginVersionWarning, massPushPaused, conflicts }
 }

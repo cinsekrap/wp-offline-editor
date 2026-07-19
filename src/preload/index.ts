@@ -73,6 +73,8 @@ const api: ElectronAPI = {
   deleteScratchpad: (id) => ipcRenderer.invoke('scratchpads:delete', id),
   linkScratchpad: (postId, scratchpadId) => ipcRenderer.invoke('scratchpads:link', postId, scratchpadId),
   unlinkScratchpad: (postId) => ipcRenderer.invoke('scratchpads:unlink', postId),
+  resolveScratchpadConflict: (id, strategy) =>
+    ipcRenderer.invoke('scratchpads:resolve-conflict', id, strategy),
 
   // Writing Stats
   getWritingStats: (siteId) => ipcRenderer.invoke('stats:get-writing', siteId),

@@ -11,6 +11,7 @@ interface ScratchpadRow {
   modified_local: string
   modified_remote: string | null
   synced: number
+  conflict: number
 }
 
 function normalizeRow(row: ScratchpadRow): Scratchpad {
@@ -22,7 +23,8 @@ function normalizeRow(row: ScratchpadRow): Scratchpad {
     content: row.content,
     modified_local: row.modified_local,
     modified_remote: row.modified_remote,
-    synced: Boolean(row.synced)
+    synced: Boolean(row.synced),
+    conflict: Boolean(row.conflict)
   }
 }
 

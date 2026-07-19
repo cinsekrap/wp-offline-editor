@@ -59,6 +59,9 @@ export const PostUpdateSchema = z.object({
 
 export const ConflictStrategySchema = z.enum(['keep-mine', 'keep-theirs', 'fork'])
 
+/** Scratchpad conflicts resolve to two options only — no fork. */
+export const ScratchpadConflictStrategySchema = z.enum(['keep-mine', 'keep-theirs'])
+
 export const TaxonomySchema = z.enum(['category', 'post_tag'])
 
 export const TemplateInputSchema = z.object({

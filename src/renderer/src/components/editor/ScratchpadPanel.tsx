@@ -9,13 +9,15 @@ import {
   Search,
   MoreHorizontal,
   ExternalLink,
-  Pencil
+  Pencil,
+  AlertTriangle
 } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
 import { Input } from '@renderer/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/components/ui/popover'
 import { useScratchpad, type ScratchpadSaveStatus } from '@renderer/hooks/useScratchpad'
 import { ScratchpadEditor } from './ScratchpadEditor'
+import { ScratchpadConflictBanner } from './ScratchpadConflictBanner'
 import { cn } from '@renderer/lib/utils'
 
 interface ScratchpadPanelProps {
@@ -107,6 +109,9 @@ export function ScratchpadPanel({ siteId, postId }: ScratchpadPanelProps): JSX.E
       return (
         <div className="flex flex-col h-full">
           <div className="flex items-center gap-1 px-3 py-2 border-b shrink-0">
+            {scratchpad.conflict && (
+              <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0" aria-label="Has a conflict" />
+            )}
             <span className="text-sm font-medium truncate flex-1">
               {title || 'Untitled'}
             </span>
@@ -130,6 +135,9 @@ export function ScratchpadPanel({ siteId, postId }: ScratchpadPanelProps): JSX.E
               </PopoverContent>
             </Popover>
           </div>
+          {scratchpad.conflict && (
+            <ScratchpadConflictBanner scratchpadId={scratchpad.id} onResolved={refresh} />
+          )}
           <div className="flex-1 flex flex-col items-center justify-center gap-3 px-4">
             <ExternalLink className="h-5 w-5 text-muted-foreground" />
             <p className="text-sm text-muted-foreground text-center">
@@ -209,6 +217,9 @@ export function ScratchpadPanel({ siteId, postId }: ScratchpadPanelProps): JSX.E
             <ExternalLink className="h-3.5 w-3.5" />
           </Button>
         </div>
+        {scratchpad.conflict && (
+          <ScratchpadConflictBanner scratchpadId={scratchpad.id} onResolved={refresh} />
+        )}
         <div className="flex-1 min-h-0 px-3 pb-2">
           <ScratchpadEditor
             key={scratchpad.id}
@@ -314,7 +325,12 @@ export function ScratchpadPanel({ siteId, postId }: ScratchpadPanelProps): JSX.E
                     setMode('idle')
                   }}
                 >
-                  <div className="font-medium truncate">{sp.title || 'Untitled'}</div>
+                  <div className="flex items-center gap-1.5 font-medium truncate">
+                    {sp.conflict && (
+                      <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                    )}
+                    <span className="truncate">{sp.title || 'Untitled'}</span>
+                  </div>
                   {sp.content && (
                     <div className="text-xs text-muted-foreground truncate mt-0.5">
                       {sp.content.slice(0, 80)}

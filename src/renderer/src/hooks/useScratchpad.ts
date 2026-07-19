@@ -79,6 +79,9 @@ export function useScratchpad(siteId: string, postId: string): UseScratchpadRetu
         const sp = await window.electronAPI.getScratchpad(changedId)
         if (!sp) return
 
+        // Keep the conflict flag fresh (e.g. flagged by a sync or resolved elsewhere)
+        setScratchpad(sp)
+
         const currentSerialized = JSON.stringify({ title, content })
         const remoteSerialized = JSON.stringify({ title: sp.title, content: sp.content })
 

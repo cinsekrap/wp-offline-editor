@@ -371,6 +371,8 @@ export interface AcfPullResult {
   groupsFound: number
   groupsUpdated: number
   groupsUnchanged: number
+  /** Local schemas pruned because their group no longer exists remotely. */
+  groupsRemoved?: number
   errors: string[]
 }
 

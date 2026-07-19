@@ -722,6 +722,7 @@ export function PostEditor({
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}
         onConfirm={handleDelete}
+        unsyncedImageCount={queue.filter((m) => !m.synced).length}
       />
 
       <DuplicateToDialog

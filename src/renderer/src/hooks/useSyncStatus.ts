@@ -77,6 +77,8 @@ export function useSyncStatus({
           parts.push(`${result.pull.removed} removed (deleted on WordPress)`)
         if (result.schemaPull.groupsUpdated > 0)
           parts.push(`${result.schemaPull.groupsUpdated} schema updated`)
+        if (result.schemaPull.groupsRemoved)
+          parts.push(`${result.schemaPull.groupsRemoved} schema removed`)
 
         const allErrors = [...result.pushErrors, ...result.pull.errors, ...result.schemaPull.errors]
 

@@ -505,7 +505,7 @@ export async function resolveScratchpadConflict(
   `).run(title, content, now, wp.modified, scratchpadId)
 }
 
-async function pushScratchpadsForSite(siteId: string): Promise<{ errors: string[] }> {
+export async function pushScratchpadsForSite(siteId: string): Promise<{ errors: string[] }> {
   const db = getDb()
   const errors: string[] = []
   const site = getSiteById(siteId)
@@ -587,7 +587,7 @@ function stripBasicHtml(html: string): string {
     .trim()
 }
 
-async function pullScratchpadsForSite(siteId: string): Promise<void> {
+export async function pullScratchpadsForSite(siteId: string): Promise<void> {
   const db = getDb()
   const site = getSiteById(siteId)
   if (!site) return

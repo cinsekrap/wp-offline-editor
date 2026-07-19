@@ -15,6 +15,7 @@ interface UseSyncStatusReturn {
   setSyncing: (v: boolean) => void
   pendingChanges: PendingChanges
   handleSync: () => Promise<void>
+  handleAutoSync: () => Promise<void>
   refreshCounts: () => Promise<void>
   massPushPaused: { count: number } | null
   handleForceSync: () => Promise<void>
@@ -51,7 +52,7 @@ export function useSyncStatus({
     return cleanup
   }, [refreshCounts])
 
-  const doSync = useCallback(async (options?: { force?: boolean }): Promise<void> => {
+  const doSync = useCallback(async (options?: { force?: boolean; manual?: boolean }): Promise<void> => {
     if (!selectedSiteId) return
     try {
       setSyncing(true)
@@ -121,11 +122,15 @@ export function useSyncStatus({
     }
   }, [selectedSiteId, toast, refreshCounts, refreshPosts])
 
-  const handleSync = useCallback(() => doSync(), [doSync])
+  // User-initiated syncs bypass the background update-check throttle;
+  // the interval-driven auto-sync does not.
+  const handleSync = useCallback(() => doSync({ manual: true }), [doSync])
+
+  const handleAutoSync = useCallback(() => doSync(), [doSync])
 
   const handleForceSync = useCallback(async () => {
     setMassPushPaused(null)
-    await doSync({ force: true })
+    await doSync({ force: true, manual: true })
   }, [doSync])
 
   const clearMassPushPaused = useCallback(() => setMassPushPaused(null), [])
@@ -135,6 +140,7 @@ export function useSyncStatus({
     setSyncing,
     pendingChanges,
     handleSync,
+    handleAutoSync,
     refreshCounts,
     massPushPaused,
     handleForceSync,

@@ -220,7 +220,7 @@ function App(): JSX.Element {
   }, [justReconnected, selectedSiteId, toast, sync.handleSync, clearReconnected])
 
   // Auto-sync
-  useAutoSync(selectedSite?.auto_sync ?? false, effectiveOnline, sync.handleSync, settings.autoSyncInterval)
+  useAutoSync(selectedSite?.auto_sync ?? false, effectiveOnline, sync.handleAutoSync, settings.autoSyncInterval)
 
   // ── View rendering ──────────────────────────────────────────────────────
 

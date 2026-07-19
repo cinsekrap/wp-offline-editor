@@ -111,7 +111,10 @@ export const SearchQuerySchema = z.object({
 })
 
 export const SyncOptionsSchema = z.object({
-  force: z.boolean().optional()
+  force: z.boolean().optional(),
+  // User-initiated sync — bypasses the background update-check throttle.
+  // Peeled off in the IPC handler; never reaches syncSite.
+  manual: z.boolean().optional()
 }).optional()
 
 export const CreatePendingTermSchema = z.object({

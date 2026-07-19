@@ -104,8 +104,12 @@ export function PostMeta({
 
   const handlePublishImmediately = useCallback(() => {
     setPublishConfirmOpen(false)
-    onDateChange(undefined)
-    onStatusChange(resolvePublishedStatus(visibility, undefined))
+    // Stamp the button-press moment explicitly: clearing the date instead
+    // would fall back to the draft's original date on save (PostEditor keeps
+    // post.date when scheduledDate is unset), backdating the publish.
+    const now = new Date()
+    onDateChange(now)
+    onStatusChange(resolvePublishedStatus(visibility, now))
   }, [visibility, onDateChange, onStatusChange])
 
   const handlePublishLater = useCallback(() => {
@@ -440,11 +444,12 @@ export function PostMeta({
                 size="sm"
                 className="w-full h-8 text-sm"
                 onClick={() => {
-                  setDateExpanded(false)
-                  handleDateChange(undefined)
+                  // Same fallback trap as publish-immediately: undefined would
+                  // silently keep the stored date, so set "now" explicitly.
+                  handleDateChange(new Date())
                 }}
               >
-                Reset to immediately
+                Reset to now
               </Button>
             </div>
           )}

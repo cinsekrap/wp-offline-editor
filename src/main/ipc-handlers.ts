@@ -159,11 +159,15 @@ export function registerIpcHandlers(): void {
   })
 
   ipcMain.handle('site:sync', async (_event, siteId: unknown, options?: unknown) => {
-    const result = await syncSite(uuidSchema.parse(siteId), SyncOptionsSchema.parse(options))
+    // `manual` is an updater concern, not a sync one — peel it off so
+    // sync-service stays unaware of it.
+    const { manual, ...syncOptions } = SyncOptionsSchema.parse(options) ?? {}
+    const result = await syncSite(uuidSchema.parse(siteId), syncOptions)
     notifyCountsChanged()
-    // A successful sync proves we're online — good moment for a (throttled)
-    // background update check
-    maybeAutoCheckForUpdates()
+    // A successful sync proves we're online — good moment for a background
+    // update check. A user-initiated sync bypasses the throttle: an engaged
+    // user is worth one cheap request.
+    maybeAutoCheckForUpdates({ bypassThrottle: manual })
     return result
   })
 

@@ -7,7 +7,7 @@ import { getSiteById, updateSiteIconUrl } from './site-service'
 import { getCredential } from './credentials'
 import { getPostById, deletePost, pullPostsForSite, downloadAndRewriteImages, rewriteAcfImageUrls, downloadFeaturedImage } from './post-service'
 import { indexPost } from './search-service'
-import { getMediaForPost, uploadMediaToWp } from './media-service'
+import { getMediaForPost, uploadMediaToWp, deleteMedia } from './media-service'
 import { pushPost, deleteRemotePost, fetchSinglePost, fetchUserNames, fetchSiteIcon, fetchScratchpads, fetchSingleScratchpad, pushScratchpad as pushScratchpadToWp, updatePostScratchpadMeta, deleteRemoteScratchpad, fetchRemoteScratchpadExistence, fetchRemotePostMeta, fetchPluginVersion, createTerm } from './wp-client'
 import { getPendingTermsForSite } from './taxonomy-service'
 import { isPluginVersionMismatch, pluginMismatchMessage } from '@shared/version-utils'
@@ -194,11 +194,35 @@ export async function pushPostToWp(
     // extra guard, not a gate that can wedge syncing.
   }
 
-  // Upload any unsynced media for this post
+  // Upload only unsynced media the post actually references. A media row is
+  // referenced when its media:// URL appears in the content or ACF JSON, its id
+  // is the featured image, or its id appears as an ACF media-UUID reference
+  // (the same UUID→wp_id form resolveMediaRefs swaps below). Never-synced rows
+  // that nothing references are images the user inserted then removed before the
+  // first sync — uploading them would clutter the WP media library (and leak a
+  // discarded image). The renderer's post-editor cleanup already deletes such
+  // orphans, but only while that post's editor is open and 30s after the last
+  // edit — closing the editor sooner, or removing an ACF image (which that
+  // cleanup ignores), can strand a row here. So drop it with the same primitive.
+  const refContent = post.content
+  const refFeatured = post.featured_image
+  const acfJsonForRefs = post.acf ? JSON.stringify(post.acf) : ''
+  function isMediaReferenced(media: { id: string; local_path: string }): boolean {
+    if (media.id === refFeatured) return true
+    const mediaUrl = `media://file${encodeURI(media.local_path)}`
+    if (refContent.includes(mediaUrl)) return true
+    // ACF may reference an image by its media:// URL or by its media-UUID id.
+    if (acfJsonForRefs.includes(mediaUrl) || acfJsonForRefs.includes(`"${media.id}"`)) return true
+    return false
+  }
+
   const mediaItems = getMediaForPost(postId)
   for (const media of mediaItems) {
-    if (!media.synced) {
+    if (media.synced) continue
+    if (isMediaReferenced(media)) {
       await uploadMediaToWp(media.id)
+    } else {
+      deleteMedia(media.id)
     }
   }
 

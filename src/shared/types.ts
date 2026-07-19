@@ -373,6 +373,8 @@ export interface AcfPullResult {
   groupsFound: number
   groupsUpdated: number
   groupsUnchanged: number
+  /** Local schemas pruned because their group no longer exists remotely. */
+  groupsRemoved?: number
   errors: string[]
 }
 
@@ -454,7 +456,7 @@ export interface ElectronAPI {
   pushPost(postId: string): Promise<PushResult>
   resolveConflict(postId: string, strategy: 'keep-mine' | 'keep-theirs' | 'fork'): Promise<void>
   getPendingChanges(siteId: string): Promise<PendingChanges>
-  syncSite(siteId: string, options?: { force?: boolean }): Promise<SyncResult>
+  syncSite(siteId: string, options?: { force?: boolean; manual?: boolean }): Promise<SyncResult>
 
   // ACF Schema
   pullAcfSchema(siteId: string): Promise<AcfPullResult>

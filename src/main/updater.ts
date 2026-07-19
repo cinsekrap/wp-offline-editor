@@ -54,11 +54,12 @@ export function setAutoDownloadUpdates(enabled: boolean): void {
 
 /**
  * Throttled background check, called after a successful sync (which proves
- * we're online). Silent unless an update is actually found.
+ * we're online). Silent unless an update is actually found. A user-initiated
+ * sync passes bypassThrottle to skip the interval gate while staying silent.
  */
-export function maybeAutoCheckForUpdates(): void {
+export function maybeAutoCheckForUpdates(options?: { bypassThrottle?: boolean }): void {
   const now = Date.now()
-  if (now - lastAutoCheck < AUTO_CHECK_INTERVAL_MS) return
+  if (!options?.bypassThrottle && now - lastAutoCheck < AUTO_CHECK_INTERVAL_MS) return
   lastAutoCheck = now
   currentCheckIsAuto = true
   autoUpdater.checkForUpdates().catch(() => {

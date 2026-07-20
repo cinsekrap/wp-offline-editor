@@ -89,7 +89,9 @@ export function PostsView({
   return (
     <PostList
       posts={posts}
-      loading={postsLoading || !!pulling}
+      // Keep showing the current list during a sync — only spin when there is
+      // nothing to show yet (first pull on an empty site), like the dashboard
+      loading={(postsLoading || !!pulling) && posts.length === 0}
       siteId={siteId}
       onSelectPost={onSelectPost}
       onNewPost={handleNewPost}

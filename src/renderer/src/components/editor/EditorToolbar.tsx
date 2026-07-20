@@ -23,16 +23,8 @@ import {
 } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
 import { Popover, PopoverTrigger, PopoverContent } from '@renderer/components/ui/popover'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter
-} from '@renderer/components/ui/dialog'
-import { Input } from '@renderer/components/ui/input'
-import { Label } from '@renderer/components/ui/label'
 import { cn } from '@renderer/lib/utils'
+import { LinkDialog } from './LinkDialog'
 
 interface EditorToolbarProps {
   editor: Editor | null
@@ -50,7 +42,6 @@ export function EditorToolbar({ editor, siteId, onImageInsert, onLibraryImageIns
   const [imageMenuOpen, setImageMenuOpen] = useState(false)
   const [tableMenuOpen, setTableMenuOpen] = useState(false)
   const [linkDialogOpen, setLinkDialogOpen] = useState(false)
-  const [linkUrl, setLinkUrl] = useState('')
 
   useEffect(() => {
     if (!shortcodesOpen || !siteId || shortcodesLoaded) return
@@ -63,29 +54,6 @@ export function EditorToolbar({ editor, siteId, onImageInsert, onLibraryImageIns
   }, [shortcodesOpen, siteId, shortcodesLoaded])
 
   if (!editor) return null
-
-  function handleLink(): void {
-    if (!editor) return
-    if (editor.isActive('link')) {
-      editor.chain().focus().unsetLink().run()
-      return
-    }
-    const existing = (editor.getAttributes('link').href as string | undefined) ?? ''
-    setLinkUrl(existing)
-    setLinkDialogOpen(true)
-  }
-
-  function applyLink(): void {
-    if (!editor) return
-    const url = linkUrl.trim()
-    if (!url) {
-      setLinkDialogOpen(false)
-      return
-    }
-    editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run()
-    setLinkDialogOpen(false)
-    setLinkUrl('')
-  }
 
   function handleImageClick(): void {
     fileInputRef.current?.click()
@@ -166,7 +134,7 @@ export function EditorToolbar({ editor, siteId, onImageInsert, onLibraryImageIns
     {
       icon: Link,
       label: 'Link',
-      action: handleLink,
+      action: () => setLinkDialogOpen(true),
       active: editor.isActive('link')
     },
     ...(siteId && onLibraryImageInsert
@@ -355,35 +323,7 @@ export function EditorToolbar({ editor, siteId, onImageInsert, onLibraryImageIns
         className="hidden"
         onChange={handleFileChange}
       />
-      <Dialog open={linkDialogOpen} onOpenChange={setLinkDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Insert link</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-2">
-            <Label htmlFor="link-url">URL</Label>
-            <Input
-              id="link-url"
-              value={linkUrl}
-              onChange={(e) => setLinkUrl(e.target.value)}
-              placeholder="https://example.com"
-              autoFocus
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  applyLink()
-                }
-              }}
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setLinkDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={applyLink}>Insert</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <LinkDialog editor={editor} open={linkDialogOpen} onOpenChange={setLinkDialogOpen} />
     </div>
   )
 }

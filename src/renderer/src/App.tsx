@@ -285,6 +285,10 @@ function App(): JSX.Element {
             createPost={createPost}
             deletePost={deletePost}
             onNewPost={tmpl.handleNewPost}
+            onTemplates={() => {
+              tmpl.setEditingTemplate(null)
+              nav.goToTemplates()
+            }}
           />
         )
       case 'media':
@@ -314,6 +318,7 @@ function App(): JSX.Element {
             onNew={tmpl.handleNewTemplate}
             onSelect={(t) => tmpl.setEditingTemplate(t)}
             onDelete={tmpl.handleDeleteTemplate}
+            onBack={nav.goToPosts}
           />
         )
       default:
@@ -328,14 +333,6 @@ function App(): JSX.Element {
       <AppShell
         onSettingsClick={nav.goToSettings}
         onPostsClick={selectedSiteId && notSettings ? nav.goToPosts : undefined}
-        onTemplatesClick={
-          selectedSiteId && notSettings
-            ? () => {
-                tmpl.setEditingTemplate(null)
-                nav.goToTemplates()
-              }
-            : undefined
-        }
         onMediaClick={selectedSiteId && notSettings ? nav.goToMedia : undefined}
         onSyncClick={sync.handleSync}
         syncing={sync.syncing}

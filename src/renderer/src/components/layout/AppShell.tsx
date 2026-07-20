@@ -6,7 +6,6 @@ interface AppShellProps {
   children: ReactNode
   onSettingsClick: () => void
   onPostsClick?: () => void
-  onTemplatesClick?: () => void
   onMediaClick?: () => void
   onSyncClick?: () => void
   syncing?: boolean
@@ -25,7 +24,6 @@ export function AppShell({
   children,
   onSettingsClick,
   onPostsClick,
-  onTemplatesClick,
   onMediaClick,
   onSyncClick,
   syncing,
@@ -44,7 +42,6 @@ export function AppShell({
       <Toolbar
         onSettingsClick={onSettingsClick}
         onPostsClick={onPostsClick}
-        onTemplatesClick={onTemplatesClick}
         onMediaClick={onMediaClick}
         onSyncClick={onSyncClick}
         syncing={syncing}

@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import {
   Plus, Loader2,
-  Filter, ArrowUpDown, Search, X, CheckSquare
+  Filter, ArrowUpDown, Search, X, CheckSquare, FileText
 } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
 import { Input } from '@renderer/components/ui/input'
@@ -61,6 +61,7 @@ interface PostListProps {
   siteId: string
   onSelectPost: (id: string) => void
   onNewPost: () => void
+  onTemplates?: () => void
   initialFilter?: PostListFilter | null
   onBulkStatus?: (postIds: string[], status: PostStatus) => Promise<void>
   onBulkDelete?: (postIds: string[]) => Promise<void>
@@ -72,6 +73,7 @@ export function PostList({
   siteId,
   onSelectPost,
   onNewPost,
+  onTemplates,
   initialFilter,
   onBulkStatus,
   onBulkDelete
@@ -539,6 +541,20 @@ export function PostList({
             </PopoverContent>
           </Popover>
 
+          {onTemplates && (
+            <>
+              <div className="w-px h-5 bg-border mx-1" />
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={onTemplates}
+                title="Post templates"
+              >
+                <FileText className="h-4 w-4" />
+              </Button>
+            </>
+          )}
         </div>
       </div>
 

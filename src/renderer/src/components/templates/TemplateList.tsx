@@ -1,4 +1,4 @@
-import { Plus, FileText, Trash2 } from 'lucide-react'
+import { Plus, FileText, Trash2, ArrowLeft } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
 import type { Template } from '@shared/types'
 
@@ -8,9 +8,10 @@ interface TemplateListProps {
   onNew: () => void
   onSelect: (template: Template) => void
   onDelete: (id: string) => void
+  onBack?: () => void
 }
 
-export function TemplateList({ templates, loading, onNew, onSelect, onDelete }: TemplateListProps): JSX.Element {
+export function TemplateList({ templates, loading, onNew, onSelect, onDelete, onBack }: TemplateListProps): JSX.Element {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full text-muted-foreground">
@@ -22,11 +23,18 @@ export function TemplateList({ templates, loading, onNew, onSelect, onDelete }: 
   return (
     <div className="p-6 max-w-4xl mx-auto">
       <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-xl font-semibold">Post Templates</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Create reusable templates for new posts
-          </p>
+        <div className="flex items-center gap-2">
+          {onBack && (
+            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={onBack} title="Back to posts">
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          )}
+          <div>
+            <h1 className="text-xl font-semibold">Post Templates</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Create reusable templates for new posts
+            </p>
+          </div>
         </div>
         <Button onClick={onNew} size="sm">
           <Plus className="h-4 w-4 mr-1" />

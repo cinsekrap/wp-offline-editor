@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Settings, RefreshCw, Loader2, Home, Images, WifiOff, CloudUpload, ArrowLeftRight, Check, FileText, AlignLeft } from 'lucide-react'
+import { Settings, RefreshCw, Loader2, Home, Images, WifiOff, CloudUpload, ArrowLeftRight, Check, AlignLeft } from 'lucide-react'
 import { Badge } from '@renderer/components/ui/badge'
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/components/ui/popover'
 import { cn } from '@renderer/lib/utils'
@@ -45,7 +45,6 @@ function SiteIcon({ site }: { site: Site }): JSX.Element {
 interface ToolbarProps {
   onSettingsClick: () => void
   onPostsClick?: () => void
-  onTemplatesClick?: () => void
   onMediaClick?: () => void
   onSyncClick?: () => void
   syncing?: boolean
@@ -72,7 +71,6 @@ function pendingChangesTooltip(changes: PendingChanges): string {
 export function Toolbar({
   onSettingsClick,
   onPostsClick,
-  onTemplatesClick,
   onMediaClick,
   onSyncClick,
   syncing,
@@ -110,23 +108,14 @@ export function Toolbar({
                 onClick={onPostsClick}
                 className={cn(
                   'p-2 rounded-md transition-colors no-drag',
-                  activeView === 'posts' ? 'bg-accent text-accent-foreground' : 'hover:bg-accent'
+                  // Templates lives inside the posts area, so keep Posts lit there
+                  activeView === 'posts' || activeView === 'templates'
+                    ? 'bg-accent text-accent-foreground'
+                    : 'hover:bg-accent'
                 )}
                 title="Posts"
               >
                 <AlignLeft className="h-4 w-4" />
-              </button>
-            )}
-            {onTemplatesClick && (
-              <button
-                onClick={onTemplatesClick}
-                className={cn(
-                  'p-2 rounded-md transition-colors no-drag',
-                  activeView === 'templates' ? 'bg-accent text-accent-foreground' : 'hover:bg-accent'
-                )}
-                title="Templates"
-              >
-                <FileText className="h-4 w-4" />
               </button>
             )}
             {onMediaClick && (

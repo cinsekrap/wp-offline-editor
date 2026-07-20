@@ -22,6 +22,8 @@ interface PostsViewProps {
   onDuplicate?: (newPostId: string, targetSiteId: string) => void
   /** Template-aware new-post flow (opens the template picker when templates exist). */
   onNewPost?: () => void
+  /** Opens the template manager (lives inside the posts screen). */
+  onTemplates?: () => void
 }
 
 export function PostsView({
@@ -39,7 +41,8 @@ export function PostsView({
   deletePost,
   sites,
   onDuplicate,
-  onNewPost
+  onNewPost,
+  onTemplates
 }: PostsViewProps): JSX.Element {
   const handleBlankNewPost = useCallback(async () => {
     const post = await createPost()
@@ -90,6 +93,7 @@ export function PostsView({
       siteId={siteId}
       onSelectPost={onSelectPost}
       onNewPost={handleNewPost}
+      onTemplates={onTemplates}
       initialFilter={initialFilter}
       onBulkStatus={handleBulkStatus}
       onBulkDelete={handleBulkDelete}

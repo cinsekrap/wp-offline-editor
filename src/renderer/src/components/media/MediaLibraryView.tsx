@@ -300,7 +300,7 @@ export function MediaLibraryView({ siteId, online }: MediaLibraryViewProps): JSX
             <div className="space-y-3 text-sm">
               <div>
                 <p className="text-xs text-muted-foreground">Title</p>
-                <p className="break-words">{selected.title || '—'}</p>
+                <p className="wrap-break-word">{selected.title || '—'}</p>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Filename</p>

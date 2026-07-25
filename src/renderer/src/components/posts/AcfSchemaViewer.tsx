@@ -64,9 +64,9 @@ function FieldGroupCard({
         className="w-full flex items-center gap-2 px-4 py-3 text-left hover:bg-accent/30 transition-colors rounded-lg"
       >
         {expanded ? (
-          <ChevronDown className="h-4 w-4 flex-shrink-0" />
+          <ChevronDown className="h-4 w-4 shrink-0" />
         ) : (
-          <ChevronRight className="h-4 w-4 flex-shrink-0" />
+          <ChevronRight className="h-4 w-4 shrink-0" />
         )}
         <span className="font-medium text-sm flex-1">{title}</span>
         <Badge variant="secondary" className="text-xs">

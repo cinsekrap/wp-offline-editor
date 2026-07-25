@@ -181,14 +181,14 @@ export function AddSiteDialog({
 
             {testResult && !testResult.success && (
               <div className="flex items-start gap-2 p-3 rounded-md bg-destructive/10 text-destructive text-sm">
-                <XCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                <XCircle className="h-4 w-4 mt-0.5 shrink-0" />
                 <span>{testResult.error}</span>
               </div>
             )}
 
             {error && (
               <div className="flex items-start gap-2 p-3 rounded-md bg-destructive/10 text-destructive text-sm">
-                <XCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                <XCircle className="h-4 w-4 mt-0.5 shrink-0" />
                 <span>{error}</span>
               </div>
             )}
@@ -324,7 +324,7 @@ export function AddSiteDialog({
 
             {error && (
               <div className="flex items-start gap-2 p-3 rounded-md bg-destructive/10 text-destructive text-sm">
-                <XCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                <XCircle className="h-4 w-4 mt-0.5 shrink-0" />
                 <span>{error}</span>
               </div>
             )}

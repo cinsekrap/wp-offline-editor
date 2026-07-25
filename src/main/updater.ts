@@ -39,8 +39,38 @@ export function initAutoUpdater(): void {
   })
 
   autoUpdater.on('error', (err) => {
-    sendToAllWindows('updater:status', 'error', { message: err.message, auto: currentCheckIsAuto })
+    console.error('[updater] check/download failed:', err)
+    sendToAllWindows('updater:status', 'error', {
+      message: userFacingUpdateError(err),
+      auto: currentCheckIsAuto
+    })
   })
+}
+
+/**
+ * electron-updater error messages can embed a nested error's entire stack and
+ * response-header dump (e.g. its GitHub provider wraps a 404 as "Cannot find
+ * latest-mac.yml in the latest release artifacts (...): HttpError: 404 ...
+ * Headers: {...} at createHttpError ..."). Never show that wall of text —
+ * classify the common cases and otherwise fall back to a capped first line.
+ * The full error is logged above for debugging.
+ */
+function userFacingUpdateError(err: Error): string {
+  const code = (err as NodeJS.ErrnoException).code ?? ''
+  const text = `${code} ${err.message}`
+  if (
+    /ENOTFOUND|ECONNREFUSED|ECONNRESET|ETIMEDOUT|ERR_INTERNET_DISCONNECTED|ERR_NETWORK|net::|getaddrinfo/i.test(
+      text
+    )
+  ) {
+    return 'Could not reach the update server. Check your connection and try again.'
+  }
+  if (/ERR_UPDATER_CHANNEL_FILE_NOT_FOUND|404|Cannot find (latest|channel)/i.test(text)) {
+    return 'Update information is not available right now. Try again in a few minutes.'
+  }
+  const firstLine = err.message.split('\n', 1)[0].trim()
+  if (!firstLine) return 'Update check failed.'
+  return firstLine.length > 160 ? `${firstLine.slice(0, 157)}…` : firstLine
 }
 
 export function checkForUpdates(): void {

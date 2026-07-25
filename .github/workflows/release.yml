@@ -106,7 +106,85 @@ jobs:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
+      - name: Validate notarization (stapled ticket)
+        run: xcrun stapler validate "dist/NP-Presspad-${GITHUB_REF_NAME#v}-arm64.dmg"
+
+      # electron-builder has been seen creating TWO draft releases for one tag
+      # and splitting the assets between them (v1.1.6 and v1.1.7, both on
+      # 26.15.3). Fold any duplicates into the draft with the most assets
+      # before the companion upload and publish steps, which address the
+      # release by tag and would otherwise pick one of them silently.
+      - name: Consolidate duplicate draft releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          IDS=$(gh api "repos/${GITHUB_REPOSITORY}/releases" --paginate --jq ".[] | select(.tag_name==\"${TAG}\") | .id")
+          COUNT=$(echo "$IDS" | grep -c . || true)
+          echo "Found ${COUNT} release object(s) for ${TAG}"
+          if [ "$COUNT" -lt 1 ]; then echo "::error::No release found for ${TAG}"; exit 1; fi
+          if [ "$COUNT" -eq 1 ]; then exit 0; fi
+          TARGET=$(gh api "repos/${GITHUB_REPOSITORY}/releases" --paginate \
+            --jq "[.[] | select(.tag_name==\"${TAG}\")] | sort_by(.assets | length) | last | .id")
+          echo "Consolidating into release ${TARGET}"
+          for ID in $IDS; do
+            [ "$ID" = "$TARGET" ] && continue
+            gh api "repos/${GITHUB_REPOSITORY}/releases/${ID}" --jq '.assets[] | "\(.id) \(.name)"' |
+            while read -r AID NAME; do
+              echo "Moving ${NAME}"
+              gh api -H "Accept: application/octet-stream" \
+                "repos/${GITHUB_REPOSITORY}/releases/assets/${AID}" > "${RUNNER_TEMP}/${NAME}"
+              gh api --method POST -H "Content-Type: application/octet-stream" \
+                "https://uploads.github.com/repos/${GITHUB_REPOSITORY}/releases/${TARGET}/assets?name=${NAME}" \
+                --input "${RUNNER_TEMP}/${NAME}" > /dev/null
+            done
+            gh api --method DELETE "repos/${GITHUB_REPOSITORY}/releases/${ID}"
+            echo "Deleted duplicate release ${ID}"
+          done
+
       - name: Upload companion plugin to release
         run: gh release upload "v${GITHUB_REF_NAME#v}" resources/wp-offline-editor-companion.zip --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify release assets are complete
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          ASSETS=$(gh api "repos/${GITHUB_REPOSITORY}/releases" --paginate \
+            --jq ".[] | select(.tag_name==\"${GITHUB_REF_NAME}\") | .assets[].name")
+          echo "${ASSETS}"
+          for NAME in \
+            "latest-mac.yml" \
+            "NP-Presspad-${VERSION}-arm64-mac.zip" \
+            "NP-Presspad-${VERSION}-arm64.dmg" \
+            "NP-Presspad-${VERSION}-arm64.dmg.blockmap" \
+            "NP.Presspad-${VERSION}-arm64-mac.zip.blockmap" \
+            "wp-offline-editor-companion.zip"; do
+            echo "${ASSETS}" | grep -qxF "${NAME}" || { echo "::error::Missing asset: ${NAME}"; exit 1; }
+          done
+          echo "All 6 expected assets present."
+
+      # Publishing requires user-facing notes committed on main at
+      # .github/release-notes/v<version>.md (first line = release title, blank
+      # line, then the Markdown body). Notes are read from main's HEAD rather
+      # than the tag, so committing notes after tagging and re-running this job
+      # publishes. Without notes the release stays an unpublished draft.
+      - name: Publish release with notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          FILE=".github/release-notes/${TAG}.md"
+          if ! gh api "repos/${GITHUB_REPOSITORY}/contents/${FILE}?ref=main" \
+              -H "Accept: application/vnd.github.raw" > "${RUNNER_TEMP}/notes-full.md" 2>/dev/null; then
+            echo "::error::No release notes at ${FILE} on main — release left as draft. Commit the notes file and re-run this job to publish."
+            exit 1
+          fi
+          TITLE=$(head -n1 "${RUNNER_TEMP}/notes-full.md" | sed 's/^#* *//')
+          tail -n +2 "${RUNNER_TEMP}/notes-full.md" | sed '/./,$!d' > "${RUNNER_TEMP}/notes-body.md"
+          if [ -z "${TITLE}" ]; then echo "::error::Notes file first line (title) is empty"; exit 1; fi
+          if [ ! -s "${RUNNER_TEMP}/notes-body.md" ]; then echo "::error::Notes body is empty"; exit 1; fi
+          gh release edit "${TAG}" --draft=false --latest --title "${TITLE}" --notes-file "${RUNNER_TEMP}/notes-body.md"
+          echo "Published ${TAG}: ${TITLE}"

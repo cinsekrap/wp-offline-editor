@@ -107,9 +107,11 @@ export function UpdateChecker({ autoDownload, onAutoDownloadChange }: UpdateChec
         )}
 
         {status === 'error' && (
-          <span className="flex items-center gap-1.5 text-sm text-destructive">
-            <AlertCircle className="h-3.5 w-3.5" />
-            {errorMessage}
+          <span className="flex min-w-0 items-start gap-1.5 text-sm text-destructive">
+            <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span className="line-clamp-2 break-words" title={errorMessage}>
+              {errorMessage}
+            </span>
           </span>
         )}
       </div>

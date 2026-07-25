@@ -106,8 +106,14 @@ jobs:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
+      # The local artifact keeps the product name's space ("NP Presspad-…"),
+      # unlike the release asset name — find it rather than reconstruct it.
       - name: Validate notarization (stapled ticket)
-        run: xcrun stapler validate "dist/NP-Presspad-${GITHUB_REF_NAME#v}-arm64.dmg"
+        run: |
+          DMG=$(find dist -maxdepth 1 -name '*.dmg' | head -n1)
+          if [ -z "${DMG}" ]; then echo "::error::No DMG found in dist/"; exit 1; fi
+          echo "Validating ${DMG}"
+          xcrun stapler validate "${DMG}"
 
       # electron-builder has been seen creating TWO draft releases for one tag
       # and splitting the assets between them (v1.1.6 and v1.1.7, both on

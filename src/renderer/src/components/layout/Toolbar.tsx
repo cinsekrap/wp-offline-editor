@@ -87,7 +87,7 @@ export function Toolbar({
   const showSwitchSite = sites && sites.length > 1 && onSwitchSite && siteName
 
   return (
-    <div className="h-12 border-b flex items-center px-4 drag-region bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <div className="h-12 border-b flex items-center px-4 drag-region bg-background/95 backdrop-blur-sm supports-backdrop-filter:bg-background/60">
       {/* Left: traffic light spacing + view buttons */}
       <div className="flex items-center gap-1 flex-1 min-w-0">
         <div className="w-20 shrink-0" />

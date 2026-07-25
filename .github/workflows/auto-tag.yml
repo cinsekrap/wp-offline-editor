@@ -1,0 +1,43 @@
+name: Auto-tag release
+
+# When a push to main changes the app version in package.json, create the
+# matching vX.Y.Z tag, which triggers the Release workflow. The tag is created
+# with a fine-grained PAT (RELEASE_TAG_PAT, contents: read/write on this repo)
+# rather than GITHUB_TOKEN: tags created with the workflow token deliberately
+# do not trigger other workflows, so release.yml would never fire.
+
+on:
+  push:
+    branches: [main]
+    paths: [package.json]
+
+concurrency:
+  group: auto-tag
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Create tag for package.json version if missing
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TAG_PAT }}
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          TAG="v${VERSION}"
+          if [ -z "$VERSION" ] || [ "$VERSION" = "undefined" ]; then
+            echo "::error::Could not read version from package.json"
+            exit 1
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "Tag ${TAG} already exists — nothing to do."
+            exit 0
+          fi
+          echo "Creating ${TAG} at ${GITHUB_SHA}"
+          gh api "repos/${GITHUB_REPOSITORY}/git/refs" \
+            -f ref="refs/tags/${TAG}" -f sha="${GITHUB_SHA}"

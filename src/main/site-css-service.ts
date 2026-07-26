@@ -1,6 +1,7 @@
 import { app } from 'electron'
 import { join } from 'path'
 import { mkdirSync, writeFileSync, statSync, readFileSync, existsSync } from 'fs'
+import { guardedFetch } from './transport-policy'
 
 /**
  * Site CSS caching for offline post preview.
@@ -23,10 +24,14 @@ const MAX_TOTAL_CSS_BYTES = 2_000_000
 /** The homepage HTML fetch itself is capped too, just in case. */
 const HTML_FETCH_TIMEOUT_MS = 15_000
 
+/**
+ * Delegates to the shared guard so the transport policy covers this service too.
+ * It matters most for the external stylesheets below: their URLs are scraped
+ * from the remote homepage, so they can name any host or scheme. A refusal
+ * throws, which the per-stylesheet catch turns into "skip this one".
+ */
 function fetchWithTimeout(url: string, init?: RequestInit, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<Response> {
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
-  return fetch(url, { ...init, signal: controller.signal }).finally(() => clearTimeout(timer))
+  return guardedFetch(url, init, { timeoutMs })
 }
 
 function cssDir(): string {

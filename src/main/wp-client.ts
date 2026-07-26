@@ -1,7 +1,7 @@
 import { readFileSync } from 'fs'
 import { basename, extname } from 'path'
 import { decodeHtmlEntities } from './html-utils'
-import { isLocalUrl } from './url-utils'
+import { guardedFetch, requestRefusal } from './transport-policy'
 import type {
   WpConnectionResult,
   WpPostRaw,
@@ -34,26 +34,35 @@ function apiBase(url: string): string {
 
 const DEFAULT_TIMEOUT_MS = 30_000
 
-/** Fetch with an automatic abort timeout to prevent indefinite hangs. */
+/**
+ * Fetch with an abort timeout, and with the transport policy enforced on the URL
+ * and on every redirect hop. Every authenticated call in this module goes through
+ * here, so the check cannot be forgotten at an individual call site.
+ */
 function fetchWithTimeout(url: string, init?: RequestInit, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<Response> {
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
-  return fetch(url, { ...init, signal: controller.signal }).finally(() => clearTimeout(timer))
+  return guardedFetch(url, init, { timeoutMs })
 }
 
 export async function testWpConnection(
   url: string,
   username: string,
-  password: string
+  password: string,
+  allowPlaintext = false
 ): Promise<WpConnectionResult> {
   const cleanUrl = url.replace(/\/+$/, '')
 
-  if (cleanUrl.startsWith('http://') && !isLocalUrl(cleanUrl)) {
-    return { success: false, error: 'Non-local sites must use HTTPS. Change the URL to https://.' }
-  }
+  // Report the refusal rather than throwing it: this runs from the add-site
+  // dialog, where a clear message is the whole point of testing.
+  const refusal = requestRefusal(cleanUrl, allowPlaintext)
+  if (refusal !== null) return { success: false, error: refusal }
 
   const base = apiBase(url)
   const headers = makeAuthHeaders(username, password)
+
+  // The site isn't saved yet, so consent can't be read from the database — it
+  // has to ride along from the dialog.
+  const fetchWithTimeout = (u: string, init?: RequestInit): Promise<Response> =>
+    guardedFetch(u, init, { timeoutMs: DEFAULT_TIMEOUT_MS, allowPlaintext })
 
   try {
     // Test basic WP REST API availability

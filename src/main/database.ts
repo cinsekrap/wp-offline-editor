@@ -349,6 +349,17 @@ const migrations: Array<(db: Database.Database) => void> = [
   // re-read content for untouched posts once.
   (db) => {
     safeAddColumn(db, 'sites', 'raw_content_backfilled', 'INTEGER NOT NULL DEFAULT 0')
+  },
+
+  // ── v11: per-site consent for unencrypted transport ──
+  // HTTPS was previously enforced for anything that wasn't "local", where local
+  // included LAN hosts (*.local, as Local WP serves). Those cross the network in
+  // the clear, so they now need explicit consent. Existing http:// sites are
+  // grandfathered so an update doesn't break a working local setup — the policy
+  // in url-utils still refuses plaintext to a public host whatever this says.
+  (db) => {
+    safeAddColumn(db, 'sites', 'allow_plaintext', 'INTEGER NOT NULL DEFAULT 0')
+    db.prepare("UPDATE sites SET allow_plaintext = 1 WHERE url LIKE 'http://%'").run()
   }
 ]
 

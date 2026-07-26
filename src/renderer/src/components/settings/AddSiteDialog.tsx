@@ -11,16 +11,23 @@ import { Button } from '@renderer/components/ui/button'
 import { Input } from '@renderer/components/ui/input'
 import { Label } from '@renderer/components/ui/label'
 import { Switch } from '@renderer/components/ui/switch'
+import { Checkbox } from '@renderer/components/ui/checkbox'
 import { Badge } from '@renderer/components/ui/badge'
 import { AlertTriangle, CheckCircle, Download, Loader2, XCircle } from 'lucide-react'
 import type { SiteInput, WpConnectionResult } from '@shared/types'
 import { isPluginVersionMismatch, pluginMismatchMessage } from '@shared/version-utils'
+import { ipcErrorMessage } from '@renderer/lib/utils'
 
 interface AddSiteDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onSave: (input: SiteInput) => Promise<void>
-  onTestConnection: (url: string, username: string, password: string) => Promise<WpConnectionResult>
+  onTestConnection: (
+    url: string,
+    username: string,
+    password: string,
+    allowPlaintext?: boolean
+  ) => Promise<WpConnectionResult>
 }
 
 type Step = 'credentials' | 'testing' | 'settings'
@@ -39,6 +46,7 @@ export function AddSiteDialog({
   const [autoSync, setAutoSync] = useState(true)
   const [pullPublished, setPullPublished] = useState(50)
   const [mediaLibraryLimit, setMediaLibraryLimit] = useState(100)
+  const [allowPlaintext, setAllowPlaintext] = useState(false)
   const [testResult, setTestResult] = useState<WpConnectionResult | null>(null)
   const [testing, setTesting] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -49,8 +57,6 @@ export function AddSiteDialog({
     if (open) window.electronAPI.getVersion().then(setAppVersion)
   }, [open])
 
-  const isLocalDomain = url.toLowerCase().includes('.local')
-  const isHttpWarning = url.startsWith('http://') && !isLocalDomain
   const pluginMismatch = !!(
     testResult?.wpoePluginActive &&
     testResult.wpoePluginVersion &&
@@ -67,6 +73,7 @@ export function AddSiteDialog({
     setAutoSync(true)
     setPullPublished(50)
     setMediaLibraryLimit(100)
+    setAllowPlaintext(false)
     setTestResult(null)
     setTesting(false)
     setSaving(false)
@@ -83,14 +90,14 @@ export function AddSiteDialog({
     setError(null)
     setTestResult(null)
     try {
-      const result = await onTestConnection(url, username, password)
+      const result = await onTestConnection(url, username, password, allowPlaintext)
       setTestResult(result)
       if (result.success) {
         setLabel(result.siteName || new URL(url).hostname)
         setStep('settings')
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Connection test failed')
+      setError(ipcErrorMessage(err, 'Connection test failed'))
     } finally {
       setTesting(false)
     }
@@ -107,17 +114,19 @@ export function AddSiteDialog({
         label,
         auto_sync: autoSync,
         pull_published: pullPublished,
-        media_library_limit: mediaLibraryLimit
+        media_library_limit: mediaLibraryLimit,
+        allow_plaintext: allowPlaintext
       })
       handleOpenChange(false)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save site')
+      setError(ipcErrorMessage(err, 'Failed to save site'))
     } finally {
       setSaving(false)
     }
   }
 
-  const canTest = url.trim() && username.trim() && password.trim() && !isHttpWarning
+  // Transport policy lives in the main process — it refuses the URL and says why.
+  const canTest = url.trim() && username.trim() && password.trim()
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -141,18 +150,6 @@ export function AddSiteDialog({
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
               />
-              {isLocalDomain && url.startsWith('http://') && (
-                <div className="flex items-center gap-1.5 text-xs text-yellow-600">
-                  <AlertTriangle className="h-3 w-3" />
-                  <span>HTTP allowed for .local domains (development only)</span>
-                </div>
-              )}
-              {isHttpWarning && (
-                <div className="flex items-center gap-1.5 text-xs text-destructive">
-                  <XCircle className="h-3 w-3" />
-                  <span>Production sites must use HTTPS</span>
-                </div>
-              )}
             </div>
 
             <div className="space-y-2">
@@ -176,6 +173,24 @@ export function AddSiteDialog({
               />
               <p className="text-xs text-muted-foreground">
                 Generate an application password in WordPress under Users → Profile.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="site-allow-plaintext"
+                  checked={allowPlaintext}
+                  onCheckedChange={(checked) => setAllowPlaintext(checked === true)}
+                />
+                <Label htmlFor="site-allow-plaintext" className="font-normal cursor-pointer">
+                  Allow unencrypted connection
+                </Label>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Only for sites on your own network (http:// with a .local or .test address). The
+                password and post content will cross the network unencrypted. Public sites always
+                require https://.
               </p>
             </div>
 

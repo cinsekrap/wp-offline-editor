@@ -11,8 +11,10 @@ import { Button } from '@renderer/components/ui/button'
 import { Input } from '@renderer/components/ui/input'
 import { Label } from '@renderer/components/ui/label'
 import { Switch } from '@renderer/components/ui/switch'
+import { Checkbox } from '@renderer/components/ui/checkbox'
 import { Loader2, XCircle } from 'lucide-react'
 import type { Site, SiteUpdate } from '@shared/types'
+import { ipcErrorMessage } from '@renderer/lib/utils'
 
 interface EditSiteDialogProps {
   site: Site | null
@@ -31,6 +33,7 @@ export function EditSiteDialog({
   const [autoSync, setAutoSync] = useState(false)
   const [pullPublished, setPullPublished] = useState(50)
   const [mediaLibraryLimit, setMediaLibraryLimit] = useState(100)
+  const [allowPlaintext, setAllowPlaintext] = useState(false)
   const [password, setPassword] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -41,6 +44,7 @@ export function EditSiteDialog({
       setAutoSync(site.auto_sync)
       setPullPublished(site.pull_published)
       setMediaLibraryLimit(site.media_library_limit)
+      setAllowPlaintext(site.allow_plaintext)
       setPassword('')
       setError(null)
     }
@@ -56,7 +60,8 @@ export function EditSiteDialog({
         label,
         auto_sync: autoSync,
         pull_published: pullPublished,
-        media_library_limit: mediaLibraryLimit
+        media_library_limit: mediaLibraryLimit,
+        allow_plaintext: allowPlaintext
       }
       if (password.trim()) {
         update.password = password
@@ -64,7 +69,7 @@ export function EditSiteDialog({
       await onSave(update)
       onOpenChange(false)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update site')
+      setError(ipcErrorMessage(err, 'Failed to update site'))
     } finally {
       setSaving(false)
     }
@@ -149,6 +154,24 @@ export function EditSiteDialog({
             />
             <p className="text-xs text-muted-foreground">
               Thumbnails of recent images cached for offline browsing (0 to disable)
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="edit-allow-plaintext"
+                checked={allowPlaintext}
+                onCheckedChange={(checked) => setAllowPlaintext(checked === true)}
+              />
+              <Label htmlFor="edit-allow-plaintext" className="font-normal cursor-pointer">
+                Allow unencrypted connection
+              </Label>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Only for sites on your own network (http:// with a .local or .test address). The
+              password and post content will cross the network unencrypted. Public sites always
+              require https://.
             </p>
           </div>
 

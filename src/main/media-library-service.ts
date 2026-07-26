@@ -9,6 +9,7 @@ import { fetchMediaLibrary, fetchMediaItem, uploadMediaBuffer, updateMediaAltTex
 import { decodeHtmlEntities } from './html-utils'
 import type { MediaLibraryItem, MediaLibraryPullResult } from '@shared/types'
 import type { WpMediaItemRaw } from './wp-client'
+import { requestRefusal } from './transport-policy'
 
 function getLibraryDir(siteId: string): string {
   const dir = join(app.getPath('userData'), 'media-library', siteId)
@@ -32,6 +33,9 @@ function getFilenameFromUrl(url: string): string {
 }
 
 async function downloadThumbnail(url: string, destPath: string): Promise<void> {
+  // Thumbnail URLs come from the remote media API, so they are policy-checked.
+  const refusal = requestRefusal(url)
+  if (refusal !== null) throw new Error(`Refused thumbnail download — ${refusal}`)
   const res = await fetch(url)
   if (!res.ok) throw new Error(`Failed to download thumbnail: HTTP ${res.status}`)
   const buffer = Buffer.from(await res.arrayBuffer())

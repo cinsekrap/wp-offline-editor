@@ -15,6 +15,8 @@ export interface Site {
   last_media_library_pull_at: string | null
   wp_author_id: number | null
   site_icon_url: string | null
+  /** Consent to plaintext HTTP for a LAN dev host; never permits a public host */
+  allow_plaintext: boolean
   created_at: string
   updated_at: string
 }
@@ -27,6 +29,7 @@ export interface SiteInput {
   auto_sync?: boolean
   pull_published?: number
   media_library_limit?: number
+  allow_plaintext?: boolean
 }
 
 export interface SiteUpdate {
@@ -39,6 +42,7 @@ export interface SiteUpdate {
   pull_published?: number
   media_library_limit?: number
   wp_author_id?: number | null
+  allow_plaintext?: boolean
 }
 
 // ── Post ─────────────────────────────────────────────────────────────────
@@ -446,7 +450,12 @@ export interface ElectronAPI {
   addSite(input: SiteInput): Promise<Site>
   updateSite(update: SiteUpdate): Promise<Site>
   deleteSite(id: string): Promise<void>
-  testConnection(url: string, username: string, password: string): Promise<WpConnectionResult>
+  testConnection(
+    url: string,
+    username: string,
+    password: string,
+    allowPlaintext?: boolean
+  ): Promise<WpConnectionResult>
 
   // Posts
   pullPosts(siteId: string): Promise<PullResult>

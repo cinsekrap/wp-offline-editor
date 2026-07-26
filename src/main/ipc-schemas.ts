@@ -11,7 +11,8 @@ export const SiteInputSchema = z.object({
   label: z.string().optional(),
   auto_sync: z.boolean().optional(),
   pull_published: z.number().int().positive().optional(),
-  media_library_limit: z.number().int().positive().optional()
+  media_library_limit: z.number().int().positive().optional(),
+  allow_plaintext: z.boolean().optional()
 })
 
 export const SiteUpdateSchema = z.object({
@@ -23,7 +24,8 @@ export const SiteUpdateSchema = z.object({
   auto_sync: z.boolean().optional(),
   pull_published: z.number().int().positive().optional(),
   media_library_limit: z.number().int().positive().optional(),
-  wp_author_id: z.number().int().nullable().optional()
+  wp_author_id: z.number().int().nullable().optional(),
+  allow_plaintext: z.boolean().optional()
 })
 
 // WP REST serializes an empty PHP array as [] — accept it and normalize to null

@@ -16,7 +16,7 @@ import {
   SelectValue
 } from '@renderer/components/ui/select'
 import { CalendarIcon } from 'lucide-react'
-import { format, parse } from 'date-fns'
+import { format } from 'date-fns'
 import { cn } from '@renderer/lib/utils'
 import { AcfGroupField } from './AcfGroupField'
 import { AcfRepeaterField } from './AcfRepeaterField'
@@ -24,6 +24,7 @@ import { AcfFlexibleContentField } from './AcfFlexibleContentField'
 import { AcfMediaField } from './AcfMediaField'
 import { AcfGalleryField } from './AcfGalleryField'
 import type { AcfField } from '@shared/types'
+import { ACF_DATE_FORMAT, parseAcfDate } from './acf-date'
 
 interface AcfFieldRendererProps {
   field: AcfField
@@ -330,15 +331,7 @@ export function AcfFieldRenderer({ field, value, onChange }: AcfFieldRendererPro
     }
 
     case 'date_picker': {
-      const resolved = (resolveValue(value, field) as string) ?? ''
-      let date: Date | undefined
-      if (resolved) {
-        try {
-          date = parse(resolved, 'yyyyMMdd', new Date())
-        } catch {
-          // ignore parse errors
-        }
-      }
+      const date = parseAcfDate(resolveValue(value, field))
       return (
         <div className="space-y-1.5">
           <Label className="text-xs">{field.label}{field.required && ' *'}</Label>
@@ -361,7 +354,7 @@ export function AcfFieldRenderer({ field, value, onChange }: AcfFieldRendererPro
                 mode="single"
                 selected={date}
                 onSelect={(d) => {
-                  onChange(field.name, d ? format(d, 'yyyyMMdd') : '')
+                  onChange(field.name, d ? format(d, ACF_DATE_FORMAT) : '')
                 }}
               />
             </PopoverContent>

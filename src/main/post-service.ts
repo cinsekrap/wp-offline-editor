@@ -4,7 +4,7 @@ import { getDb } from './database'
 import { getSiteById } from './site-service'
 import { getCredential } from './credentials'
 import { fetchPosts, fetchUserNames, fetchAttachmentUrl, fetchAllPostIds, fetchRemotePostExistence } from './wp-client'
-import { decodeHtmlEntities } from './html-utils'
+import { decodeHtmlEntities, wpContentToHtml } from './html-utils'
 import { sanitizeHtml } from './sanitize'
 import { normalizeAcf } from './acf-utils'
 import { saveMediaFromWp } from './media-service'
@@ -159,10 +159,18 @@ export async function pullPostsForSite(siteId: string): Promise<PullResult> {
 
   const result: PullResult = { total: posts.length, created: 0, updated: 0, unchanged: 0, removed: 0, errors: [] }
 
+  // See the v10 migration: posts pulled before the raw-content fix hold WP's
+  // rendered output, with shortcodes already expanded. Refresh them once.
+  const db0 = getDb()
+  const backfillRow = db0
+    .prepare('SELECT raw_content_backfilled FROM sites WHERE id = ?')
+    .get(siteId) as { raw_content_backfilled: number } | undefined
+  const backfillRawContent = backfillRow ? backfillRow.raw_content_backfilled === 0 : false
+
   for (const wpPost of posts) {
     try {
       const authorName = authorNames.get(wpPost.author) ?? null
-      const outcome = await upsertPost(siteId, wpPost, authorName, site.url)
+      const outcome = await upsertPost(siteId, wpPost, authorName, site.url, backfillRawContent)
       result[outcome]++
     } catch (err) {
       result.errors.push(`Post ${wpPost.id}: ${err instanceof Error ? err.message : String(err)}`)
@@ -173,7 +181,7 @@ export async function pullPostsForSite(siteId: string): Promise<PullResult> {
   // so a partial failure triggers a full re-pull next time
   if (result.errors.length === 0) {
     const db = getDb()
-    db.prepare('UPDATE sites SET last_post_pull_at = ? WHERE id = ?').run(
+    db.prepare('UPDATE sites SET last_post_pull_at = ?, raw_content_backfilled = 1 WHERE id = ?').run(
       new Date().toISOString(),
       siteId
     )
@@ -229,19 +237,22 @@ async function upsertPost(
   siteId: string,
   wpPost: WpPostRaw,
   authorName: string | null,
-  siteUrl: string
+  siteUrl: string,
+  backfillRawContent = false
 ): Promise<'created' | 'updated' | 'unchanged'> {
   const db = getDb()
 
   const existing = db
-    .prepare('SELECT id, modified_remote, synced, pending_delete FROM posts WHERE site_id = ? AND wp_id = ?')
-    .get(siteId, wpPost.id) as { id: string; modified_remote: string | null; synced: number; pending_delete: number } | undefined
+    .prepare('SELECT id, modified_remote, synced, conflict, pending_delete FROM posts WHERE site_id = ? AND wp_id = ?')
+    .get(siteId, wpPost.id) as
+    | { id: string; modified_remote: string | null; synced: number; conflict: number; pending_delete: number }
+    | undefined
 
   // Local delete intent takes precedence — don't recreate the post from a pull
   if (existing?.pending_delete) return 'unchanged'
 
   const title = decodeHtmlEntities(wpPost.title.rendered)
-  let content = sanitizeHtml(wpPost.content.rendered)
+  let content = sanitizeHtml(wpContentToHtml(wpPost.content))
   const excerpt = wpPost.excerpt ? decodeHtmlEntities(wpPost.excerpt.rendered).replace(/<[^>]+>/g, '').trim() : ''
   const slug = wpPost.slug ?? ''
   const status = wpPost.status
@@ -303,9 +314,18 @@ async function upsertPost(
       }
     }
 
+    // One-time re-read for content stored before the raw-content fix: it holds
+    // WP's rendered output, so a push would replace each shortcode with a
+    // snapshot of its expansion. Untouched copies only — local edits win.
+    const needsRawBackfill =
+      backfillRawContent &&
+      wpPost.content.raw !== undefined &&
+      existing.synced === 1 &&
+      existing.conflict === 0
+
     // If images have broken media:// URLs, re-download from remote content
-    if (stored && hasBrokenMedia) {
-      let freshContent = sanitizeHtml(wpPost.content.rendered)
+    if (stored && (hasBrokenMedia || needsRawBackfill)) {
+      let freshContent = sanitizeHtml(wpContentToHtml(wpPost.content))
       freshContent = await downloadAndRewriteImages(siteId, existing.id, freshContent, siteUrl)
       const freshAcf = await rewriteAcfImageUrls(siteId, existing.id, acfJson, siteUrl)
       db.prepare(

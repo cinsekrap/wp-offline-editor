@@ -11,7 +11,7 @@ import { getMediaForPost, uploadMediaToWp, deleteMedia } from './media-service'
 import { pushPost, deleteRemotePost, fetchSinglePost, fetchUserNames, fetchSiteIcon, fetchScratchpads, fetchSingleScratchpad, pushScratchpad as pushScratchpadToWp, updatePostScratchpadMeta, deleteRemoteScratchpad, fetchRemoteScratchpadExistence, fetchRemotePostMeta, fetchPluginVersion, createTerm } from './wp-client'
 import { getPendingTermsForSite } from './taxonomy-service'
 import { isPluginVersionMismatch, pluginMismatchMessage } from '@shared/version-utils'
-import { decodeHtmlEntities } from './html-utils'
+import { decodeHtmlEntities, wpContentToHtml } from './html-utils'
 import { sanitizeHtml } from './sanitize'
 import { normalizeAcf } from './acf-utils'
 import { pullAcfSchemaForSite } from './acf-service'
@@ -422,7 +422,7 @@ export async function resolveConflict(
   const authorName = authorNames.get(wpPost.author) ?? post.author_name
   const now = new Date().toISOString()
   const title = decodeHtmlEntities(wpPost.title.rendered)
-  let content = sanitizeHtml(wpPost.content.rendered)
+  let content = sanitizeHtml(wpContentToHtml(wpPost.content))
   const theirAcf = normalizeAcf(wpPost.acf)
   let acfJson = theirAcf ? JSON.stringify(theirAcf) : null
 

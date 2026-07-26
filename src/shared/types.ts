@@ -183,7 +183,9 @@ export interface WpMediaUploadResult {
 export interface WpPostRaw {
   id: number
   title: { rendered: string }
-  content: { rendered: string }
+  // `raw` is only present when the post was fetched with context=edit — it is
+  // the unfiltered source, so shortcodes survive a round-trip.
+  content: { rendered: string; raw?: string }
   excerpt: { rendered: string }
   slug: string
   status: string

@@ -137,6 +137,12 @@ function dispatch(action: Action): void {
 
 type Toast = Omit<ToasterToast, 'id'>
 
+// Radix's own dismiss timer pauses while the window is unfocused, so toasts
+// fired by background syncs pile up until the app regains focus. Informational
+// toasts get a wall-clock dismissal instead; destructive/warning toasts and
+// toasts with an action button stay until seen.
+const INFO_TOAST_AUTO_DISMISS_MS = 8000
+
 function toast({ ...props }: Toast): {
   id: string
   dismiss: () => void
@@ -150,6 +156,13 @@ function toast({ ...props }: Toast): {
       toast: { ...props, id }
     })
   const dismiss = (): void => dispatch({ type: 'DISMISS_TOAST', toastId: id })
+
+  const persistent =
+    props.variant === 'destructive' || props.variant === 'warning' || props.action !== undefined
+  const autoDismissMs = props.duration ?? (persistent ? undefined : INFO_TOAST_AUTO_DISMISS_MS)
+  if (autoDismissMs !== undefined && autoDismissMs !== Infinity) {
+    setTimeout(dismiss, autoDismissMs)
+  }
 
   dispatch({
     type: 'ADD_TOAST',

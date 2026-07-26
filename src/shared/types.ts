@@ -200,6 +200,12 @@ export interface WpPostRaw {
   categories?: number[]
   tags?: number[]
   acf?: Record<string, unknown>
+  /**
+   * Values from the companion plugin (1.2.0+), covering every field group that
+   * applies to the post rather than only those opting into ACF's REST support.
+   * Null when the plugin declined to answer; absent on an older plugin.
+   */
+  wpoe_acf?: Record<string, unknown> | null
 }
 
 export interface WpAcfFieldGroupRaw {

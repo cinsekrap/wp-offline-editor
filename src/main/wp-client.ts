@@ -235,7 +235,7 @@ export async function fetchPosts(
 ): Promise<{ posts: WpPostRaw[]; total: number }> {
   const base = apiBase(url)
   const headers = makeAuthHeaders(username, password)
-  const fields = 'id,title,content,excerpt,slug,status,modified,date,author,featured_media,categories,tags,acf'
+  const fields = 'id,title,content,excerpt,slug,status,modified,date,author,featured_media,categories,tags,acf,wpoe_acf'
   const allPosts: WpPostRaw[] = []
   // context=edit yields content.raw, which keeps shortcodes intact. It needs
   // edit capability on every post returned, so fall back to the default context
@@ -617,7 +617,13 @@ export async function pushPost(
   password: string,
   wpId: number | null,
   data: { title: string; content: string; status: string; date?: string | null; acf?: Record<string, unknown> | null; featured_media?: number; excerpt?: string; slug?: string; categories?: number[]; tags?: number[] }
-): Promise<{ id: number; modified: string; content: string; acf: Record<string, unknown> | null }> {
+): Promise<{
+  id: number
+  modified: string
+  content: string
+  acf: Record<string, unknown> | null
+  wpoe_acf?: Record<string, unknown> | null
+}> {
   const base = apiBase(url)
   const headers = {
     ...makeAuthHeaders(username, password),
@@ -630,7 +636,15 @@ export async function pushPost(
     status: data.status
   }
   if (data.date) body.date = data.date
-  if (data.acf) body.acf = data.acf
+  // Sent under both keys deliberately. The companion plugin (1.2.0+) consumes
+  // wpoe_acf and can write every applicable group; ACF's own field consumes acf
+  // but only for groups opting into REST. An older plugin simply ignores the key
+  // it doesn't register, so this needs no version negotiation, and where both
+  // handlers run they write identical values.
+  if (data.acf) {
+    body.acf = data.acf
+    body.wpoe_acf = data.acf
+  }
   if (data.featured_media !== undefined) body.featured_media = data.featured_media
   if (data.excerpt) body.excerpt = data.excerpt
   if (data.slug) body.slug = data.slug
@@ -657,11 +671,12 @@ export async function pushPost(
   const result = (await res.json()) as {
     id: number
     modified: string
+    wpoe_acf?: Record<string, unknown> | null
     content?: { raw?: string; rendered?: string }
     acf?: Record<string, unknown> | null
   }
   const content = result.content?.raw ?? result.content?.rendered ?? data.content
-  return { id: result.id, modified: result.modified, content, acf: result.acf ?? null }
+  return { id: result.id, modified: result.modified, content, acf: result.acf ?? null, wpoe_acf: result.wpoe_acf }
 }
 
 // ── Post delete ─────────────────────────────────────────────────────────
@@ -700,7 +715,7 @@ export async function fetchSinglePost(
   const headers = makeAuthHeaders(username, password)
 
   const fields =
-    '_fields=id,title,content,excerpt,slug,status,modified,date,author,featured_media,categories,tags,acf'
+    '_fields=id,title,content,excerpt,slug,status,modified,date,author,featured_media,categories,tags,acf,wpoe_acf'
   const endpoint = `${base}/wp/v2/posts/${wpId}?${fields}`
 
   // Prefer context=edit for content.raw so shortcodes survive the round-trip;

@@ -163,6 +163,78 @@ describe('upsertPost (via pullPostsForSite)', () => {
     expect(row.content).toBe('<p>my unsynced draft</p>')
   })
 
+  it('keeps local ACF when a pull does not report any', async () => {
+    // An older companion plugin, or no edit rights on the post, means the
+    // response simply omits ACF. Reading that as "cleared" destroys the values.
+    const site = seedSite()
+    insertPostRow({
+      id: 'local',
+      site_id: site.id,
+      wp_id: 60,
+      title: 'Has fields',
+      content: '<p>body</p>',
+      acf: JSON.stringify({ timelines: [{ title: 'Brush 1' }] }),
+      modified_remote: '2026-01-01T00:00:00',
+      synced: 1
+    })
+    // Remote changed, no local edits — the branch that overwrites from remote.
+    stagePull([wpPost({ id: 60, modified: '2026-06-06T00:00:00' })])
+
+    await pullPostsForSite(site.id)
+
+    const db = getDb()
+    const row = db.prepare('SELECT acf FROM posts WHERE wp_id = 60').get() as { acf: string | null }
+    expect(row.acf).toBe(JSON.stringify({ timelines: [{ title: 'Brush 1' }] }))
+  })
+
+  it('clears local ACF only when the remote explicitly reports none', async () => {
+    const site = seedSite()
+    insertPostRow({
+      id: 'local',
+      site_id: site.id,
+      wp_id: 61,
+      title: 'Had fields',
+      content: '<p>body</p>',
+      acf: JSON.stringify({ subtitle: 'old' }),
+      modified_remote: '2026-01-01T00:00:00',
+      synced: 1
+    })
+    stagePull([wpPost({ id: 61, modified: '2026-06-06T00:00:00', wpoe_acf: {} })])
+
+    await pullPostsForSite(site.id)
+
+    const db = getDb()
+    const row = db.prepare('SELECT acf FROM posts WHERE wp_id = 61').get() as { acf: string | null }
+    expect(row.acf).toBeNull()
+  })
+
+  it('backfills newly reachable ACF values even when the stamp matches', async () => {
+    const site = seedSite()
+    insertPostRow({
+      id: 'local',
+      site_id: site.id,
+      wp_id: 62,
+      title: 'Timeline post',
+      content: '<p>body</p>',
+      acf: null,
+      modified_remote: '2026-05-05T00:00:00',
+      synced: 1
+    })
+    stagePull([
+      wpPost({
+        id: 62,
+        modified: '2026-05-05T00:00:00',
+        wpoe_acf: { timelines: [{ title: 'New brushhead 1' }] }
+      })
+    ])
+
+    await pullPostsForSite(site.id)
+
+    const db = getDb()
+    const row = db.prepare('SELECT acf FROM posts WHERE wp_id = 62').get() as { acf: string | null }
+    expect(row.acf).toContain('New brushhead 1')
+  })
+
   it('marks a conflict when the remote changed but local edits exist (synced=0)', async () => {
     const site = seedSite()
     insertPostRow({

@@ -1,4 +1,4 @@
-import { type ComponentType, useState, useRef, useCallback, useMemo } from 'react'
+import { type ComponentType, useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import {
   DndContext,
   closestCenter,
@@ -45,6 +45,11 @@ interface RowState {
 function normalizeRows(value: unknown): Record<string, unknown>[] {
   if (Array.isArray(value)) return value as Record<string, unknown>[]
   return []
+}
+
+/** Wraps raw row data in fresh row state with stable ids for dnd keys/reordering */
+function seedRows(value: unknown): RowState[] {
+  return normalizeRows(value).map((data) => ({ id: crypto.randomUUID(), data }))
 }
 
 function getRowLabel(row: Record<string, unknown>, subFields: AcfField[], index: number): string {
@@ -155,13 +160,28 @@ export function AcfRepeaterField({
   const min = (field.min as number) ?? 0
   const max = (field.max as number) ?? 0
 
-  const [rows, setRows] = useState<RowState[]>(() =>
-    normalizeRows(value).map((data) => ({ id: crypto.randomUUID(), data }))
-  )
+  const [rows, setRows] = useState<RowState[]>(() => seedRows(value))
 
   // Track the latest rows in a ref so emitChange always uses current state
   const rowsRef = useRef(rows)
   rowsRef.current = rows
+
+  // Serialized snapshot of the row data this component last pushed upward.
+  // The initial value counts as "already emitted" since we just seeded from it.
+  const lastEmittedRef = useRef<string>(JSON.stringify(normalizeRows(value)))
+
+  // Re-seed only when `value` changes from OUTSIDE (sync pull, conflict resolution,
+  // ACF re-read). When the parent merely echoes back what we emitted, the snapshots
+  // match and we leave the rows alone — re-seeding would mint new ids and destroy
+  // row identity, drag state and input focus mid-edit.
+  useEffect(() => {
+    const serialized = JSON.stringify(normalizeRows(value))
+    if (serialized === lastEmittedRef.current) return
+    lastEmittedRef.current = serialized
+    const seeded = seedRows(value)
+    rowsRef.current = seeded
+    setRows(seeded)
+  }, [value])
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -170,9 +190,11 @@ export function AcfRepeaterField({
 
   const emitChange = useCallback(
     (newRows: RowState[]) => {
+      const data = newRows.map((r) => r.data)
       setRows(newRows)
       rowsRef.current = newRows
-      onChange(field.name, newRows.map((r) => r.data))
+      lastEmittedRef.current = JSON.stringify(data)
+      onChange(field.name, data)
     },
     [field.name, onChange]
   )

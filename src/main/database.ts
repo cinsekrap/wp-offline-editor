@@ -338,6 +338,17 @@ const migrations: Array<(db: Database.Database) => void> = [
   // keep-mine / keep-theirs.
   (db) => {
     safeAddColumn(db, 'scratchpads', 'conflict', 'INTEGER NOT NULL DEFAULT 0')
+  },
+
+  // ── v10: raw post content backfill ──
+  // Pulls used to store WP's *rendered* content, in which shortcodes have
+  // already been expanded into markup — pushing that back replaced the
+  // shortcode with a frozen copy of its output. Pulls now read content.raw, but
+  // existing rows still hold rendered output, and a matching modified stamp
+  // means a pull would skip them. This flag makes the next pull per site
+  // re-read content for untouched posts once.
+  (db) => {
+    safeAddColumn(db, 'sites', 'raw_content_backfilled', 'INTEGER NOT NULL DEFAULT 0')
   }
 ]
 

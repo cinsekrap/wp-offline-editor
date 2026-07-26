@@ -228,6 +228,10 @@ export async function fetchPosts(
   const headers = makeAuthHeaders(username, password)
   const fields = 'id,title,content,excerpt,slug,status,modified,date,author,featured_media,categories,tags,acf'
   const allPosts: WpPostRaw[] = []
+  // context=edit yields content.raw, which keeps shortcodes intact. It needs
+  // edit capability on every post returned, so fall back to the default context
+  // if the site refuses — a rendered pull beats no pull.
+  let editContext = true
 
   for (const status of statuses) {
     const perPage = 100
@@ -236,14 +240,23 @@ export async function fetchPosts(
     const limit = status === 'publish' ? maxPublished : Infinity
 
     while (page <= totalPages && allPosts.filter((p) => p.status === status).length < limit) {
-      const params = new URLSearchParams({
-        status,
-        per_page: String(Math.min(perPage, 100)),
-        page: String(page),
-        _fields: fields
-      })
+      const buildParams = (): URLSearchParams => {
+        const params = new URLSearchParams({
+          status,
+          per_page: String(Math.min(perPage, 100)),
+          page: String(page),
+          _fields: fields
+        })
+        if (editContext) params.set('context', 'edit')
+        return params
+      }
 
-      const res = await fetchWithTimeout(`${base}/wp/v2/posts?${params}`, { headers })
+      let res = await fetchWithTimeout(`${base}/wp/v2/posts?${buildParams()}`, { headers })
+
+      if (editContext && (res.status === 401 || res.status === 403)) {
+        editContext = false
+        res = await fetchWithTimeout(`${base}/wp/v2/posts?${buildParams()}`, { headers })
+      }
 
       if (!res.ok) {
         // 400 often means "no posts with this status" — skip silently
@@ -677,10 +690,16 @@ export async function fetchSinglePost(
   const base = apiBase(url)
   const headers = makeAuthHeaders(username, password)
 
-  const res = await fetchWithTimeout(
-    `${base}/wp/v2/posts/${wpId}?_fields=id,title,content,excerpt,slug,status,modified,date,author,featured_media,categories,tags,acf`,
-    { headers }
-  )
+  const fields =
+    '_fields=id,title,content,excerpt,slug,status,modified,date,author,featured_media,categories,tags,acf'
+  const endpoint = `${base}/wp/v2/posts/${wpId}?${fields}`
+
+  // Prefer context=edit for content.raw so shortcodes survive the round-trip;
+  // fall back to the rendered form if this user can't edit the post.
+  let res = await fetchWithTimeout(`${endpoint}&context=edit`, { headers })
+  if (res.status === 401 || res.status === 403) {
+    res = await fetchWithTimeout(endpoint, { headers })
+  }
 
   if (!res.ok) {
     throw new Error(`Failed to fetch post ${wpId}: HTTP ${res.status}`)

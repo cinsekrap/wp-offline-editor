@@ -84,6 +84,85 @@ describe('upsertPost (via pullPostsForSite)', () => {
     expect(row.synced).toBe(1)
   })
 
+  it('stores the shortcode source rather than its rendered expansion', async () => {
+    const site = seedSite()
+    stagePull([
+      wpPost({
+        id: 35,
+        modified: '2026-03-03T00:00:00',
+        content: {
+          raw: '<p>Before</p>\n\n[my_timeline]',
+          rendered: '<p>Before</p>\n<div class="acf-timeline"><div>2019</div></div>'
+        }
+      })
+    ])
+
+    await pullPostsForSite(site.id)
+
+    const db = getDb()
+    const row = db.prepare('SELECT content FROM posts WHERE wp_id = 35').get() as { content: string }
+    expect(row.content).toContain('[my_timeline]')
+    expect(row.content).not.toContain('acf-timeline')
+  })
+
+  it('backfills rendered-era content on the first pull, even when the stamp matches', async () => {
+    const site = seedSite()
+    insertPostRow({
+      id: 'local',
+      site_id: site.id,
+      wp_id: 50,
+      title: 'Timeline post',
+      content: '<div class="acf-timeline"><div>2019</div></div>',
+      modified_remote: '2026-05-05T00:00:00',
+      synced: 1
+    })
+    stagePull([
+      wpPost({
+        id: 50,
+        modified: '2026-05-05T00:00:00',
+        content: { raw: '[my_timeline]', rendered: '<div class="acf-timeline"><div>2019</div></div>' }
+      })
+    ])
+
+    await pullPostsForSite(site.id)
+
+    const db = getDb()
+    const row = db.prepare('SELECT content FROM posts WHERE wp_id = 50').get() as { content: string }
+    expect(row.content).toContain('[my_timeline]')
+
+    // The backfill is one-shot: the flag is set once the pull completes cleanly.
+    const flag = db.prepare('SELECT raw_content_backfilled FROM sites WHERE id = ?').get(site.id) as {
+      raw_content_backfilled: number
+    }
+    expect(flag.raw_content_backfilled).toBe(1)
+  })
+
+  it('does not backfill over unsynced local edits', async () => {
+    const site = seedSite()
+    insertPostRow({
+      id: 'local',
+      site_id: site.id,
+      wp_id: 55,
+      title: 'Mine',
+      content: '<p>my unsynced draft</p>',
+      modified_remote: '2026-05-05T00:00:00',
+      synced: 0
+    })
+    stagePull([
+      wpPost({
+        id: 55,
+        modified: '2026-05-05T00:00:00',
+        content: { raw: '[my_timeline]', rendered: '<div class="acf-timeline"></div>' }
+      })
+    ])
+
+    await pullPostsForSite(site.id)
+
+    const db = getDb()
+    const row = db.prepare('SELECT content FROM posts WHERE wp_id = 55').get() as { content: string }
+    expect(row.content).toBe('<p>my unsynced draft</p>')
+  })
+
   it('marks a conflict when the remote changed but local edits exist (synced=0)', async () => {
     const site = seedSite()
     insertPostRow({

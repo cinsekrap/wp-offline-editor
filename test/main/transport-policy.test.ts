@@ -134,3 +134,26 @@ describe('requestRefusal', () => {
     expect(requestRefusal('http://example.com/wp-json', true)).not.toBeNull()
   })
 })
+
+describe('asset downloads', () => {
+  it('refuses a plaintext public asset URL before fetching', async () => {
+    // Asset URLs arrive from remote API data — an attachment source_url, an img
+    // src in post content, an image URL inside ACF JSON — so they get the same
+    // policy as an API call.
+    await expect(
+      guardedFetch('http://cdn.example.com/photo.jpg', undefined, { timeoutMs: 1000 })
+    ).rejects.toThrow(TransportRefusedError)
+  })
+
+  it('refuses an asset whose redirect downgrades to plaintext', async () => {
+    // Electron's net.fetch could not do this: it throws on redirect: 'manual'
+    // and leaves response.url empty, so a downgrade was neither preventable nor
+    // detectable after the fact.
+    const origin = await serve((_req, res) => {
+      res.writeHead(302, { Location: 'http://cdn.example.com/photo.jpg' })
+      res.end()
+    })
+
+    await expect(guardedFetch(`${origin}/photo.jpg`)).rejects.toThrow(TransportRefusedError)
+  })
+})

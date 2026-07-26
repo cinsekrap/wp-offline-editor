@@ -82,6 +82,12 @@ function withoutCredentialHeaders(headers: RequestInit['headers']): RequestInit[
 }
 
 /**
+ * Assets can be large and are not on the interactive path, so they get a longer
+ * ceiling than an API call. Previously they had no timeout at all.
+ */
+export const ASSET_TIMEOUT_MS = 120_000
+
+/**
  * fetch with the transport policy enforced on the initial URL *and on every
  * redirect hop*. An https site that redirects to http would otherwise move the
  * request onto the network in the clear — which is the whole reason redirects

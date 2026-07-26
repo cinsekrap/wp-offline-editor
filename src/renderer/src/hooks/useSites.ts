@@ -9,7 +9,12 @@ interface UseSitesReturn {
   addSite: (input: SiteInput) => Promise<Site>
   updateSite: (update: SiteUpdate) => Promise<Site>
   deleteSite: (id: string) => Promise<void>
-  testConnection: (url: string, username: string, password: string) => Promise<WpConnectionResult>
+  testConnection: (
+    url: string,
+    username: string,
+    password: string,
+    allowPlaintext?: boolean
+  ) => Promise<WpConnectionResult>
 }
 
 export function useSites(): UseSitesReturn {
@@ -61,8 +66,13 @@ export function useSites(): UseSitesReturn {
   )
 
   const testConnection = useCallback(
-    async (url: string, username: string, password: string): Promise<WpConnectionResult> => {
-      return window.electronAPI.testConnection(url, username, password)
+    async (
+      url: string,
+      username: string,
+      password: string,
+      allowPlaintext?: boolean
+    ): Promise<WpConnectionResult> => {
+      return window.electronAPI.testConnection(url, username, password, allowPlaintext)
     },
     []
   )

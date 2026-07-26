@@ -7,7 +7,12 @@ interface UseSiteDialogsParams {
   addSite: (input: SiteInput) => Promise<Site>
   updateSite: (update: SiteUpdate) => Promise<Site>
   deleteSite: (id: string) => Promise<void>
-  testConnection: (url: string, username: string, password: string) => Promise<WpConnectionResult>
+  testConnection: (
+    url: string,
+    username: string,
+    password: string,
+    allowPlaintext?: boolean
+  ) => Promise<WpConnectionResult>
   selectedSiteId: string | null
   toast: ToastFn
   onSiteAdded: (site: Site) => Promise<void> | void
@@ -24,7 +29,12 @@ interface UseSiteDialogsReturn {
   handleAddSite: (input: SiteInput) => Promise<void>
   handleUpdateSite: (update: SiteUpdate) => Promise<void>
   handleDeleteSite: (id: string) => Promise<void>
-  testConnection: (url: string, username: string, password: string) => Promise<WpConnectionResult>
+  testConnection: (
+    url: string,
+    username: string,
+    password: string,
+    allowPlaintext?: boolean
+  ) => Promise<WpConnectionResult>
 }
 
 export function useSiteDialogs({

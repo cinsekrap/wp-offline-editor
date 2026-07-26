@@ -7,6 +7,7 @@ import { getSiteById } from './site-service'
 import { getCredential } from './credentials'
 import { uploadMedia } from './wp-client'
 import type { Media, MediaLibraryItem } from '@shared/types'
+import { requestRefusal } from './transport-policy'
 
 function getMediaDir(siteId: string): string {
   const dir = join(app.getPath('userData'), 'media', siteId)
@@ -170,6 +171,10 @@ export async function saveMediaFromLibrary(
   // Fall back to the cached thumbnail if offline or fetch fails.
   let copied = false
   try {
+    // source_url was stored verbatim from the remote API — policy-check it
+    // before reaching for the full-size original.
+    const refusal = requestRefusal(libraryItem.source_url)
+    if (refusal !== null) throw new Error(refusal)
     const resp = await net.fetch(libraryItem.source_url)
     if (resp.ok) {
       const buffer = Buffer.from(await resp.arrayBuffer())

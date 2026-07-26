@@ -4,14 +4,12 @@ import { rmSync, readdirSync, unlinkSync } from 'fs'
 import { app } from 'electron'
 import { getDb } from './database'
 import { storeCredential, deleteCredential } from './credentials'
-import { isLocalUrl } from './url-utils'
+import { transportRefusal } from './url-utils'
 import type { Site, SiteInput, SiteUpdate } from '@shared/types'
 
-function enforceHttps(url: string): string {
-  if (isLocalUrl(url)) return url
-  if (url.startsWith('http://')) {
-    throw new Error('Non-local sites must use HTTPS. Change the URL to https://.')
-  }
+function enforceTransport(url: string, allowPlaintext: boolean): string {
+  const refusal = transportRefusal(url, allowPlaintext)
+  if (refusal) throw new Error(refusal)
   return url
 }
 
@@ -34,15 +32,16 @@ export function addSite(input: SiteInput): Site {
   const now = new Date().toISOString()
 
   // Normalize URL: strip trailing slash
-  const url = enforceHttps(input.url.replace(/\/+$/, ''))
+  const allowPlaintext = input.allow_plaintext ?? false
+  const url = enforceTransport(input.url.replace(/\/+$/, ''), allowPlaintext)
   const label = input.label || new URL(url).hostname
 
   storeCredential(keychainRef, input.password)
 
   db.prepare(`
-    INSERT INTO sites (id, label, url, username, keychain_ref, auto_sync, pull_published, media_library_limit, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(id, label, url, input.username, keychainRef, (input.auto_sync ?? true) ? 1 : 0, input.pull_published ?? 50, input.media_library_limit ?? 100, now, now)
+    INSERT INTO sites (id, label, url, username, keychain_ref, auto_sync, pull_published, media_library_limit, allow_plaintext, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, label, url, input.username, keychainRef, (input.auto_sync ?? true) ? 1 : 0, input.pull_published ?? 50, input.media_library_limit ?? 100, allowPlaintext ? 1 : 0, now, now)
 
   return getSiteById(id)!
 }
@@ -53,7 +52,9 @@ export function updateSite(update: SiteUpdate): Site {
   if (!existing) throw new Error(`Site not found: ${update.id}`)
 
   const now = new Date().toISOString()
-  const url = update.url ? enforceHttps(update.url.replace(/\/+$/, '')) : existing.url
+  const allowPlaintext = update.allow_plaintext ?? existing.allow_plaintext
+  // Re-check on every update: revoking consent must invalidate a stored http URL.
+  const url = enforceTransport((update.url ?? existing.url).replace(/\/+$/, ''), allowPlaintext)
   const label = update.label ?? existing.label
   const username = update.username ?? existing.username
   const autoSync = update.auto_sync !== undefined ? (update.auto_sync ? 1 : 0) : (existing.auto_sync ? 1 : 0)
@@ -66,9 +67,9 @@ export function updateSite(update: SiteUpdate): Site {
   }
 
   db.prepare(`
-    UPDATE sites SET label = ?, url = ?, username = ?, auto_sync = ?, pull_published = ?, media_library_limit = ?, wp_author_id = ?, updated_at = ?
+    UPDATE sites SET label = ?, url = ?, username = ?, auto_sync = ?, pull_published = ?, media_library_limit = ?, wp_author_id = ?, allow_plaintext = ?, updated_at = ?
     WHERE id = ?
-  `).run(label, url, username, autoSync, pullPublished, mediaLibraryLimit, wpAuthorId, now, update.id)
+  `).run(label, url, username, autoSync, pullPublished, mediaLibraryLimit, wpAuthorId, allowPlaintext ? 1 : 0, now, update.id)
 
   return getSiteById(update.id)!
 }
@@ -154,6 +155,7 @@ interface SiteRow {
   last_media_library_pull_at: string | null
   wp_author_id: number | null
   site_icon_url: string | null
+  allow_plaintext: number
   created_at: string
   updated_at: string
 }
@@ -173,6 +175,7 @@ function normalizeSiteRow(row: SiteRow): Site {
     last_media_library_pull_at: row.last_media_library_pull_at ?? null,
     wp_author_id: row.wp_author_id ?? null,
     site_icon_url: row.site_icon_url || null,
+    allow_plaintext: Boolean(row.allow_plaintext),
     created_at: row.created_at,
     updated_at: row.updated_at
   }

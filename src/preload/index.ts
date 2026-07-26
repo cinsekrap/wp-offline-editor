@@ -8,8 +8,10 @@ const api: ElectronAPI = {
   addSite: (input) => ipcRenderer.invoke('sites:add', input),
   updateSite: (update) => ipcRenderer.invoke('sites:update', update),
   deleteSite: (id) => ipcRenderer.invoke('sites:delete', id),
-  testConnection: (url, username, password) =>
-    ipcRenderer.invoke('sites:test-connection', url, username, password),
+  // allowPlaintext rides along because the site isn't saved yet, so the main
+  // process can't read the consent from the database.
+  testConnection: (url, username, password, allowPlaintext?: boolean) =>
+    ipcRenderer.invoke('sites:test-connection', url, username, password, allowPlaintext),
 
   // Posts
   pullPosts: (siteId) => ipcRenderer.invoke('posts:pull', siteId),

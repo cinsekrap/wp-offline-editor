@@ -100,11 +100,12 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle(
     'sites:test-connection',
-    (_event, url: unknown, username: unknown, password: unknown) => {
+    (_event, url: unknown, username: unknown, password: unknown, allowPlaintext: unknown) => {
       return testWpConnection(
         z.string().url().parse(url),
         z.string().min(1).parse(username),
-        z.string().min(1).parse(password)
+        z.string().min(1).parse(password),
+        z.boolean().optional().parse(allowPlaintext) ?? false
       )
     }
   )

@@ -1,4 +1,4 @@
-import { type ComponentType, useState, useRef, useCallback, useMemo } from 'react'
+import { type ComponentType, useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import {
   DndContext,
   closestCenter,
@@ -51,6 +51,14 @@ interface BlockState {
 function normalizeBlocks(value: unknown): Record<string, unknown>[] {
   if (Array.isArray(value)) return value as Record<string, unknown>[]
   return []
+}
+
+/**
+ * Wraps raw block data (each carrying its own `acf_fc_layout`) in fresh block
+ * state with stable ids for dnd keys/reordering.
+ */
+function seedBlocks(value: unknown): BlockState[] {
+  return normalizeBlocks(value).map((data) => ({ id: crypto.randomUUID(), data }))
 }
 
 /** Layouts are stored as synthetic sub_fields with type: 'layout' */
@@ -159,12 +167,27 @@ export function AcfFlexibleContentField({
 }: AcfFlexibleContentFieldProps): JSX.Element {
   const layouts = getLayouts(field)
 
-  const [blocks, setBlocks] = useState<BlockState[]>(() =>
-    normalizeBlocks(value).map((data) => ({ id: crypto.randomUUID(), data }))
-  )
+  const [blocks, setBlocks] = useState<BlockState[]>(() => seedBlocks(value))
 
   const blocksRef = useRef(blocks)
   blocksRef.current = blocks
+
+  // Serialized snapshot of the block data this component last pushed upward.
+  // The initial value counts as "already emitted" since we just seeded from it.
+  const lastEmittedRef = useRef<string>(JSON.stringify(normalizeBlocks(value)))
+
+  // Re-seed only when `value` changes from OUTSIDE (sync pull, conflict resolution,
+  // ACF re-read). When the parent merely echoes back what we emitted, the snapshots
+  // match and we leave the blocks alone — re-seeding would mint new ids and destroy
+  // block identity, drag state and input focus mid-edit.
+  useEffect(() => {
+    const serialized = JSON.stringify(normalizeBlocks(value))
+    if (serialized === lastEmittedRef.current) return
+    lastEmittedRef.current = serialized
+    const seeded = seedBlocks(value)
+    blocksRef.current = seeded
+    setBlocks(seeded)
+  }, [value])
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -173,9 +196,11 @@ export function AcfFlexibleContentField({
 
   const emitChange = useCallback(
     (newBlocks: BlockState[]) => {
+      const data = newBlocks.map((b) => b.data)
       setBlocks(newBlocks)
       blocksRef.current = newBlocks
-      onChange(field.name, newBlocks.map((b) => b.data))
+      lastEmittedRef.current = JSON.stringify(data)
+      onChange(field.name, data)
     },
     [field.name, onChange]
   )

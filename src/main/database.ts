@@ -360,6 +360,15 @@ const migrations: Array<(db: Database.Database) => void> = [
   (db) => {
     safeAddColumn(db, 'sites', 'allow_plaintext', 'INTEGER NOT NULL DEFAULT 0')
     db.prepare("UPDATE sites SET allow_plaintext = 1 WHERE url LIKE 'http://%'").run()
+  },
+
+  // ── v12: one-shot ACF re-read ──
+  // Until the companion plugin exposed values for field groups that don't opt
+  // into ACF's REST support, those values never reached the app at all. Pulls
+  // skip a post whose modified stamp is unchanged, so without this the fields
+  // would stay empty until someone edited the post on the site.
+  (db) => {
+    safeAddColumn(db, 'sites', 'acf_values_backfilled', 'INTEGER NOT NULL DEFAULT 0')
   }
 ]
 

@@ -15,6 +15,7 @@ export function wpPost(overrides: Partial<WpPostRaw> & { id: number; modified: s
     featured_media: overrides.featured_media ?? 0,
     categories: overrides.categories,
     tags: overrides.tags,
-    acf: overrides.acf
+    acf: overrides.acf,
+    wpoe_acf: overrides.wpoe_acf
   }
 }

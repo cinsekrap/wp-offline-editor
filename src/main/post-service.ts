@@ -7,7 +7,7 @@ import { fetchPosts, fetchUserNames, fetchAttachmentUrl, fetchAllPostIds, fetchR
 import { decodeHtmlEntities, wpContentToHtml } from './html-utils'
 import { requestRefusal } from './transport-policy'
 import { sanitizeHtml } from './sanitize'
-import { normalizeAcf } from './acf-utils'
+import { acfToJson, resolvePulledAcf } from './acf-utils'
 import { saveMediaFromWp } from './media-service'
 import { net } from 'electron'
 import { existsSync } from 'fs'
@@ -173,14 +173,17 @@ export async function pullPostsForSite(siteId: string): Promise<PullResult> {
   // rendered output, with shortcodes already expanded. Refresh them once.
   const db0 = getDb()
   const backfillRow = db0
-    .prepare('SELECT raw_content_backfilled FROM sites WHERE id = ?')
-    .get(siteId) as { raw_content_backfilled: number } | undefined
+    .prepare('SELECT raw_content_backfilled, acf_values_backfilled FROM sites WHERE id = ?')
+    .get(siteId) as { raw_content_backfilled: number; acf_values_backfilled: number } | undefined
   const backfillRawContent = backfillRow ? backfillRow.raw_content_backfilled === 0 : false
+  // See the v12 migration: values for field groups outside ACF's REST support
+  // were never delivered before, so untouched posts need one re-read.
+  const backfillAcfValues = backfillRow ? backfillRow.acf_values_backfilled === 0 : false
 
   for (const wpPost of posts) {
     try {
       const authorName = authorNames.get(wpPost.author) ?? null
-      const outcome = await upsertPost(siteId, wpPost, authorName, site.url, backfillRawContent)
+      const outcome = await upsertPost(siteId, wpPost, authorName, site.url, backfillRawContent, backfillAcfValues)
       result[outcome]++
     } catch (err) {
       result.errors.push(`Post ${wpPost.id}: ${err instanceof Error ? err.message : String(err)}`)
@@ -191,7 +194,9 @@ export async function pullPostsForSite(siteId: string): Promise<PullResult> {
   // so a partial failure triggers a full re-pull next time
   if (result.errors.length === 0) {
     const db = getDb()
-    db.prepare('UPDATE sites SET last_post_pull_at = ?, raw_content_backfilled = 1 WHERE id = ?').run(
+    db.prepare(
+      'UPDATE sites SET last_post_pull_at = ?, raw_content_backfilled = 1, acf_values_backfilled = 1 WHERE id = ?'
+    ).run(
       new Date().toISOString(),
       siteId
     )
@@ -248,7 +253,8 @@ async function upsertPost(
   wpPost: WpPostRaw,
   authorName: string | null,
   siteUrl: string,
-  backfillRawContent = false
+  backfillRawContent = false,
+  backfillAcfValues = false
 ): Promise<'created' | 'updated' | 'unchanged'> {
   const db = getDb()
 
@@ -269,8 +275,8 @@ async function upsertPost(
   const modifiedRemote = wpPost.modified
   const wpDate = wpPost.date || null
   const authorId = wpPost.author || null
-  const normalizedAcf = normalizeAcf(wpPost.acf)
-  let acfJson = normalizedAcf ? JSON.stringify(normalizedAcf) : null
+  const pulledAcf = resolvePulledAcf(wpPost)
+  let acfJson = pulledAcf.known ? acfToJson(pulledAcf.values) : null
   const categoriesJson = wpPost.categories ? JSON.stringify(wpPost.categories) : '[]'
   const tagsJson = wpPost.tags ? JSON.stringify(wpPost.tags) : '[]'
   const now = new Date().toISOString()
@@ -327,17 +333,23 @@ async function upsertPost(
     // One-time re-read for content stored before the raw-content fix: it holds
     // WP's rendered output, so a push would replace each shortcode with a
     // snapshot of its expansion. Untouched copies only — local edits win.
-    const needsRawBackfill =
-      backfillRawContent &&
-      wpPost.content.raw !== undefined &&
-      existing.synced === 1 &&
-      existing.conflict === 0
+    const untouched = existing.synced === 1 && existing.conflict === 0
+
+    const needsRawBackfill = backfillRawContent && wpPost.content.raw !== undefined && untouched
+
+    // Values that were previously unreachable are now being reported for the
+    // first time, so a post whose stamp hasn't moved still needs re-reading.
+    const needsAcfBackfill = backfillAcfValues && pulledAcf.known && untouched
 
     // If images have broken media:// URLs, re-download from remote content
-    if (stored && (hasBrokenMedia || needsRawBackfill)) {
+    if (stored && (hasBrokenMedia || needsRawBackfill || needsAcfBackfill)) {
       let freshContent = sanitizeHtml(wpContentToHtml(wpPost.content))
       freshContent = await downloadAndRewriteImages(siteId, existing.id, freshContent, siteUrl)
-      const freshAcf = await rewriteAcfImageUrls(siteId, existing.id, acfJson, siteUrl)
+      // Keep the stored values when the response didn't disclose any — this
+      // repair path exists to fix content, not to clear custom fields.
+      const freshAcf = pulledAcf.known
+        ? await rewriteAcfImageUrls(siteId, existing.id, acfJson, siteUrl)
+        : stored.acf
       db.prepare(
         'UPDATE posts SET content = ?, acf = ?, title = ?, excerpt = COALESCE(NULLIF(excerpt, \'\'), ?), slug = COALESCE(NULLIF(slug, \'\'), ?), date = COALESCE(date, ?), author_id = COALESCE(author_id, ?), author_name = COALESCE(author_name, ?) WHERE id = ?'
       ).run(freshContent, freshAcf, title, excerpt, slug, wpDate, authorId, authorName, existing.id)
@@ -365,7 +377,17 @@ async function upsertPost(
   if (existing.synced === 1) {
     // No local edits → safe to update — download images
     content = await downloadAndRewriteImages(siteId, existing.id, content, siteUrl)
-    acfJson = await rewriteAcfImageUrls(siteId, existing.id, acfJson, siteUrl)
+    if (pulledAcf.known) {
+      acfJson = await rewriteAcfImageUrls(siteId, existing.id, acfJson, siteUrl)
+    } else {
+      // Silence is not "cleared". A response can withhold ACF for ordinary
+      // reasons — a companion plugin older than 1.2.0, or no edit rights on this
+      // post — and overwriting good local values with null on that basis is how
+      // custom field data gets destroyed.
+      const current = db.prepare('SELECT acf FROM posts WHERE id = ?').get(existing.id) as
+        { acf: string | null } | undefined
+      acfJson = current?.acf ?? null
+    }
 
     // Download featured image
     let featuredImage: string | null = null

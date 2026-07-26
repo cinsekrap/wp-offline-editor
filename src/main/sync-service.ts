@@ -13,7 +13,7 @@ import { getPendingTermsForSite } from './taxonomy-service'
 import { isPluginVersionMismatch, pluginMismatchMessage } from '@shared/version-utils'
 import { decodeHtmlEntities, wpContentToHtml } from './html-utils'
 import { sanitizeHtml } from './sanitize'
-import { normalizeAcf } from './acf-utils'
+import { acfToJson, normalizeAcf, resolvePulledAcf } from './acf-utils'
 import { pullAcfSchemaForSite } from './acf-service'
 import { pullMediaLibraryForSite, pushMediaLibraryPending } from './media-library-service'
 import { pullTaxonomyTerms } from './taxonomy-service'
@@ -315,8 +315,13 @@ export async function pushPostToWp(
   const storedContent = await downloadAndRewriteImages(post.site_id, postId, result.content, site.url)
   // Prefer the server-echoed ACF (post-filter), fall back to what we sent if the
   // response omitted it (older companion plugin / non-ACF site / partial echo).
-  const acfForStorage = normalizeAcf(result.acf ?? swappedAcf)
-  const responseAcfJson: string | null = acfForStorage ? JSON.stringify(acfForStorage) : null
+  // Prefer the server-echoed values (post-filter), but only when the response
+  // actually carried them — an echo that omits ACF must not clear what we just
+  // pushed. resolvePulledAcf handles the wpoe_acf/acf preference and the
+  // "didn't say" case in one place.
+  const echoed = resolvePulledAcf(result)
+  const acfForStorage = echoed.known ? echoed.values : normalizeAcf(swappedAcf)
+  const responseAcfJson: string | null = acfToJson(acfForStorage)
   const storedAcfJson = await rewriteAcfImageUrls(post.site_id, postId, responseAcfJson, site.url)
 
   // Update local DB
@@ -423,8 +428,10 @@ export async function resolveConflict(
   const now = new Date().toISOString()
   const title = decodeHtmlEntities(wpPost.title.rendered)
   let content = sanitizeHtml(wpContentToHtml(wpPost.content))
-  const theirAcf = normalizeAcf(wpPost.acf)
-  let acfJson = theirAcf ? JSON.stringify(theirAcf) : null
+  // keep-theirs replaces local values with the remote ones — but only where the
+  // remote actually reported them. Otherwise the local copy stands.
+  const theirAcf = resolvePulledAcf(wpPost)
+  let acfJson = theirAcf.known ? acfToJson(theirAcf.values) : (post.acf ? JSON.stringify(post.acf) : null)
 
   // Download external images and rewrite to media:// protocol
   content = await downloadAndRewriteImages(post.site_id, postId, content, site.url)

@@ -1,65 +1,107 @@
 # Release Checklist
 
-Follow these steps in order when cutting a new release.
+Releases are automated. Bump the version, write the notes, merge to `main` — the
+tag, the signed build, and publishing all follow from that. **Don't tag by hand.**
 
-## 1. Update version numbers
+## How the automation fits together
 
-Three places must match:
-
-| File | Location | Example |
+| Workflow | Trigger | What it does |
 |---|---|---|
-| `package.json` | `"version"` field | `"0.8.0"` |
-| `companion-plugin/wp-offline-editor-companion.php` | Plugin header `Version:` | `* Version: 0.8.0` |
-| `companion-plugin/wp-offline-editor-companion.php` | `WPOE_VERSION` constant | `define( 'WPOE_VERSION', '0.8.0' );` |
+| `auto-tag.yml` | push to `main` touching `package.json` | Creates the matching `vX.Y.Z` tag (no-op if it already exists) |
+| `release.yml` | push of a `v*` tag | Gates on typecheck + build + tests, then signs, notarizes, uploads, and publishes |
 
-The release workflow auto-sets `package.json` from the git tag, but it's cleaner to have it correct in the commit too. The companion plugin versions are **not** auto-set — they must be updated manually.
+`auto-tag.yml` tags with `RELEASE_TAG_PAT` rather than `GITHUB_TOKEN`, because tags
+created with the workflow token deliberately don't trigger other workflows —
+`release.yml` would never fire.
 
-## 2. Build and verify
+## 1. Bump the version
+
+`package.json` only:
+
+```json
+"version": "X.Y.Z"
+```
+
+That committed value is what triggers the tag. `release.yml` also sets it from the
+tag at build time, so the two can't drift.
+
+The companion plugin version is **not** edited by hand. `release.yml` stamps both
+the plugin header `Version:` and the `WPOE_VERSION` constant from the tag while
+building, leaving the plugin source in git untouched by app-only releases. This
+matters: the plugin's update checker derives the available version from the release
+tag, so a shipped header that doesn't match the tag makes WordPress offer an update
+that can never complete. Only bump the plugin version in git when you're changing
+the plugin itself.
+
+## 2. Write the release notes
+
+**Required to publish.** Create `.github/release-notes/vX.Y.Z.md`:
+
+- **First line** — the release title (becomes the release name; a leading `#` is stripped)
+- **Blank line**
+- **Body** — user-facing Markdown: what changed for the person using the app, not the internals
+
+Without this file the build still runs and uploads assets, but the release stays an
+unpublished draft and the publish step fails loudly.
+
+## 3. Verify locally
 
 ```bash
+pnpm test
+npx tsc --noEmit -p tsconfig.node.json
+npx tsc --noEmit -p tsconfig.web.json
 pnpm build
 ```
 
-Ensure a clean build with no errors.
+CI runs all of these again, but failing here saves a round trip. Note that
+`pnpm test` rebuilds the native SQLite module for Node and restores the Electron
+build afterwards — see `scripts/run-tests.mjs`.
 
-## 3. Commit
-
-```bash
-git add package.json companion-plugin/wp-offline-editor-companion.php
-git commit -m "Bump version to X.Y.Z"
-```
-
-## 4. Push the commit
+## 4. Commit, open a PR, merge
 
 ```bash
-git push origin main
+git checkout -b release/vX.Y.Z
+git add package.json .github/release-notes/vX.Y.Z.md
+git commit -m "Release X.Y.Z"
+git push -u origin release/vX.Y.Z
+gh pr create --base main
 ```
 
-## 5. Tag and push the tag
+Merge once CI is green. **The merge is what starts the release** — nothing before it
+tags or builds.
+
+## 5. Watch the run
 
 ```bash
-git tag -a vX.Y.Z -m "vX.Y.Z — Release title"
-git push origin vX.Y.Z
+gh run list --limit 3
+gh run watch <run-id> --interval 30
 ```
 
-This triggers the release workflow.
+Budget roughly 5–10 minutes; Apple notarization dominates.
 
-## 6. Wait for release workflow
+## 6. Confirm the result
 
 ```bash
-gh run list --limit 1
-gh run watch <run-id>
+gh release view vX.Y.Z --json name,isDraft,assets \
+  --jq '{name, isDraft, assets: [.assets[].name]}'
 ```
 
-The workflow builds the macOS app, creates a **draft** GitHub release, uploads app assets (DMG, ZIP, blockmap, latest-mac.yml) and the companion plugin ZIP.
+Expect `isDraft: false` and all six assets: the DMG, its blockmap, the mac ZIP, its
+blockmap, `latest-mac.yml`, and `wp-offline-editor-companion.zip`. The workflow
+asserts this itself, so a green run means they're all there.
 
-## 7. Publish the release
+## If the release is left as a draft
+
+Almost always a missing or malformed notes file. Notes are read from `main`'s HEAD
+rather than from the tag, so the fix needs no new tag: commit
+`.github/release-notes/vX.Y.Z.md` to `main`, then re-run the `build-mac` job and it
+will publish.
 
 ```bash
-gh release edit vX.Y.Z --draft=false --latest
+gh run rerun <run-id> --job <build-mac-job-id>
 ```
 
-## 8. Update local app (optional)
+## Updating your local app (optional)
 
 ```bash
 npx electron-rebuild
@@ -70,4 +112,9 @@ cp -R dist/mac-arm64/NP\ Presspad.app /Applications/
 
 ## Known issues
 
-- **Tag before commit push**: If you push the tag before its commit is on `main`, the workflow checks out the wrong code. Always push the commit first.
+- **Duplicate drafts.** electron-builder has been seen creating two draft releases
+  for one tag and splitting the assets between them (v1.1.6, v1.1.7). The
+  *Consolidate duplicate draft releases* step folds them together before the
+  publish step, which addresses the release by tag.
+- **Hand-tagging.** If you ever bypass `auto-tag.yml`, push the commit to `main`
+  before the tag — otherwise the workflow checks out the wrong code.

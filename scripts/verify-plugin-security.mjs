@@ -163,18 +163,14 @@ function withheld(post) {
 
 // ── D & E. Write scoping and sanitisation, on a throwaway post ─────────────
 {
-  // Discover a real field name so the write actually resolves to something.
+  // Build a name → type map of every text-ish field on the site.
   const groups = await req('/wp-json/wpoe/v1/field-groups', { cred: editor })
-  let fieldName = null
+  const textFields = new Set()
   if (Array.isArray(groups.json)) {
     for (const group of groups.json) {
       const fields = await req(`/wp-json/wpoe/v1/field-groups/${group.key}/fields`, { cred: editor })
-      const text = (Array.isArray(fields.json) ? fields.json : []).find(
-        (f) => f.type === 'text' || f.type === 'textarea'
-      )
-      if (text) {
-        fieldName = text.name
-        break
+      for (const f of Array.isArray(fields.json) ? fields.json : []) {
+        if (f.type === 'text' || f.type === 'textarea') textFields.add(f.name)
       }
     }
   }
@@ -186,6 +182,18 @@ function withheld(post) {
     body: { title: 'wpoe security probe', status: 'draft', content: 'probe' }
   })
   const postId = created.json?.id
+
+  // Pick a field that actually applies to THIS post. Choosing from all groups
+  // would pick one whose location rules don't match, which the plugin then
+  // correctly drops — leaving the positive path untested and looking like a bug.
+  let fieldName = null
+  if (postId) {
+    const probeFields = await req(`/wp-json/wp/v2/posts/${postId}?context=edit&_fields=wpoe_acf`, {
+      cred: writer
+    })
+    const applicable = Object.keys(probeFields.json?.wpoe_acf ?? {})
+    fieldName = applicable.find((name) => textFields.has(name)) ?? null
+  }
 
   if (!postId) {
     record('write: scoping and sanitisation', false, `could not create a probe post (HTTP ${created.status})`)
@@ -244,6 +252,12 @@ function withheld(post) {
           'write: a legitimate field value was actually stored',
           String(echoed[fieldName] ?? '').includes('probe'),
           `field "${fieldName}"`
+        )
+      } else {
+        record(
+          'write: a legitimate field value was actually stored',
+          null,
+          'no text field applies to a plain post on this site'
         )
       }
     } finally {

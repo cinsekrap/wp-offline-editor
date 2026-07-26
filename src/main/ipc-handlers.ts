@@ -556,6 +556,11 @@ export function registerIpcHandlers(): void {
     return app.getVersion()
   })
 
+  // Dock badge showing how many error/warning toasts are waiting to be seen.
+  ipcMain.handle('app:set-badge', (_event, count: unknown) => {
+    app.setBadgeCount(typeof count === 'number' && count > 0 ? Math.floor(count) : 0)
+  })
+
   ipcMain.handle('app:arch', () => {
     return process.arch
   })

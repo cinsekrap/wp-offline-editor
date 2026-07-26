@@ -560,6 +560,7 @@ export interface ElectronAPI {
   // App
   getVersion(): Promise<string>
   getArch(): Promise<string>
+  setBadgeCount(count: number): Promise<void>
 
   // Updater
   checkForUpdates(): Promise<void>

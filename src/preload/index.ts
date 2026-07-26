@@ -120,6 +120,7 @@ const api: ElectronAPI = {
   // App
   getVersion: () => ipcRenderer.invoke('app:version'),
   getArch: () => ipcRenderer.invoke('app:arch'),
+  setBadgeCount: (count: number) => ipcRenderer.invoke('app:set-badge', count),
 
   // Updater
   checkForUpdates: () => ipcRenderer.invoke('updater:check'),

@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid'
-import { app, net } from 'electron'
+import { app } from 'electron'
 import { join, basename } from 'path'
 import { mkdirSync, writeFileSync, existsSync, unlinkSync, copyFileSync } from 'fs'
 import { getDb } from './database'
@@ -7,7 +7,7 @@ import { getSiteById } from './site-service'
 import { getCredential } from './credentials'
 import { uploadMedia } from './wp-client'
 import type { Media, MediaLibraryItem } from '@shared/types'
-import { requestRefusal } from './transport-policy'
+import { ASSET_TIMEOUT_MS, guardedFetch } from './transport-policy'
 
 function getMediaDir(siteId: string): string {
   const dir = join(app.getPath('userData'), 'media', siteId)
@@ -171,11 +171,11 @@ export async function saveMediaFromLibrary(
   // Fall back to the cached thumbnail if offline or fetch fails.
   let copied = false
   try {
-    // source_url was stored verbatim from the remote API — policy-check it
-    // before reaching for the full-size original.
-    const refusal = requestRefusal(libraryItem.source_url)
-    if (refusal !== null) throw new Error(refusal)
-    const resp = await net.fetch(libraryItem.source_url)
+    // source_url was stored verbatim from the remote API, so the policy applies
+    // to it and to anything it redirects to.
+    const resp = await guardedFetch(libraryItem.source_url, undefined, {
+      timeoutMs: ASSET_TIMEOUT_MS
+    })
     if (resp.ok) {
       const buffer = Buffer.from(await resp.arrayBuffer())
       writeFileSync(localPath, buffer)

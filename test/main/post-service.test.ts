@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { initTestDb, teardownTestDb, seedSite, insertPostRow } from '../helpers/db'
 import { getDb } from '../../src/main/database'
-import { pullPostsForSite } from '../../src/main/post-service'
+import { downloadAndRewriteImages, pullPostsForSite } from '../../src/main/post-service'
 import * as wpClient from '../../src/main/wp-client'
 import { wpPost } from '../helpers/wp'
 
@@ -19,6 +19,24 @@ afterEach(() => teardownTestDb())
 function stagePull(posts: ReturnType<typeof wpPost>[]): void {
   vi.mocked(wpClient.fetchPosts).mockResolvedValue({ posts } as never)
 }
+
+describe('image downloads', () => {
+  it('leaves a plaintext public image URL alone instead of fetching it', async () => {
+    // Proves the wiring, not just the policy: img srcs are scraped from remote
+    // post content, so the download path has to be guarded, and a refusal must
+    // degrade to "leave the URL as it was" rather than throw mid-pull.
+    const site = seedSite()
+    insertPostRow({ id: 'local', site_id: site.id, wp_id: 70, title: 'T', content: '' })
+    const html = '<p><img src="http://cdn.example.com/photo.jpg"></p>'
+
+    const result = await downloadAndRewriteImages(site.id, 'local', html, site.url)
+
+    expect(result).toBe(html)
+    const db = getDb()
+    const media = db.prepare('SELECT COUNT(*) as n FROM media WHERE post_local_id = ?').get('local') as { n: number }
+    expect(media.n).toBe(0)
+  })
+})
 
 describe('upsertPost (via pullPostsForSite)', () => {
   it('creates a new local post from a remote one', async () => {

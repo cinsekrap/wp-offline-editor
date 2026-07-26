@@ -5,28 +5,24 @@ import { getSiteById } from './site-service'
 import { getCredential } from './credentials'
 import { fetchPosts, fetchUserNames, fetchAttachmentUrl, fetchAllPostIds, fetchRemotePostExistence } from './wp-client'
 import { decodeHtmlEntities, wpContentToHtml } from './html-utils'
-import { requestRefusal } from './transport-policy'
+import { ASSET_TIMEOUT_MS, guardedFetch } from './transport-policy'
 import { sanitizeHtml } from './sanitize'
 import { acfToJson, resolvePulledAcf } from './acf-utils'
 import { saveMediaFromWp } from './media-service'
-import { net } from 'electron'
 import { existsSync } from 'fs'
 import { indexPost, removePostFromIndex } from './search-service'
 import { captureRevision } from './revision-service'
 import type { Post, PostInput, PostUpdate, PullResult, WpPostRaw } from '@shared/types'
 
 async function downloadBuffer(url: string): Promise<Buffer | null> {
-  // These URLs come out of remote API data (attachment source_url, img src in
-  // post content, image URLs inside ACF JSON), so they can name any host or
-  // scheme. Refuse rather than skip silently on the wire.
-  const refusal = requestRefusal(url)
-  if (refusal !== null) {
-    console.warn(`[media] Refused download — ${refusal}: ${url}`)
-    return null
-  }
-
   try {
-    const resp = await net.fetch(url)
+    // These URLs come out of remote API data (attachment source_url, img src in
+    // post content, image URLs inside ACF JSON), so they can name any host or
+    // scheme — and a redirect can move them again mid-request. guardedFetch
+    // applies the policy to every hop, which Electron's net.fetch cannot: it
+    // throws on redirect: 'manual' and leaves response.url empty, so a downgrade
+    // could neither be prevented nor detected afterwards.
+    const resp = await guardedFetch(url, undefined, { timeoutMs: ASSET_TIMEOUT_MS })
     if (!resp.ok) {
       console.warn(`[media] Download failed (${resp.status}): ${url}`)
       return null

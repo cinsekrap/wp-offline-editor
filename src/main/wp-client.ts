@@ -254,7 +254,14 @@ export async function fetchPosts(
           status,
           per_page: String(Math.min(perPage, 100)),
           page: String(page),
-          _fields: fields
+          _fields: fields,
+          // ACF reads this before falling back to the site's rest_api_format
+          // setting. A site set to 'standard' would otherwise hand us each
+          // field's *display* formatting — a date_picker as "21/02/2019" rather
+          // than the stored "20190221" — which the editor can't parse and can't
+          // write back. Our own wpoe_acf pins 'light' server-side; this covers
+          // ACF's field, which is what an older companion plugin falls back to.
+          acf_format: 'light'
         })
         if (editContext) params.set('context', 'edit')
         return params
@@ -716,7 +723,8 @@ export async function fetchSinglePost(
 
   const fields =
     '_fields=id,title,content,excerpt,slug,status,modified,date,author,featured_media,categories,tags,acf,wpoe_acf'
-  const endpoint = `${base}/wp/v2/posts/${wpId}?${fields}`
+  // acf_format=light — see the note in fetchPosts.
+  const endpoint = `${base}/wp/v2/posts/${wpId}?${fields}&acf_format=light`
 
   // Prefer context=edit for content.raw so shortcodes survive the round-trip;
   // fall back to the rendered form if this user can't edit the post.

@@ -112,10 +112,13 @@ cp -R dist/mac-arm64/NP\ Presspad.app /Applications/
 
 ## Known issues
 
-- **Duplicate drafts.** electron-builder has been seen creating two draft releases
-  for one tag and splitting the assets between them (v1.1.6, v1.1.7). The
-  *Consolidate duplicate draft releases* step folds them together before the
-  publish step, which addresses the release by tag.
+- **Duplicate drafts.** electron-builder can create two draft releases for one
+  tag and split the assets between them (hit in v1.1.6, v1.1.7). This is a race
+  in electron-builder, not something we cause, and **every** v26 release has it —
+  see the note below. The *Consolidate duplicate draft releases* step folds the
+  drafts together, and *Verify release assets are complete* then fails the job if
+  any of the six expected assets is missing. That pair is what actually protects
+  a release; it works regardless of which electron-builder version we run.
 - **Hand-tagging.** If you ever bypass `auto-tag.yml`, push the commit to `main`
   before the tag — otherwise the workflow checks out the wrong code.
 
@@ -123,15 +126,43 @@ cp -R dist/mac-arm64/NP\ Presspad.app /Applications/
 
 These are deliberate. Re-check them, don't just bump them.
 
-- **`electron-builder` pinned at `26.8.1`** (exact, no caret) because of the
-  duplicate-drafts bug above. Upstream cause and fix:
-  [issue #10026](https://github.com/electron-userland/electron-builder/issues/10026),
-  [PR #10028](https://github.com/electron-userland/electron-builder/pull/10028)
-  — concurrent artifact uploads each build their own `GitHubPublisher`, so each
-  one creates its own draft. The fix merged to `master` on 2026-07-22, which is
-  the v27 line; it shipped in `27.0.0-alpha.6` and **is not in any released v26**
-  (latest v26 is `26.15.7`, cut 2026-07-18, before the merge). Unpin when either
-  a v26 backport ships or v27 goes stable and we're ready to move majors.
+- **`electron-builder` pinned at `26.8.1`** (exact, no caret).
+
+  **The original reason for this pin was wrong.** The pin was taken after the
+  duplicate drafts in v1.1.6/v1.1.7, on the belief that 26.15.3 had introduced
+  the bug and 26.8.1 was safe. It hadn't, and it isn't. Upstream
+  [#10026](https://github.com/electron-userland/electron-builder/issues/10026)
+  traced the cause to `PublishManager.getOrCreatePublisher()`, which `await`s
+  `createPublisher()` *before* writing to its cache — so concurrent artifact
+  uploads all see an empty cache, each builds its own `GitHubPublisher`, and each
+  creates its own draft. The compiled `getOrCreatePublisher` is byte-identical in
+  26.8.1 and 26.15.3. The race predates both (first reported in
+  [#6676](https://github.com/electron-userland/electron-builder/issues/6676), 2022).
+  It went quiet after the revert by luck, not because of it — it's a race, so it
+  fires intermittently.
+
+  So this pin buys us nothing against duplicate drafts. The consolidate + verify
+  steps in `release.yml` are the real protection.
+
+  The fix, [#10028](https://github.com/electron-userland/electron-builder/pull/10028),
+  merged to `master` on 2026-07-22 — the v27 line. It shipped in
+  `27.0.0-alpha.6` and is **not in any released v26**: latest is `26.15.7`, cut
+  2026-07-18, four days before the merge, and no backport onto `release/v26` has
+  landed or been opened. Don't wait for it; nothing is scheduled.
+
+  **The pin now only survives because unpinning needs testing, not because of the
+  draft bug.** 26.8.1 → 26.15.7 is seven releases of change to the macOS artifact
+  pipeline: blockmap and icon generation rewritten from `app-builder-bin` into
+  TypeScript (26.14.0), the macOS zip target switched to native `zip` to preserve
+  `.framework` symlinks (26.15.2), mac signing behaviour changes (26.15.0),
+  `MacPackager` refactored (26.12.1), dmg toolset decoupled from Homebrew
+  (26.11.0). Blockmaps and the zip are exactly what `electron-updater` consumes,
+  so a green `pnpm test` proves nothing here.
+
+  **To unpin** (worth doing — 26.15.2 in particular looks like a fix we want): do
+  it early in a cycle, never the week of a release. Take `^26.15.7`, run a real
+  signed build, and test an actual update from the previously published version,
+  not just that the build succeeds.
 - **`@vitejs/plugin-react` held at `5.x`.** Version `6.x` requires `vite ^8`, and
   `electron-vite@5.0.0` — the latest stable — peers `vite ^5 || ^6 || ^7`. Only
   `electron-vite@6.0.0-beta.1` supports Vite 8. This is a whole-toolchain move

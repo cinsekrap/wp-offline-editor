@@ -118,3 +118,22 @@ cp -R dist/mac-arm64/NP\ Presspad.app /Applications/
   publish step, which addresses the release by tag.
 - **Hand-tagging.** If you ever bypass `auto-tag.yml`, push the commit to `main`
   before the tag — otherwise the workflow checks out the wrong code.
+
+## Held-back dependencies
+
+These are deliberate. Re-check them, don't just bump them.
+
+- **`electron-builder` pinned at `26.8.1`** (exact, no caret) because of the
+  duplicate-drafts bug above. Upstream cause and fix:
+  [issue #10026](https://github.com/electron-userland/electron-builder/issues/10026),
+  [PR #10028](https://github.com/electron-userland/electron-builder/pull/10028)
+  — concurrent artifact uploads each build their own `GitHubPublisher`, so each
+  one creates its own draft. The fix merged to `master` on 2026-07-22, which is
+  the v27 line; it shipped in `27.0.0-alpha.6` and **is not in any released v26**
+  (latest v26 is `26.15.7`, cut 2026-07-18, before the merge). Unpin when either
+  a v26 backport ships or v27 goes stable and we're ready to move majors.
+- **`@vitejs/plugin-react` held at `5.x`.** Version `6.x` requires `vite ^8`, and
+  `electron-vite@5.0.0` — the latest stable — peers `vite ^5 || ^6 || ^7`. Only
+  `electron-vite@6.0.0-beta.1` supports Vite 8. This is a whole-toolchain move
+  (Vite 8 + an electron-vite beta), not a plugin bump. Revisit when
+  electron-vite 6 is stable.

@@ -649,7 +649,18 @@ export async function pushPost(
   // it doesn't register, so this needs no version negotiation, and where both
   // handlers run they write identical values.
   if (data.acf) {
-    body.acf = data.acf
+    // Null values go to the companion plugin but not to ACF's own field. ACF
+    // validates every name it can resolve — including groups that never opted
+    // into REST — and its repeater and flexible-content validators both read
+    // `! is_array( $value ) && is_null( $value )`, an inverted condition that
+    // rejects exactly the value their own error message calls valid ("must be
+    // of type array or null"). One empty repeater therefore 400s the whole
+    // request, taking the post, its content and every other field with it.
+    // Omitting a key means "leave this field alone", so dropping nulls costs
+    // nothing ACF would have honoured anyway — it cannot clear a repeater
+    // through that field regardless. wpoe_acf still carries the complete
+    // object, so clearing keeps working wherever the plugin is installed.
+    body.acf = Object.fromEntries(Object.entries(data.acf).filter(([, v]) => v !== null))
     body.wpoe_acf = data.acf
   }
   if (data.featured_media !== undefined) body.featured_media = data.featured_media

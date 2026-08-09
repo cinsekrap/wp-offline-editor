@@ -380,7 +380,19 @@ export async function resolveConflict(
   const db = getDb()
 
   if (strategy === 'keep-mine') {
-    await pushPostToWp(postId, { skipConflictCheck: true })
+    // Local-only, matching resolveScratchpadConflict: clear the flag and leave
+    // the row unsynced so the next sync pushes it over the remote. Pushing from
+    // here made the resolution only as reliable as the network and the remote's
+    // willingness to accept the payload — offline, or against a site that
+    // rejected the push, the conflict simply could not be resolved. Keeping the
+    // user's copy is a decision about local state, so it should not need a
+    // round trip to record.
+    //
+    // The pre-push conflict check won't re-flag it: whoever set conflict = 1
+    // recorded the remote's modified stamp in the same statement, so the row
+    // already agrees with the remote it is about to overwrite.
+    const res = db.prepare('UPDATE posts SET conflict = 0, synced = 0 WHERE id = ?').run(postId)
+    if (res.changes === 0) throw new Error(`Post not found: ${postId}`)
     return
   }
 
@@ -396,15 +408,47 @@ export async function resolveConflict(
 
   if (strategy === 'fork') {
     // Create a copy of the current local post as a new draft
+    const forkId = uuidv4()
     const forkAcf = normalizeAcf(post.acf)
-    const forkAcfJson = forkAcf ? JSON.stringify(forkAcf) : null
+    let forkAcfJson = forkAcf ? JSON.stringify(forkAcf) : null
     const forkCategoriesJson = JSON.stringify(post.categories)
     const forkTagsJson = JSON.stringify(post.tags)
+
+    // Media rows belong to a post id, so the copy would start with none — and
+    // the push builds its media:// → wp_url swap map from the post's own rows,
+    // so every image in the fork would go to WordPress as a raw media:// URL.
+    // Clone the rows to the new id, keeping local_path (which is what content
+    // keys on, so content needs no rewriting) and any existing upload.
+    const forkMedia = db
+      .prepare('SELECT * FROM media WHERE post_local_id = ?')
+      .all(post.id) as {
+      id: string
+      site_id: string
+      local_path: string
+      wp_id: number | null
+      wp_url: string | null
+      filename: string
+      synced: number
+    }[]
+
+    // ACF, unlike content, refers to a media row by its id, so those references
+    // have to follow the clones.
+    const forkMediaIds = new Map<string, string>()
+    for (const media of forkMedia) forkMediaIds.set(media.id, uuidv4())
+    if (forkAcfJson) {
+      for (const [oldId, newId] of forkMediaIds) {
+        forkAcfJson = forkAcfJson.split(`"${oldId}"`).join(`"${newId}"`)
+      }
+    }
+    const forkFeatured = post.featured_image
+      ? forkMediaIds.get(post.featured_image) ?? post.featured_image
+      : null
+
     db.prepare(`
       INSERT INTO posts (id, site_id, wp_id, title, content, status, acf, excerpt, slug, date, author_id, author_name, featured_image, categories, tags, modified_local, modified_remote, synced, conflict)
       VALUES (?, ?, NULL, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 0, 0)
     `).run(
-      uuidv4(),
+      forkId,
       post.site_id,
       post.title + ' (copy)',
       post.content,
@@ -414,11 +458,27 @@ export async function resolveConflict(
       post.date,
       post.author_id,
       post.author_name,
-      post.featured_image,
+      forkFeatured,
       forkCategoriesJson,
       forkTagsJson,
       new Date().toISOString()
     )
+
+    // After the post row exists — media.post_local_id is a foreign key onto it.
+    for (const media of forkMedia) {
+      db.prepare(
+        'INSERT INTO media (id, site_id, post_local_id, local_path, wp_id, wp_url, filename, synced) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+      ).run(
+        forkMediaIds.get(media.id)!,
+        media.site_id,
+        forkId,
+        media.local_path,
+        media.wp_id,
+        media.wp_url,
+        media.filename,
+        media.synced
+      )
+    }
   }
 
   // keep-theirs (or the second half of fork): overwrite local with remote

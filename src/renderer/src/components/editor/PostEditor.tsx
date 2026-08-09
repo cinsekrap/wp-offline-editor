@@ -274,6 +274,14 @@ export function PostEditor({
       setPost(p)
       setTitle(p.title)
       setContent(p.content)
+      // The TipTap instance is built once per postId — `content` is its initial
+      // value, not a controlled prop — so setting state alone leaves the visible
+      // editor showing the pre-reload text. Its next onUpdate would then write
+      // that stale HTML back through onChange, silently undoing whatever we just
+      // pulled in (keep-theirs and fork both land here).
+      if (editorRef.current) {
+        editorRef.current.commands.setContent(p.content)
+      }
       setPostStatus(p.status)
       setAcf(p.acf ?? {})
       setScheduledDate(p.date ? new Date(p.date) : undefined)

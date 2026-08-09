@@ -9,6 +9,7 @@ import {
   PushConflictError,
   pullScratchpadsForSite,
   pushScratchpadsForSite,
+  resolveConflict,
   resolveScratchpadConflict
 } from '../../src/main/sync-service'
 import * as wpClient from '../../src/main/wp-client'
@@ -335,5 +336,31 @@ describe('scratchpad conflicts', () => {
       .get('sp') as { conflict: number; synced: number }
     expect(row.conflict).toBe(0)
     expect(row.synced).toBe(0)
+  })
+})
+
+describe('post conflict resolution', () => {
+  beforeEach(() => initTestDb())
+  afterEach(() => teardownTestDb())
+
+  it('keep-mine resolves without touching the network', async () => {
+    // It used to push inline, which made keeping your own copy — a decision
+    // about local state — fail whenever the site was unreachable or rejected
+    // the payload, with no way to resolve the conflict offline.
+    const site = seedSite()
+    insertPostRow({ id: 'p1', site_id: site.id, wp_id: 9, conflict: 1, synced: 1 })
+
+    await resolveConflict('p1', 'keep-mine')
+
+    const row = getDb()
+      .prepare('SELECT conflict, synced FROM posts WHERE id = ?')
+      .get('p1') as { conflict: number; synced: number }
+    expect(row.conflict).toBe(0)
+    expect(row.synced).toBe(0)
+    expect(vi.mocked(wpClient.pushPost)).not.toHaveBeenCalled()
+  })
+
+  it('keep-mine reports an unknown post rather than silently doing nothing', async () => {
+    await expect(resolveConflict('nope', 'keep-mine')).rejects.toThrow(/not found/i)
   })
 })

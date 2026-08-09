@@ -329,6 +329,51 @@ function wpoe_internal_keys(): array {
 }
 
 /**
+ * Make the posts-list "Last Modified" column show the modified date.
+ *
+ * WP_Posts_List_Table::column_date() labels a row "Last Modified" for anything
+ * not published or scheduled, but the time it prints is always get_the_time() —
+ * the post DATE. For a draft that never moves, so an edited draft keeps showing
+ * the date it was created however many times it is revised, whether the edit came
+ * from this app or from WordPress itself.
+ *
+ * post_modified is already correct in the database; only the rendering is wrong.
+ * So this corrects the display rather than writing a falsified post_date, which
+ * would lose the real creation date and change what the post publishes with.
+ *
+ * Scoped to exactly the rows core mislabels: statuses other than publish/future,
+ * which are the ones it calls "Last Modified". Published and scheduled rows are
+ * left alone — there the date shown is genuinely the publish date.
+ */
+add_filter( 'post_date_column_time', function ( $t_time, $post, $column_name, $mode ) {
+	unset( $mode );
+
+	if ( 'date' !== $column_name || ! $post instanceof WP_Post ) {
+		return $t_time;
+	}
+
+	if ( in_array( $post->post_status, [ 'publish', 'future' ], true ) ) {
+		return $t_time;
+	}
+
+	// Core's own "no date yet" case — leave its "Unpublished" text intact.
+	if ( '0000-00-00 00:00:00' === $post->post_date ) {
+		return $t_time;
+	}
+
+	if ( empty( $post->post_modified ) || '0000-00-00 00:00:00' === $post->post_modified ) {
+		return $t_time;
+	}
+
+	return sprintf(
+		/* translators: 1: Post modified date, 2: Post modified time. */
+		__( '%1$s at %2$s', 'wp-offline-editor-companion' ),
+		get_post_modified_time( __( 'Y/m/d', 'wp-offline-editor-companion' ), false, $post, true ),
+		get_post_modified_time( __( 'g:i a', 'wp-offline-editor-companion' ), false, $post, true )
+	);
+}, 10, 4 );
+
+/**
  * Recursively normalize ACF field arrays for JSON output.
  * Uses a blacklist approach — passes through all properties except internal runtime keys.
  */

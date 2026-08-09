@@ -59,6 +59,17 @@ npx electron-rebuild   # required for better-sqlite3 on Apple Silicon
 pnpm dev
 ```
 
+`dev` and `preview` run `install-electron` first. Electron dropped its `postinstall`
+hook after 41.x — from 43.x the binary is fetched only by that explicit bin — so
+`pnpm install` alone leaves no runnable Electron and `electron-vite dev` fails with
+`Error: Electron uninstall`. It is a sub-second no-op once the binary is present.
+
+Deliberately not in `postinstall`: the cloud automation's sandbox cannot reach
+Electron's download servers, and putting it there would turn `pnpm install` itself
+into a hard failure. Nothing else needs the binary — electron-builder fetches its
+own copy to package with, `install-app-deps` and `electron-rebuild` only read the
+version, and the tests run under Node.
+
 ### Build
 
 ```bash

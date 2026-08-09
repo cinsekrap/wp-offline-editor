@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { fetchPosts, fetchSinglePost } from '../../src/main/wp-client'
+import { fetchPosts, fetchSinglePost, pushPost } from '../../src/main/wp-client'
 
 /**
  * wp-client is mocked everywhere else in the suite, so its request construction
@@ -71,5 +71,65 @@ describe('post pull requests', () => {
 
     expect(requested.length).toBeGreaterThan(0)
     expect(requested[0]).toContain('acf_format=light')
+  })
+})
+
+describe('ACF on push', () => {
+  let sent: Record<string, unknown>
+
+  beforeEach(() => {
+    sent = {}
+    vi.stubGlobal('fetch', (url: string, init: RequestInit) => {
+      requested.push(url)
+      sent = JSON.parse(String(init.body))
+      return Promise.resolve(
+        new Response(JSON.stringify({ id: 1, modified: '2026-01-01T00:00:00' }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' }
+        })
+      )
+    })
+  })
+
+  const acf = { post_galleries: null, post_series: 'a-series', show_toc: false }
+
+  it("omits null values from ACF's own field", async () => {
+    // ACF's repeater and flexible-content REST validators read
+    // `! is_array( $value ) && is_null( $value )` — inverted, so they reject
+    // exactly the null their error message calls valid. One empty repeater
+    // 400s the entire push, losing the content along with it.
+    await pushPost(SITE, 'admin', 'pw', 5, {
+      title: 'T',
+      content: 'C',
+      status: 'draft',
+      acf
+    })
+
+    expect(sent.acf).toEqual({ post_series: 'a-series', show_toc: false })
+  })
+
+  it('still sends the complete object to the companion plugin', async () => {
+    // The plugin registers its field with no schema and writes every applicable
+    // group, so it is the path that can genuinely clear a repeater. Stripping
+    // nulls here too would make emptying a field impossible.
+    await pushPost(SITE, 'admin', 'pw', 5, {
+      title: 'T',
+      content: 'C',
+      status: 'draft',
+      acf
+    })
+
+    expect(sent.wpoe_acf).toEqual(acf)
+  })
+
+  it('keeps false and empty string, which are real values', async () => {
+    await pushPost(SITE, 'admin', 'pw', 5, {
+      title: 'T',
+      content: 'C',
+      status: 'draft',
+      acf: { a: false, b: '', c: 0, d: null }
+    })
+
+    expect(sent.acf).toEqual({ a: false, b: '', c: 0 })
   })
 })

@@ -9,6 +9,7 @@ import {
   DialogFooter
 } from '@renderer/components/ui/dialog'
 import { Button } from '@renderer/components/ui/button'
+import { useToast } from '@renderer/components/ui/use-toast'
 import type { Post } from '@shared/types'
 
 type Strategy = 'keep-mine' | 'keep-theirs' | 'fork'
@@ -27,12 +28,23 @@ export function ConflictDialog({
   onResolve
 }: ConflictDialogProps): JSX.Element {
   const [resolving, setResolving] = useState<Strategy | null>(null)
+  const { toast } = useToast()
 
   async function handleResolve(strategy: Strategy): Promise<void> {
     setResolving(strategy)
     try {
       await onResolve(strategy)
       onOpenChange(false)
+    } catch (err) {
+      // Without this the rejection was unhandled: the dialog stayed open, no
+      // toast appeared, and a resolution that failed looked exactly like a
+      // button that did nothing. Stay open deliberately — the conflict is
+      // still unresolved, so closing would hide the only way to retry.
+      toast({
+        variant: 'destructive',
+        title: 'Could not resolve conflict',
+        description: err instanceof Error ? err.message : String(err)
+      })
     } finally {
       setResolving(null)
     }

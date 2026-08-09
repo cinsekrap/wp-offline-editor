@@ -642,7 +642,21 @@ export async function pushPost(
     content: data.content,
     status: data.status
   }
-  if (data.date) body.date = data.date
+  // An unpublished post's date is WordPress's to manage, so we don't send one.
+  // wp_update_post moves post_date to "now" on every save of a draft or pending
+  // post (post.php:5260) — that is what keeps drafts ordered by recency in
+  // wp-admin — but only while post_date_gmt is still 0000-00-00. Sending `date`
+  // makes the REST controller write a real post_date_gmt and set edit_date
+  // (class-wp-rest-posts-controller.php:1353), which opts that post out of the
+  // rule permanently: its date freezes at whatever we first sent, no later edit
+  // moves it (not even one made in wp-admin), and it eventually publishes with
+  // that stale date rather than the publish time.
+  //
+  // Nothing is lost by omitting it. A date is only user-meaningful once a post
+  // reaches the published family, and the editor only offers the picker there —
+  // so for a draft this was never anything but the value we last pulled.
+  const wpManagesDate = data.status === 'draft' || data.status === 'pending'
+  if (data.date && !wpManagesDate) body.date = data.date
   // Sent under both keys deliberately. The companion plugin (1.2.0+) consumes
   // wpoe_acf and can write every applicable group; ACF's own field consumes acf
   // but only for groups opting into REST. An older plugin simply ignores the key

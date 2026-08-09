@@ -670,11 +670,22 @@ export async function pushPost(
     // rejects exactly the value their own error message calls valid ("must be
     // of type array or null"). One empty repeater therefore 400s the whole
     // request, taking the post, its content and every other field with it.
+    // Empty strings go the same way, for the same reason from the other side.
+    // A select rejects "" because it is not one of the field's choices (its
+    // validator returns early for null but not for ""), and a number field's
+    // integer|null schema rejects it too. Between the two rules, ACF accepts
+    // neither of the values a client naturally sends for "this field is empty",
+    // so an unset select or number 400s the whole request exactly as an empty
+    // repeater did. Validation stops at the first bad field, so these surface
+    // one at a time — hence handling the class rather than the instance.
+    //
     // Omitting a key means "leave this field alone", so dropping nulls costs
     // nothing ACF would have honoured anyway — it cannot clear a repeater
     // through that field regardless. wpoe_acf still carries the complete
     // object, so clearing keeps working wherever the plugin is installed.
-    body.acf = Object.fromEntries(Object.entries(data.acf).filter(([, v]) => v !== null))
+    body.acf = Object.fromEntries(
+      Object.entries(data.acf).filter(([, v]) => v !== null && v !== '')
+    )
     body.wpoe_acf = data.acf
   }
   if (data.featured_media !== undefined) body.featured_media = data.featured_media

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { AppShell } from '@renderer/components/layout/AppShell'
 import { SettingsView } from '@renderer/components/settings/SettingsView'
 import { AddSiteDialog } from '@renderer/components/settings/AddSiteDialog'
+import { WhatsNewDialog } from '@renderer/components/settings/WhatsNewDialog'
 import { EditSiteDialog } from '@renderer/components/settings/EditSiteDialog'
 import { DeleteSiteDialog } from '@renderer/components/settings/DeleteSiteDialog'
 import { PostsView } from '@renderer/components/posts/PostsView'
@@ -219,6 +220,21 @@ function App(): JSX.Element {
     }
   }, [justReconnected, selectedSiteId, toast, sync.handleSync, clearReconnected])
 
+  // What's new — only after an update. shouldShowReleaseNotes() records a first
+  // run silently and returns false, so a new install is never greeted with a
+  // changelog for software it has not used yet.
+  const [whatsNewOpen, setWhatsNewOpen] = useState(false)
+  useEffect(() => {
+    window.electronAPI
+      .shouldShowReleaseNotes()
+      .then((show) => {
+        if (show) setWhatsNewOpen(true)
+      })
+      .catch(() => {
+        // Never block startup over a changelog.
+      })
+  }, [])
+
   // Auto-sync
   useAutoSync(selectedSite?.auto_sync ?? false, effectiveOnline, sync.handleAutoSync, settings.autoSyncInterval)
 
@@ -392,6 +408,8 @@ function App(): JSX.Element {
         }}
         onConfirm={sync.handleForceSync}
       />
+
+      <WhatsNewDialog open={whatsNewOpen} onOpenChange={setWhatsNewOpen} afterUpdate />
 
       <Toaster />
     </>

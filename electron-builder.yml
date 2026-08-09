@@ -12,6 +12,10 @@ files:
 extraResources:
   - from: resources/wp-offline-editor-companion.zip
     to: wp-offline-editor-companion.zip
+  # Written by scripts/bundle-release-notes.mjs during `pnpm build`, so What's
+  # New works offline rather than asking GitHub what was just installed.
+  - from: resources/release-notes.md
+    to: release-notes.md
 publish:
   provider: github
   owner: cinsekrap

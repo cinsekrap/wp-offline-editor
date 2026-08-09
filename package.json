@@ -1,6 +1,6 @@
 {
   "name": "np-presspad",
-  "version": "1.2.5",
+  "version": "1.2.6",
   "description": "NP Presspad",
   "main": "./out/main/index.js",
   "author": "",
@@ -8,7 +8,7 @@
   "packageManager": "pnpm@10.33.0",
   "scripts": {
     "dev": "install-electron && electron-vite dev",
-    "build": "electron-vite build",
+    "build": "node scripts/bundle-release-notes.mjs && electron-vite build",
     "preview": "install-electron && electron-vite preview",
     "postinstall": "electron-builder install-app-deps",
     "test": "node scripts/run-tests.mjs",

@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react'
 import { Button } from '@renderer/components/ui/button'
 import { Switch } from '@renderer/components/ui/switch'
 import { Label } from '@renderer/components/ui/label'
-import { RefreshCw, Download, RotateCcw, CheckCircle, AlertCircle, Loader2 } from 'lucide-react'
+import { RefreshCw, Download, RotateCcw, CheckCircle, AlertCircle, Loader2, Sparkles } from 'lucide-react'
+import { WhatsNewDialog } from './WhatsNewDialog'
 
 type UpdateStatus = 'idle' | 'checking' | 'available' | 'up-to-date' | 'downloading' | 'ready' | 'error'
 
@@ -19,6 +20,7 @@ export function UpdateChecker({ autoDownload, onAutoDownloadChange }: UpdateChec
   const [availableVersion, setAvailableVersion] = useState('')
   const [downloadPercent, setDownloadPercent] = useState(0)
   const [errorMessage, setErrorMessage] = useState('')
+  const [whatsNewOpen, setWhatsNewOpen] = useState(false)
 
   useEffect(() => {
     api.getVersion().then(setVersion)
@@ -125,6 +127,21 @@ export function UpdateChecker({ autoDownload, onAutoDownloadChange }: UpdateChec
         </div>
         <Switch checked={autoDownload} onCheckedChange={onAutoDownloadChange} />
       </div>
+
+      <div className="flex items-center justify-between max-w-md">
+        <div className="space-y-0.5">
+          <Label>What&apos;s new</Label>
+          <p className="text-xs text-muted-foreground">
+            The release notes for the version you&apos;re running.
+          </p>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => setWhatsNewOpen(true)} className="gap-1.5">
+          <Sparkles className="h-3.5 w-3.5" />
+          View
+        </Button>
+      </div>
+
+      <WhatsNewDialog open={whatsNewOpen} onOpenChange={setWhatsNewOpen} />
     </div>
   )
 }

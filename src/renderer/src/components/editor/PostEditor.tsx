@@ -702,6 +702,7 @@ export function PostEditor({
               siteId={siteId}
               postId={postId}
               mediaItems={queue}
+              refreshMedia={refreshQueue}
             />
           )}
           {sidebarTab === 'acf' && (

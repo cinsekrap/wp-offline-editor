@@ -447,6 +447,16 @@ export interface AppSettings {
   autoDownloadUpdates: boolean
 }
 
+// ── Release notes ────────────────────────────────────────────────────────
+
+/** This build's notes, split as the release pipeline writes them: title line, then body. */
+export interface ReleaseNotes {
+  version: string
+  title: string
+  /** Markdown. Empty when this build shipped without notes. */
+  body: string
+}
+
 // ── IPC API surface exposed via contextBridge ────────────────────────────
 
 export interface ElectronAPI {
@@ -561,6 +571,12 @@ export interface ElectronAPI {
   // Settings
   getSettings(): Promise<AppSettings>
   updateSettings(patch: Partial<AppSettings>): Promise<AppSettings>
+
+  // Release notes ("What's new")
+  getReleaseNotes(): Promise<ReleaseNotes>
+  /** True only after an update — false on a first run, which records silently. */
+  shouldShowReleaseNotes(): Promise<boolean>
+  markReleaseNotesSeen(): Promise<void>
 
   // Data management
   clearSiteData(siteId: string): Promise<void>

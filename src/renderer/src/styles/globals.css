@@ -158,3 +158,30 @@
 .no-drag {
   -webkit-app-region: no-drag;
 }
+
+/* Rendered release-notes markdown (What's new). Scoped so it can't leak into
+   the editor, which has its own typography in tiptap.css. */
+.release-notes h2 {
+  @apply mt-4 mb-1.5 text-sm font-semibold tracking-tight first:mt-0;
+}
+
+.release-notes p {
+  @apply mb-2 text-muted-foreground;
+}
+
+.release-notes ul {
+  @apply mb-3 list-disc space-y-1.5 pl-5 text-muted-foreground;
+}
+
+.release-notes li > strong,
+.release-notes p > strong {
+  @apply font-medium text-foreground;
+}
+
+.release-notes code {
+  @apply rounded bg-muted px-1 py-0.5 text-[0.85em];
+}
+
+.release-notes a {
+  @apply underline underline-offset-2;
+}

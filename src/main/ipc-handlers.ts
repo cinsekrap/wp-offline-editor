@@ -29,6 +29,11 @@ import {
 import { getTaxonomyTerms, createPendingTerm } from './taxonomy-service'
 import { getShortcodesForSite } from './shortcode-service'
 import { getSettings, updateSettings } from './settings-service'
+import {
+  getReleaseNotes,
+  shouldShowReleaseNotes,
+  markReleaseNotesSeen
+} from './release-notes-service'
 import { htmlToMarkdown, markdownToHtml } from './markdown-service'
 import { getAllTemplates, getTemplateById, createTemplate, updateTemplate, deleteTemplate } from './template-service'
 import {
@@ -550,6 +555,12 @@ export function registerIpcHandlers(): void {
     }
     return updated
   })
+
+  // ── Release notes ───────────────────────────────────────────────────────
+
+  ipcMain.handle('release-notes:get', () => getReleaseNotes())
+  ipcMain.handle('release-notes:should-show', () => shouldShowReleaseNotes())
+  ipcMain.handle('release-notes:mark-seen', () => markReleaseNotesSeen())
 
   // ── App ──────────────────────────────────────────────────────────────────
 

@@ -12,6 +12,7 @@ import { CalendarIcon, ImageIcon, X, Upload, Loader2, Lock, Globe, KeyRound, Ale
 import { format } from 'date-fns'
 import { cn } from '@renderer/lib/utils'
 import { STATUS_COLORS, STATUS_LABELS } from '@renderer/lib/post-status'
+import { useToast } from '@renderer/components/ui/use-toast'
 import type { PostStatus, Media, MediaLibraryItem, TaxonomyTerm } from '@shared/types'
 
 type Visibility = 'public' | 'private' | 'password'
@@ -34,6 +35,12 @@ interface PostMetaProps {
   siteId: string
   postId: string
   mediaItems: Media[]
+  /**
+   * Reload mediaItems from the database. Required after adopting or uploading an
+   * image here: those create a media row the parent's queue doesn't know about
+   * yet, and the featured-image preview resolves through that queue.
+   */
+  refreshMedia: () => Promise<void>
 }
 
 const VISIBILITY_OPTIONS: { value: Visibility; label: string; icon: typeof Globe }[] = [
@@ -77,11 +84,13 @@ export function PostMeta({
   onTagsChange,
   siteId,
   postId,
-  mediaItems
+  mediaItems,
+  refreshMedia
 }: PostMetaProps): JSX.Element {
   const [pickerOpen, setPickerOpen] = useState(false)
   const [uploading, setUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const { toast } = useToast()
 
   // Derived state
   const [visibility, setVisibility] = useState<Visibility>(() => toVisibility(status))
@@ -183,6 +192,9 @@ export function PostMeta({
       try {
         const buffer = await file.arrayBuffer()
         const media = await window.electronAPI.saveMediaLocal(siteId, postId, file.name, buffer)
+        // Same ordering as the library pick — a fresh upload is not in the
+        // parent's queue either, so the preview cannot resolve it until reloaded.
+        await refreshMedia()
         onFeaturedImageChange(media.id)
         setPickerOpen(false)
       } finally {
@@ -191,7 +203,7 @@ export function PostMeta({
         if (fileInputRef.current) fileInputRef.current.value = ''
       }
     },
-    [siteId, postId, onFeaturedImageChange]
+    [siteId, postId, onFeaturedImageChange, refreshMedia]
   )
 
   const handlePickFromLibrary = useCallback(
@@ -224,15 +236,28 @@ export function PostMeta({
       setPickingLibraryId(item.id)
       try {
         const media = await window.electronAPI.saveMediaFromLibrary(siteId, postId, item.id)
+        // Before pointing the post at it: adopting creates a media row the
+        // parent's queue hasn't loaded, and the preview below resolves the
+        // featured id through that queue. Setting the id first renders nothing,
+        // which reads as the click having done nothing at all — the queue is
+        // otherwise only refreshed on a 30s debounce that typing keeps resetting.
+        await refreshMedia()
         onFeaturedImageChange(media.id)
         setPickerOpen(false)
-      } catch {
-        // Leave the picker open so the user can try another image
+      } catch (err) {
+        // Leave the picker open so the user can try another image, but say why —
+        // an empty catch here is what made a failure indistinguishable from a
+        // dead button.
+        toast({
+          variant: 'destructive',
+          title: 'Could not use that image',
+          description: err instanceof Error ? err.message : String(err)
+        })
       } finally {
         setPickingLibraryId(null)
       }
     },
-    [siteId, postId, onFeaturedImageChange]
+    [siteId, postId, onFeaturedImageChange, refreshMedia, toast]
   )
 
   return (

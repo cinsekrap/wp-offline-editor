@@ -122,6 +122,37 @@ describe('ACF on push', () => {
     expect(sent.wpoe_acf).toEqual(acf)
   })
 
+  it('leaves an unpublished post\'s date to WordPress', async () => {
+    // wp_update_post moves a draft's post_date to "now" on each save, but only
+    // while post_date_gmt is 0000-00-00. Sending `date` makes REST write a real
+    // post_date_gmt and set edit_date, freezing the date permanently — so the
+    // draft stops moving up the list and later publishes with a stale date.
+    for (const status of ['draft', 'pending']) {
+      await pushPost(SITE, 'admin', 'pw', 5, {
+        title: 'T',
+        content: 'C',
+        status,
+        date: '2026-02-28T09:47:42.000Z'
+      })
+
+      expect(sent).not.toHaveProperty('date')
+    }
+  })
+
+  it('still sends the date once a post is published or scheduled', async () => {
+    // There the date is the publish date — user-chosen, and ours to preserve.
+    for (const status of ['publish', 'future', 'private']) {
+      await pushPost(SITE, 'admin', 'pw', 5, {
+        title: 'T',
+        content: 'C',
+        status,
+        date: '2026-02-28T09:47:42.000Z'
+      })
+
+      expect(sent.date).toBe('2026-02-28T09:47:42.000Z')
+    }
+  })
+
   it('keeps false and empty string, which are real values', async () => {
     await pushPost(SITE, 'admin', 'pw', 5, {
       title: 'T',

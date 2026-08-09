@@ -34,3 +34,6 @@ CODE_SIGNING.md
 npm-debug.log*
 yarn-debug.log*
 pnpm-debug.log*
+
+# Generated at build time from .github/release-notes/v{version}.md
+resources/release-notes.md

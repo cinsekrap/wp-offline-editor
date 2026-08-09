@@ -728,6 +728,7 @@ function CategoriesSection({
 }): JSX.Element {
   const [adding, setAdding] = useState(false)
   const [newName, setNewName] = useState('')
+  const { toast } = useToast()
 
   const createCategory = useCallback(async () => {
     const name = newName.trim()
@@ -736,12 +737,20 @@ function CategoriesSection({
       const term = await window.electronAPI.createPendingTerm(siteId, 'category', name)
       onTermCreated(term)
       onChange(selected.includes(term.id) ? selected : [...selected, term.id])
-    } catch {
-      // Ignore — creation guards against duplicates server-side
+    } catch (err) {
+      // The old comment here explained only the duplicate case and swallowed
+      // everything else with it. Clearing the field regardless made a failure
+      // look like a success — the typed name vanished and no category appeared.
+      toast({
+        variant: 'destructive',
+        title: 'Could not create category',
+        description: err instanceof Error ? err.message : String(err)
+      })
+      return // keep the name so it can be retried
     }
     setNewName('')
     setAdding(false)
-  }, [newName, siteId, selected, onChange, onTermCreated])
+  }, [newName, siteId, selected, onChange, onTermCreated, toast])
 
   // Build parent→children map for hierarchy
   const { roots, childrenMap } = useMemo(() => {
@@ -855,6 +864,7 @@ function TagsSection({
   onTermCreated: (term: TaxonomyTerm) => void
 }): JSX.Element {
   const [showDropdown, setShowDropdown] = useState(false)
+  const { toast } = useToast()
 
   const termMap = useMemo(() => new Map(terms.map((t) => [t.id, t])), [terms])
 
@@ -890,12 +900,19 @@ function TagsSection({
       const term = await window.electronAPI.createPendingTerm(siteId, 'post_tag', name)
       onTermCreated(term)
       if (!selected.includes(term.id)) onChange([...selected, term.id])
-    } catch {
-      // Ignore — creation guards against duplicates server-side
+    } catch (err) {
+      // As with categories: clearing the input on failure made a dropped tag
+      // indistinguishable from an added one.
+      toast({
+        variant: 'destructive',
+        title: 'Could not create tag',
+        description: err instanceof Error ? err.message : String(err)
+      })
+      return // keep the typed name so it can be retried
     }
     onTagInputChange('')
     setShowDropdown(false)
-  }, [tagInput, siteId, selected, onChange, onTermCreated, onTagInputChange])
+  }, [tagInput, siteId, selected, onChange, onTermCreated, onTagInputChange, toast])
 
   const removeTag = useCallback(
     (id: number) => {

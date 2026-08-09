@@ -15,6 +15,7 @@ import { common, createLowlight } from 'lowlight'
 import { useState, useEffect, type CSSProperties } from 'react'
 import { MediaImage } from '@renderer/extensions/MediaImage'
 import { useWordCount } from '@renderer/hooks/useWordCount'
+import { useToast } from '@renderer/components/ui/use-toast'
 import { cn } from '@renderer/lib/utils'
 import { EditorToolbar } from './EditorToolbar'
 import { LinkDialog } from './LinkDialog'
@@ -123,6 +124,7 @@ export function TipTapEditor({
   }, [editor, onEditorReady])
 
   const { words, readingTime } = useWordCount(editor)
+  const { toast } = useToast()
   const [libraryPickerOpen, setLibraryPickerOpen] = useState(false)
   const [linkDialogOpen, setLinkDialogOpen] = useState(false)
 
@@ -139,14 +141,29 @@ export function TipTapEditor({
     if (!editor || ids.length === 0) return
     // Adopt each library item into this post's media table so push correctly
     // resolves the media:// URL to the WP source_url.
+    const failures: string[] = []
     for (const wpId of ids) {
       try {
         const media = await window.electronAPI.saveMediaFromLibrary(siteId, postId, wpId)
         const src = `media://file${encodeURI(media.local_path)}`
         editor.chain().focus().setImage({ src, mediaId: media.id } as { src: string }).run()
       } catch (err) {
-        console.warn('[library-insert] Failed:', err instanceof Error ? err.message : err)
+        failures.push(err instanceof Error ? err.message : String(err))
       }
+    }
+    // A console warning was the only trace of this, so picking images and
+    // getting none of them back looked like the editor ignoring the choice.
+    // Reported once rather than per image: a failure here is usually the same
+    // cause for every one of them.
+    if (failures.length > 0) {
+      toast({
+        variant: 'destructive',
+        title:
+          failures.length === ids.length
+            ? 'Could not insert those images'
+            : `Could not insert ${failures.length} of ${ids.length} images`,
+        description: failures[0]
+      })
     }
   }
 

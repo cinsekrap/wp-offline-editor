@@ -104,6 +104,10 @@ const api: ElectronAPI = {
   getSettings: () => ipcRenderer.invoke('settings:get'),
   updateSettings: (patch) => ipcRenderer.invoke('settings:update', patch),
 
+  getReleaseNotes: () => ipcRenderer.invoke('release-notes:get'),
+  shouldShowReleaseNotes: () => ipcRenderer.invoke('release-notes:should-show'),
+  markReleaseNotesSeen: () => ipcRenderer.invoke('release-notes:mark-seen'),
+
   // Plugin
   saveCompanionPlugin: () => ipcRenderer.invoke('plugin:save-companion'),
 

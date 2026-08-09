@@ -7,9 +7,9 @@
   "license": "GPL-2.0-only",
   "packageManager": "pnpm@10.33.0",
   "scripts": {
-    "dev": "electron-vite dev",
+    "dev": "install-electron && electron-vite dev",
     "build": "electron-vite build",
-    "preview": "electron-vite preview",
+    "preview": "install-electron && electron-vite preview",
     "postinstall": "electron-builder install-app-deps",
     "test": "node scripts/run-tests.mjs",
     "test:ci": "vitest run",

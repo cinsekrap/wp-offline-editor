@@ -153,14 +153,32 @@ describe('ACF on push', () => {
     }
   })
 
-  it('keeps false and empty string, which are real values', async () => {
+  it("omits the empty string, which ACF's typed fields also reject", async () => {
+    // A select rejects "" for not being one of its choices (its validator
+    // returns early for null but not for ""), and a number field's integer|null
+    // schema rejects it too — so an unset select or number 400s the request the
+    // same way an empty repeater did. Validation stops at the first bad field,
+    // so these would otherwise surface one at a time.
     await pushPost(SITE, 'admin', 'pw', 5, {
       title: 'T',
       content: 'C',
       status: 'draft',
-      acf: { a: false, b: '', c: 0, d: null }
+      acf: { chosen: 'a-real-choice', unset_select: '', unset_number: '' }
     })
 
-    expect(sent.acf).toEqual({ a: false, b: '', c: 0 })
+    expect(sent.acf).toEqual({ chosen: 'a-real-choice' })
+  })
+
+  it('keeps false and zero, which are real values rather than absences', async () => {
+    // The distinction that matters: filtering anything falsy would discard a
+    // deliberate "no" and a deliberate zero.
+    await pushPost(SITE, 'admin', 'pw', 5, {
+      title: 'T',
+      content: 'C',
+      status: 'draft',
+      acf: { toggle: false, count: 0, gone: null, blank: '' }
+    })
+
+    expect(sent.acf).toEqual({ toggle: false, count: 0 })
   })
 })

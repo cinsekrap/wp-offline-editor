@@ -25,7 +25,10 @@ function getStore(): ElectronStore<{ lastSeenVersion: string | null }> {
   if (store === null) {
     store = new Store<{ lastSeenVersion: string | null }>({
       name: 'app-state',
-      defaults: { lastSeenVersion: null }
+      defaults: { lastSeenVersion: null },
+      // Explicit for the same reason as settings-service: the default is
+      // whatever userData happens to be when the Store is built.
+      cwd: app.getPath('userData')
     })
   }
   return store

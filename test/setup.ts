@@ -15,7 +15,11 @@ vi.mock('electron', () => {
   }
   return {
     app: {
-      getPath: () => userData(),
+      // 'appData' is the parent of userData in Electron, and the settings
+      // migration needs the two to differ — it reads a legacy directory
+      // alongside the real one.
+      getPath: (name?: string) =>
+        name === 'appData' ? (process.env.WPOE_TEST_APPDATA ?? userData()) : userData(),
       getVersion: () => process.env.WPOE_TEST_APP_VERSION ?? '1.1.5',
       getName: () => 'NP Presspad',
       setName: () => {}

@@ -31,11 +31,6 @@ jobs:
 
       - run: pnpm build
 
-      # Native module is built for Electron's ABI by postinstall; rebuild for the
-      # Node ABI so vitest can load it (ERR_DLOPEN otherwise).
-      - name: Rebuild native module for Node
-        run: pnpm rebuild better-sqlite3-multiple-ciphers
-
       - name: Run tests
         run: pnpm test:ci
 

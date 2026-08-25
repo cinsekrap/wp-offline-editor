@@ -43,15 +43,18 @@ The plugin auto-updates from GitHub releases.
 
 ### Prerequisites
 
-- Node.js 20+
+- Node.js 22+ (required by `better-sqlite3-multiple-ciphers` 13)
 - [pnpm](https://pnpm.io/) 10+
 
 ### Setup
 
 ```bash
 pnpm install
-npx electron-rebuild   # required for better-sqlite3 on Apple Silicon
 ```
+
+No native rebuild step. `better-sqlite3-multiple-ciphers` has been N-API since
+13.x: it ships prebuilt binaries and one of them loads under both plain Node and
+Electron's ABI, so nothing needs recompiling per runtime.
 
 ### Dev server
 
@@ -67,8 +70,8 @@ hook after 41.x — from 43.x the binary is fetched only by that explicit bin �
 Deliberately not in `postinstall`: the cloud automation's sandbox cannot reach
 Electron's download servers, and putting it there would turn `pnpm install` itself
 into a hard failure. Nothing else needs the binary — electron-builder fetches its
-own copy to package with, `install-app-deps` and `electron-rebuild` only read the
-version, and the tests run under Node.
+own copy to package with, `install-app-deps` has no native module left to build,
+and the tests run under Node.
 
 ### Build
 

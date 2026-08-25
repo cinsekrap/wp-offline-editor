@@ -11,25 +11,20 @@
     "build": "node scripts/bundle-release-notes.mjs && electron-vite build",
     "preview": "install-electron && electron-vite preview",
     "postinstall": "electron-builder install-app-deps",
-    "test": "node scripts/run-tests.mjs",
+    "test": "vitest run",
     "test:ci": "vitest run",
     "build:unpack": "pnpm build && electron-builder --dir",
     "build:plugin": "rm -f resources/wp-offline-editor-companion.zip && ln -sfn companion-plugin wp-offline-editor-companion && zip -r resources/wp-offline-editor-companion.zip wp-offline-editor-companion/ -x 'wp-offline-editor-companion/.*' && rm wp-offline-editor-companion",
     "build:mac": "node scripts/bump-build.js && pnpm build && electron-builder --mac"
   },
   "pnpm": {
-    "overrides": {
-      "node-abi": "^4.33.0"
-    },
     "onlyBuiltDependencies": [
       "electron",
-      "esbuild",
-      "better-sqlite3-multiple-ciphers"
+      "esbuild"
     ]
   },
   "devDependencies": {
     "@electron-toolkit/utils": "^4.0.0",
-    "@electron/rebuild": "^4.2.0",
     "@radix-ui/react-dialog": "^1.1.23",
     "@radix-ui/react-label": "^2.1.15",
     "@radix-ui/react-select": "^2.3.7",

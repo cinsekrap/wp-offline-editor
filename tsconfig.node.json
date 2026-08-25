@@ -15,7 +15,16 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "paths": {
-      "@shared/*": ["./src/shared/*"]
+      "@shared/*": ["./src/shared/*"],
+      // better-sqlite3-multiple-ciphers 13 added an "exports" map whose "."
+      // entry has no "types" condition, so under moduleResolution "bundler"
+      // TypeScript stops at lib/index.js and never reaches the declarations
+      // the package still ships (and still points at via top-level "types").
+      // v12 had no "exports" at all, which is why this only appeared on 13.
+      // Remove once upstream adds the condition.
+      "better-sqlite3-multiple-ciphers": [
+        "./node_modules/better-sqlite3-multiple-ciphers/index.d.ts"
+      ]
     }
   },
   "include": [

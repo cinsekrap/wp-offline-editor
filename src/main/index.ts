@@ -1,10 +1,11 @@
-import { app, BrowserWindow, Menu, shell, protocol, net, ipcMain } from 'electron'
+import { app, BrowserWindow, Menu, shell, protocol, net, ipcMain, clipboard } from 'electron'
 import { join, resolve, normalize } from 'path'
 import { is } from '@electron-toolkit/utils'
 import { initDatabase, closeDatabase } from './database'
 import { registerIpcHandlers } from './ipc-handlers'
 import { initAutoUpdater } from './updater'
 import { deleteScratchpadIfPristine } from './scratchpad-service'
+import { buildContextMenuTemplate } from './context-menu'
 
 // Keep userData path stable (based on package name).
 // safeStorage uses app.name for the macOS Keychain service — keep the old name until
@@ -213,6 +214,23 @@ function buildMenu(): void {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))
 }
 
+/**
+ * Right-click menu, wired once for every window the app ever opens — the main
+ * window and scratchpad pop-outs alike. Registering on the app rather than on
+ * each BrowserWindow means new window types get it for free.
+ */
+function registerContextMenu(): void {
+  app.on('web-contents-created', (_event, contents) => {
+    contents.on('context-menu', (_e, params) => {
+      const template = buildContextMenuTemplate(params, contents, clipboard)
+      if (template.length === 0) return
+
+      const window = BrowserWindow.fromWebContents(contents)
+      Menu.buildFromTemplate(template).popup(window ? { window } : {})
+    })
+  })
+}
+
 // Register media:// protocol for serving local media files in the renderer
 protocol.registerSchemesAsPrivileged([
   { scheme: 'media', privileges: { bypassCSP: true, stream: true, supportFetchAPI: true } }
@@ -256,6 +274,7 @@ app.whenReady().then(() => {
   })
 
   buildMenu()
+  registerContextMenu()
   if (!is.dev) initAutoUpdater()
   createWindow()
 

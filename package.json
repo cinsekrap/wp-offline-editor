@@ -1,6 +1,6 @@
 {
   "name": "np-presspad",
-  "version": "1.3.2",
+  "version": "1.3.3",
   "description": "NP Presspad",
   "main": "./out/main/index.js",
   "author": "",

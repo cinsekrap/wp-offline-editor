@@ -146,9 +146,11 @@ These are deliberate. Re-check them, don't just bump them.
 
   The fix, [#10028](https://github.com/electron-userland/electron-builder/pull/10028),
   merged to `master` on 2026-07-22 — the v27 line. It shipped in
-  `27.0.0-alpha.6` and is **not in any released v26**: latest is `26.15.7`, cut
-  2026-07-18, four days before the merge, and no backport onto `release/v26` has
-  landed or been opened. Don't wait for it; nothing is scheduled.
+  `27.0.0-alpha.6` and is **not in any released v26**. Re-checked 2026-10-12:
+  the v26 line has moved on to `26.17.0` (2026-09-26; note npm's `latest` tag
+  still points at `26.15.3`, the newest v26 is under the `v26` tag), and its
+  compiled `getOrCreatePublisher` is still byte-identical to 26.8.1's — no
+  backport. v27 is still alpha (`27.0.0-alpha.10`). Don't wait for it.
 
   **The pin now only survives because unpinning needs testing, not because of the
   draft bug.** 26.8.1 → 26.15.7 is seven releases of change to the macOS artifact
@@ -160,11 +162,17 @@ These are deliberate. Re-check them, don't just bump them.
   so a green `pnpm test` proves nothing here.
 
   **To unpin** (worth doing — 26.15.2 in particular looks like a fix we want): do
-  it early in a cycle, never the week of a release. Take `^26.15.7`, run a real
+  it early in a cycle, never the week of a release. Take `^26.17.0`, run a real
   signed build, and test an actual update from the previously published version,
   not just that the build succeeds.
 - **`@vitejs/plugin-react` held at `5.x`.** Version `6.x` requires `vite ^8`, and
   `electron-vite@5.0.0` — the latest stable — peers `vite ^5 || ^6 || ^7`. Only
-  `electron-vite@6.0.0-beta.1` supports Vite 8. This is a whole-toolchain move
-  (Vite 8 + an electron-vite beta), not a plugin bump. Revisit when
+  the electron-vite 6 betas support Vite 8 (`6.0.0-beta.8` as of 2026-10-12).
+  This is a whole-toolchain move (Vite 8 + an electron-vite beta), not a plugin
+  bump. Revisit when
   electron-vite 6 is stable.
+- **Electron majors are *not* held back for the database module.** Since v1.3.0
+  `better-sqlite3-multiple-ciphers` is N-API, so one binary works across Electron
+  majors — no rebuild against a new V8. An Electron major still deserves a human
+  launch of the app before release, but it is ordinary review, not a blocker.
+  (Electron 43 → 44 and vitest 4 → 5 were taken together on 2026-10-12.)

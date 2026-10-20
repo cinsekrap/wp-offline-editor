@@ -8,7 +8,9 @@
  * wide open, so they are demonstrated here rather than asserted in a comment.
  *
  * This script creates its own draft post, writes to it, and deletes it again —
- * it does not touch existing content.
+ * it does not touch existing content. It also creates one published scratchpad,
+ * because published is the state the scratchpad check has to prove is closed,
+ * and deletes that too. Scratchpads have no front end, feed or pings.
  *
  * Usage:
  *
@@ -263,6 +265,72 @@ function withheld(post) {
     } finally {
       await req(`/wp-json/wp/v2/posts/${postId}?force=true`, { cred: writer, method: 'DELETE' })
       console.log(`      (probe post ${postId} deleted)`)
+    }
+  }
+}
+
+// ── F. Scratchpad read boundary ────────────────────────────────────────────
+// `public => false` does not protect a show_in_rest post type: core lets anyone
+// read a published post of it. So the probe is published on purpose, and every
+// read is checked against it rather than against an empty list.
+{
+  const created = await req('/wp-json/wp/v2/scratchpads', {
+    cred: editor,
+    method: 'POST',
+    body: { title: 'wpoe security probe', content: 'probe', status: 'publish' }
+  })
+  const spId = created.json?.id
+
+  if (!spId) {
+    record('scratchpads: read boundary', false, `could not create a probe scratchpad (HTTP ${created.status})`)
+  } else {
+    try {
+      const anonList = await req('/wp-json/wp/v2/scratchpads')
+      record(
+        'scratchpads: anonymous list refused',
+        anonList.status === 401 || anonList.status === 403,
+        `HTTP ${anonList.status}`
+      )
+
+      const anonOne = await req(`/wp-json/wp/v2/scratchpads/${spId}`)
+      record(
+        'scratchpads: anonymous read of a published one refused',
+        anonOne.status === 401 || anonOne.status === 403,
+        `HTTP ${anonOne.status}`
+      )
+
+      if (subscriber) {
+        const subList = await req('/wp-json/wp/v2/scratchpads', { cred: subscriber })
+        const subOne = await req(`/wp-json/wp/v2/scratchpads/${spId}`, { cred: subscriber })
+        record(
+          'scratchpads: subscriber refused, list and single',
+          subList.status === 403 && subOne.status === 403,
+          `HTTP ${subList.status} / ${subOne.status}`
+        )
+      } else {
+        record('scratchpads: subscriber refused, list and single', null, 'set WPOE_SUBSCRIBER')
+      }
+
+      // The app's own requests: the same query fetchScratchpads sends.
+      const edList = await req(
+        '/wp-json/wp/v2/scratchpads?per_page=100&status=private,publish,draft&_fields=id,title,content,modified,status',
+        { cred: editor }
+      )
+      const edOne = await req(`/wp-json/wp/v2/scratchpads/${spId}?_fields=id,title,content,modified,status`, {
+        cred: editor
+      })
+      record(
+        'scratchpads: editor still lists and reads them',
+        edList.status === 200 &&
+          Array.isArray(edList.json) &&
+          edList.json.some((s) => s.id === spId) &&
+          edOne.status === 200 &&
+          edOne.json?.id === spId,
+        `HTTP ${edList.status} / ${edOne.status}`
+      )
+    } finally {
+      await req(`/wp-json/wp/v2/scratchpads/${spId}?force=true`, { cred: editor, method: 'DELETE' })
+      console.log(`      (probe scratchpad ${spId} deleted)`)
     }
   }
 }

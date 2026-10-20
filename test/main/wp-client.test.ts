@@ -1,5 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { fetchPosts, fetchSinglePost, pushPost } from '../../src/main/wp-client'
+import {
+  fetchPosts,
+  fetchSinglePost,
+  pushPost,
+  fetchScratchpads,
+  fetchSingleScratchpad,
+  fetchRemoteScratchpadExistence,
+  pushScratchpad
+} from '../../src/main/wp-client'
 
 /**
  * wp-client is mocked everywhere else in the suite, so its request construction
@@ -180,5 +188,50 @@ describe('ACF on push', () => {
     })
 
     expect(sent.acf).toEqual({ toggle: false, count: 0 })
+  })
+})
+
+describe('scratchpad requests', () => {
+  // The companion plugin refuses every scratchpad read from a user without
+  // edit_posts, so a read sent without credentials would now fail outright. And
+  // a published scratchpad is the state that used to be anonymously readable,
+  // so the app must never create one.
+  const calls: { url: string; init: RequestInit }[] = []
+  const expectedAuth = 'Basic ' + Buffer.from('admin:pw').toString('base64')
+
+  beforeEach(() => {
+    calls.length = 0
+    vi.stubGlobal('fetch', (url: string, init: RequestInit) => {
+      calls.push({ url, init })
+      const isList = url.includes('/wp/v2/scratchpads?')
+      return Promise.resolve(
+        new Response(JSON.stringify(isList ? [] : { id: 7, modified: '2026-01-01T00:00:00', status: 'private' }), {
+          status: 200,
+          headers: { 'x-wp-totalpages': '1', 'content-type': 'application/json' }
+        })
+      )
+    })
+  })
+
+  it('sends credentials on every scratchpad read', async () => {
+    await fetchScratchpads(SITE, 'admin', 'pw')
+    await fetchSingleScratchpad(SITE, 'admin', 'pw', 7)
+    await fetchRemoteScratchpadExistence(SITE, 'admin', 'pw', 7)
+
+    expect(calls).toHaveLength(3)
+    for (const { init } of calls) {
+      expect(new Headers(init.headers).get('authorization')).toBe(expectedAuth)
+    }
+  })
+
+  it('creates and updates scratchpads as private, never published', async () => {
+    await pushScratchpad(SITE, 'admin', 'pw', null, { title: 'T', content: 'C' })
+    await pushScratchpad(SITE, 'admin', 'pw', 7, { title: 'T', content: 'C' })
+
+    expect(calls).toHaveLength(2)
+    for (const { init } of calls) {
+      expect(JSON.parse(String(init.body)).status).toBe('private')
+      expect(new Headers(init.headers).get('authorization')).toBe(expectedAuth)
+    }
   })
 })

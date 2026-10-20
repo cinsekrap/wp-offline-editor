@@ -24,22 +24,73 @@ $wpoeUpdateChecker = YahnisElsts\PluginUpdateChecker\v5\PucFactory::buildUpdateC
 );
 $wpoeUpdateChecker->getVcsApi()->enableReleaseAssets( '/wp-offline-editor-companion\.zip/' );
 
+/**
+ * REST controller for scratchpads: every read requires edit_posts.
+ *
+ * `'public' => false` does not protect a show_in_rest post type. Core's
+ * check_read_permission() lets anyone read a post whose status is 'publish',
+ * whatever its type, so a published scratchpad was readable logged out, in the
+ * list and singly. The app writes scratchpads as 'private', but nothing stopped
+ * another REST client publishing one.
+ *
+ * The single-item gate runs before the post lookup, so an anonymous request is
+ * refused the same way whether or not the ID exists. check_read_permission() is
+ * gated too because core calls it per item when building a list.
+ */
+class WPOE_Scratchpads_Controller extends WP_REST_Posts_Controller {
+
+	public function get_items_permissions_check( $request ) {
+		if ( ! current_user_can( 'edit_posts' ) ) {
+			return $this->read_forbidden();
+		}
+
+		return parent::get_items_permissions_check( $request );
+	}
+
+	public function get_item_permissions_check( $request ) {
+		if ( ! current_user_can( 'edit_posts' ) ) {
+			return $this->read_forbidden();
+		}
+
+		return parent::get_item_permissions_check( $request );
+	}
+
+	public function check_read_permission( $post ) {
+		return current_user_can( 'edit_posts' ) && parent::check_read_permission( $post );
+	}
+
+	private function read_forbidden(): WP_Error {
+		return new WP_Error(
+			'rest_forbidden',
+			'Sorry, you are not allowed to read scratchpads.',
+			[ 'status' => rest_authorization_required_code() ]
+		);
+	}
+}
+
 add_action( 'init', function () {
 	register_post_type( 'scratchpad', [
-		'label'           => 'Scratchpads',
-		'public'          => false,
-		'show_ui'         => false,
-		'show_in_rest'    => true,
-		'rest_base'       => 'scratchpads',
-		'supports'        => [ 'title', 'editor', 'custom-fields' ],
-		'capability_type' => 'post',
-		'map_meta_cap'    => true,
+		'label'                 => 'Scratchpads',
+		'public'                => false,
+		'show_ui'               => false,
+		'show_in_rest'          => true,
+		'rest_base'             => 'scratchpads',
+		'rest_controller_class' => 'WPOE_Scratchpads_Controller',
+		'supports'              => [ 'title', 'editor', 'custom-fields' ],
+		'capability_type'       => 'post',
+		'map_meta_cap'          => true,
 	] );
 
+	// Edit context only. With a plain `show_in_rest => true` the link appeared in
+	// every public /wp/v2/posts response. auth_callback gates writes; it never
+	// applied to reads, so it could not hide the value. The app only writes this
+	// key, and context=edit already requires edit_post on the post.
 	register_post_meta( 'post', '_scratchpad_id', [
 		'type'          => 'integer',
 		'single'        => true,
-		'show_in_rest'  => true,
+		'show_in_rest'  => [
+			'schema' => [ 'context' => [ 'edit' ] ],
+		],
 		'auth_callback' => function () { return current_user_can( 'edit_posts' ); },
 	] );
 } );

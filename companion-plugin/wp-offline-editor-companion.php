@@ -81,10 +81,16 @@ add_action( 'init', function () {
 		'map_meta_cap'          => true,
 	] );
 
+	// Edit context only. With a plain `show_in_rest => true` the link appeared in
+	// every public /wp/v2/posts response. auth_callback gates writes; it never
+	// applied to reads, so it could not hide the value. The app only writes this
+	// key, and context=edit already requires edit_post on the post.
 	register_post_meta( 'post', '_scratchpad_id', [
 		'type'          => 'integer',
 		'single'        => true,
-		'show_in_rest'  => true,
+		'show_in_rest'  => [
+			'schema' => [ 'context' => [ 'edit' ] ],
+		],
 		'auth_callback' => function () { return current_user_can( 'edit_posts' ); },
 	] );
 } );

@@ -6,7 +6,8 @@ import {
   fetchScratchpads,
   fetchSingleScratchpad,
   fetchRemoteScratchpadExistence,
-  pushScratchpad
+  pushScratchpad,
+  updatePostScratchpadMeta
 } from '../../src/main/wp-client'
 
 /**
@@ -233,5 +234,17 @@ describe('scratchpad requests', () => {
       expect(JSON.parse(String(init.body)).status).toBe('private')
       expect(new Headers(init.headers).get('authorization')).toBe(expectedAuth)
     }
+  })
+
+  it('only writes the post link meta, with credentials', async () => {
+    // The plugin exposes _scratchpad_id in the edit context only. The app never
+    // reads it back from WordPress — the link lives in the local database — so
+    // the one request that touches it is this authenticated write.
+    await updatePostScratchpadMeta(SITE, 'admin', 'pw', 5, 7)
+
+    expect(calls).toHaveLength(1)
+    expect(calls[0].init.method).toBe('PUT')
+    expect(JSON.parse(String(calls[0].init.body))).toEqual({ meta: { _scratchpad_id: 7 } })
+    expect(new Headers(calls[0].init.headers).get('authorization')).toBe(expectedAuth)
   })
 })

@@ -335,6 +335,48 @@ function withheld(post) {
   }
 }
 
+// ── G. _scratchpad_id is edit-context only ─────────────────────────────────
+// Registered meta appears on every post, set or not, so any public post shows
+// whether the key leaks.
+{
+  const anon = await req('/wp-json/wp/v2/posts?per_page=5&_fields=id,meta')
+  const posts = Array.isArray(anon.json) ? anon.json : []
+  record(
+    'meta: anonymous responses carry no _scratchpad_id',
+    posts.length > 0 && posts.every((p) => !p.meta || !('_scratchpad_id' in p.meta)),
+    posts.length === 0 ? `HTTP ${anon.status} — no public posts to test against` : `${posts.length} post(s) checked`
+  )
+
+  // The app's write, on a throwaway draft, read back the way an editor can.
+  const writer = author ?? editor
+  const created = await req('/wp-json/wp/v2/posts', {
+    cred: writer,
+    method: 'POST',
+    body: { title: 'wpoe security probe', status: 'draft', content: 'probe' }
+  })
+  const postId = created.json?.id
+  if (!postId) {
+    record('meta: _scratchpad_id writable, readable in edit context', false, `could not create a probe post (HTTP ${created.status})`)
+  } else {
+    try {
+      const written = await req(`/wp-json/wp/v2/posts/${postId}`, {
+        cred: writer,
+        method: 'POST',
+        body: { meta: { _scratchpad_id: 424242 } }
+      })
+      const read = await req(`/wp-json/wp/v2/posts/${postId}?context=edit&_fields=meta`, { cred: writer })
+      record(
+        'meta: _scratchpad_id writable, readable in edit context',
+        written.status === 200 && read.json?.meta?._scratchpad_id === 424242,
+        `HTTP ${written.status}, read back ${read.json?.meta?._scratchpad_id}`
+      )
+    } finally {
+      await req(`/wp-json/wp/v2/posts/${postId}?force=true`, { cred: writer, method: 'DELETE' })
+      console.log(`      (probe post ${postId} deleted)`)
+    }
+  }
+}
+
 const failed = results.filter((r) => r.ok === false).length
 const skipped = results.filter((r) => r.ok === null).length
 console.log(

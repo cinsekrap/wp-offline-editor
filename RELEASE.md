@@ -178,5 +178,12 @@ These are deliberate. Re-check them, don't just bump them.
   `better-sqlite3-multiple-ciphers` is N-API, so one binary works across Electron
   majors — no rebuild against a new V8. An Electron major still deserves a human
   launch of the app before release, but it is ordinary review, not a blocker.
+  One catch: `postinstall` (`electron-builder install-app-deps`, and the same
+  step inside the release build) still asks `node-abi` for the new Electron's
+  ABI, and fails `pnpm install` outright — "Could not detect abi for version
+  45.2.1" — if the locked `node-abi` predates that major. The fix is
+  `pnpm update node-abi --depth Infinity` (it's transitive, via
+  `@electron/rebuild`; no override needed). Run `pnpm run postinstall` locally
+  after taking an Electron major — `pnpm add` doesn't surface the failure.
   (Electron 43 → 44 and vitest 4 → 5 were taken together on 2026-10-12;
   Electron 44 → 45 and `electron-store` 11 → 12 on 2026-11-01.)

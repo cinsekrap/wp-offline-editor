@@ -16,8 +16,8 @@ import * as wpClient from '../../src/main/wp-client'
 
 vi.mock('../../src/main/wp-client')
 
-beforeEach(() => {
-  initTestDb()
+beforeEach(async () => {
+  await initTestDb()
   vi.clearAllMocks()
 })
 afterEach(() => teardownTestDb())
@@ -50,8 +50,8 @@ describe('rewriteTermIds', () => {
 })
 
 describe('getPendingChanges', () => {
-  it('counts unsynced and pending_delete posts, scratchpads, and media sources', () => {
-    const site = seedSite()
+  it('counts unsynced and pending_delete posts, scratchpads, and media sources', async () => {
+    const site = await seedSite()
     const db = getDb()
 
     // Posts: 1 unsynced, 1 pending_delete, 1 fully synced (ignored)
@@ -88,9 +88,9 @@ describe('getPendingChanges', () => {
     expect(pending.total).toBe(7)
   })
 
-  it('is scoped to the requested site', () => {
-    const a = seedSite({ label: 'A' })
-    const b = seedSite({ label: 'B' })
+  it('is scoped to the requested site', async () => {
+    const a = await seedSite({ label: 'A' })
+    const b = await seedSite({ label: 'B' })
     insertPostRow({ id: 'a1', site_id: a.id, synced: 0 })
     insertPostRow({ id: 'b1', site_id: b.id, synced: 0 })
     expect(getPendingChanges(a.id).posts).toBe(1)
@@ -100,7 +100,7 @@ describe('getPendingChanges', () => {
 
 describe('pushPendingDeletions', () => {
   it('hard-deletes orphaned pending_delete rows that never reached WordPress', async () => {
-    const site = seedSite()
+    const site = await seedSite()
     insertPostRow({ id: 'orphan', site_id: site.id, wp_id: null, pending_delete: 1, synced: 0 })
 
     const result = await pushPendingDeletions(site.id)
@@ -113,7 +113,7 @@ describe('pushPendingDeletions', () => {
   })
 
   it('deletes remotely then locally for pending_delete rows with a wp_id', async () => {
-    const site = seedSite()
+    const site = await seedSite()
     insertPostRow({ id: 'linked', site_id: site.id, wp_id: 555, pending_delete: 1, synced: 0 })
     vi.mocked(wpClient.deleteRemotePost).mockResolvedValue(undefined as never)
 
@@ -131,7 +131,7 @@ describe('pushPendingDeletions', () => {
   })
 
   it('keeps the local row and records an error when the remote delete fails', async () => {
-    const site = seedSite()
+    const site = await seedSite()
     insertPostRow({ id: 'linked', site_id: site.id, wp_id: 777, pending_delete: 1, synced: 0 })
     vi.mocked(wpClient.deleteRemotePost).mockRejectedValue(new Error('network down'))
 
@@ -160,7 +160,7 @@ describe('pushPostToWp conflict handling', () => {
   }
 
   it('flags a conflict and refuses to push when the remote changed since last sync', async () => {
-    const site = seedSite()
+    const site = await seedSite()
     seedPost(site.id)
     vi.mocked(wpClient.fetchRemotePostMeta).mockResolvedValue({
       state: 'exists',
@@ -180,7 +180,7 @@ describe('pushPostToWp conflict handling', () => {
   })
 
   it('bypasses the conflict check with skipConflictCheck and pushes', async () => {
-    const site = seedSite()
+    const site = await seedSite()
     seedPost(site.id)
     vi.mocked(wpClient.fetchRemotePostMeta).mockResolvedValue({
       state: 'exists',
@@ -207,7 +207,7 @@ describe('pushPostToWp conflict handling', () => {
   })
 
   it('re-creates the post as new when the remote copy is gone', async () => {
-    const site = seedSite()
+    const site = await seedSite()
     seedPost(site.id)
     vi.mocked(wpClient.fetchRemotePostMeta).mockResolvedValue({ state: 'gone' })
     vi.mocked(wpClient.pushPost).mockResolvedValue({
@@ -235,7 +235,7 @@ describe('pushPostToWp conflict handling', () => {
 
 describe('pushPostToWp media hygiene', () => {
   it('deletes unreferenced never-synced media instead of uploading it', async () => {
-    const site = seedSite()
+    const site = await seedSite()
     const db = getDb()
     const referencedPath = '/tmp/np-test-media/kept.png'
     insertPostRow({
@@ -293,7 +293,7 @@ describe('scratchpad conflicts', () => {
   }
 
   it('pull flags a conflict when both sides changed, keeping local content', async () => {
-    const site = seedSite()
+    const site = await seedSite()
     insertScratchpad(site.id)
     vi.mocked(wpClient.fetchScratchpads).mockResolvedValue([
       {
@@ -316,7 +316,7 @@ describe('scratchpad conflicts', () => {
   })
 
   it('push skips conflicted scratchpads without reporting an error', async () => {
-    const site = seedSite()
+    const site = await seedSite()
     insertScratchpad(site.id, { conflict: 1 })
 
     const { errors } = await pushScratchpadsForSite(site.id)
@@ -326,7 +326,7 @@ describe('scratchpad conflicts', () => {
   })
 
   it('keep-mine clears the conflict and queues a push', async () => {
-    const site = seedSite()
+    const site = await seedSite()
     insertScratchpad(site.id, { conflict: 1 })
 
     await resolveScratchpadConflict('sp', 'keep-mine')
@@ -347,7 +347,7 @@ describe('post conflict resolution', () => {
     // It used to push inline, which made keeping your own copy — a decision
     // about local state — fail whenever the site was unreachable or rejected
     // the payload, with no way to resolve the conflict offline.
-    const site = seedSite()
+    const site = await seedSite()
     insertPostRow({ id: 'p1', site_id: site.id, wp_id: 9, conflict: 1, synced: 1 })
 
     await resolveConflict('p1', 'keep-mine')

@@ -25,7 +25,7 @@ export function getSiteById(id: string): Site | null {
   return row ? normalizeSiteRow(row) : null
 }
 
-export function addSite(input: SiteInput): Site {
+export async function addSite(input: SiteInput): Promise<Site> {
   const db = getDb()
   const id = uuidv4()
   const keychainRef = `site-${id}`
@@ -36,7 +36,7 @@ export function addSite(input: SiteInput): Site {
   const url = enforceTransport(input.url.replace(/\/+$/, ''), allowPlaintext)
   const label = input.label || new URL(url).hostname
 
-  storeCredential(keychainRef, input.password)
+  await storeCredential(keychainRef, input.password)
 
   db.prepare(`
     INSERT INTO sites (id, label, url, username, keychain_ref, auto_sync, pull_published, media_library_limit, allow_plaintext, created_at, updated_at)
@@ -46,7 +46,7 @@ export function addSite(input: SiteInput): Site {
   return getSiteById(id)!
 }
 
-export function updateSite(update: SiteUpdate): Site {
+export async function updateSite(update: SiteUpdate): Promise<Site> {
   const db = getDb()
   const existing = getSiteById(update.id)
   if (!existing) throw new Error(`Site not found: ${update.id}`)
@@ -63,7 +63,7 @@ export function updateSite(update: SiteUpdate): Site {
   const wpAuthorId = update.wp_author_id !== undefined ? update.wp_author_id : existing.wp_author_id
 
   if (update.password) {
-    storeCredential(existing.keychain_ref, update.password)
+    await storeCredential(existing.keychain_ref, update.password)
   }
 
   db.prepare(`

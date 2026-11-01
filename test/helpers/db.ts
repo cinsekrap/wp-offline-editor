@@ -12,10 +12,10 @@ let currentDir: string | null = null
  * migrations against a new encrypted SQLite file. Returns nothing; use getDb()
  * from the service modules for direct row seeding.
  */
-export function initTestDb(): void {
+export async function initTestDb(): Promise<void> {
   currentDir = mkdtempSync(join(tmpdir(), 'wpoe-test-'))
   process.env.WPOE_TEST_USERDATA = currentDir
-  initDatabase()
+  await initDatabase()
 }
 
 export function teardownTestDb(): void {
@@ -28,7 +28,7 @@ export function teardownTestDb(): void {
 }
 
 /** Create a site via the real path so its credential is stored and retrievable. */
-export function seedSite(overrides?: { url?: string; username?: string; label?: string }): Site {
+export async function seedSite(overrides?: { url?: string; username?: string; label?: string }): Promise<Site> {
   return addSite({
     url: overrides?.url ?? 'http://localhost:10017',
     username: overrides?.username ?? 'admin',

@@ -489,7 +489,7 @@ export function registerIpcHandlers(): void {
     const id = uuidSchema.parse(siteId)
     const site = getSiteById(id)
     if (!site) throw new Error(`Site not found: ${id}`)
-    const password = getCredential(site.keychain_ref)
+    const password = await getCredential(site.keychain_ref)
     if (!password) throw new Error('Missing credentials for site')
     return fetchAuthors(site.url, site.username, password)
   })
@@ -505,8 +505,8 @@ export function registerIpcHandlers(): void {
     notifyCountsChanged()
   })
 
-  ipcMain.handle('app:clear-all-data', () => {
-    clearAllData()
+  ipcMain.handle('app:clear-all-data', async () => {
+    await clearAllData()
   })
 
   // ── Export/Import ──────────────────────────────────────────────────────

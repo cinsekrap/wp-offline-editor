@@ -97,7 +97,7 @@ export async function pullMediaLibraryForSite(siteId: string): Promise<MediaLibr
   const site = getSiteById(siteId)
   if (!site) throw new Error(`Site not found: ${siteId}`)
 
-  const password = getCredential(site.keychain_ref)
+  const password = await getCredential(site.keychain_ref)
   if (!password) throw new Error(`No credential found for site: ${site.label}`)
 
   const limit = site.media_library_limit
@@ -279,7 +279,7 @@ export async function pushMediaLibraryPending(
 
   const site = getSiteById(siteId)
   if (!site) return { uploaded, altApplied, errors, idMap }
-  const password = getCredential(site.keychain_ref)
+  const password = await getCredential(site.keychain_ref)
   if (!password) {
     return { uploaded, altApplied, errors: [`No credential to sync media library for ${site.label}`], idMap }
   }
@@ -382,7 +382,7 @@ export async function updateMediaLibraryAltText(
   // …then try to apply remotely right away; failure just leaves it queued.
   try {
     const site = getSiteById(siteId)
-    const password = site ? getCredential(site.keychain_ref) : null
+    const password = site ? await getCredential(site.keychain_ref) : null
     if (site && password) {
       await updateMediaAltText(site.url, site.username, password, id, altText)
       db.prepare('UPDATE media_library SET pending_alt_text = NULL WHERE site_id = ? AND id = ?')

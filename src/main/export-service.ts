@@ -31,7 +31,7 @@ function deriveKey(password: string, salt: Buffer): string {
 
 export async function exportData(password: string, destPath: string): Promise<void> {
   const userData = app.getPath('userData')
-  const localKey = getOrCreateDbKey()
+  const localKey = await getOrCreateDbKey()
 
   // Create temp directory for export assembly
   const tempDir = join(app.getPath('temp'), `nppexport-${Date.now()}`)
@@ -96,7 +96,7 @@ export function readExportMetadata(archivePath: string): ExportMetadata {
 
 export async function importData(password: string, archivePath: string): Promise<void> {
   const userData = app.getPath('userData')
-  const localKey = getOrCreateDbKey()
+  const localKey = await getOrCreateDbKey()
 
   // Extract archive to temp dir
   const tempDir = join(app.getPath('temp'), `nppimport-${Date.now()}`)
@@ -150,7 +150,7 @@ export async function importData(password: string, archivePath: string): Promise
     } catch { /* ignore */ }
 
     // Re-initialize database (runs migrations if schema version differs)
-    initDatabase()
+    await initDatabase()
   } finally {
     rmSync(tempDir, { recursive: true, force: true })
   }

@@ -20,9 +20,9 @@ export function getDb(): Database.Database {
   throw new Error('Database not initialized. Call initDatabase() first.')
 }
 
-export function initDatabase(): void {
+export async function initDatabase(): Promise<void> {
   const dbPath = join(app.getPath('userData'), DB_FILENAME)
-  const key = getOrCreateDbKey()
+  const key = await getOrCreateDbKey()
 
   db = new Database(dbPath)
   assertHexKey(key)
@@ -388,7 +388,7 @@ function runMigrations(db: Database.Database): void {
   }
 }
 
-export function clearAllData(): void {
+export async function clearAllData(): Promise<void> {
   closeDatabase()
 
   const userData = app.getPath('userData')
@@ -411,7 +411,7 @@ export function clearAllData(): void {
   } catch { /* ignore */ }
 
   // Re-create empty database
-  initDatabase()
+  await initDatabase()
 }
 
 export function closeDatabase(): void {

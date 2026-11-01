@@ -8,15 +8,15 @@ import * as electron from 'electron'
 
 vi.mock('../../src/main/wp-client')
 
-beforeEach(() => {
-  initTestDb()
+beforeEach(async () => {
+  await initTestDb()
   vi.clearAllMocks()
 })
 afterEach(() => teardownTestDb())
 
 describe('saveMediaFromStagedLibrary', () => {
-  it('transfers a staged upload into the post queue as an unsynced media row', () => {
-    const site = seedSite()
+  it('transfers a staged upload into the post queue as an unsynced media row', async () => {
+    const site = await seedSite()
     insertPostRow({ id: 'post', site_id: site.id })
 
     // Create the staged file on disk inside the temp userData dir.
@@ -44,8 +44,8 @@ describe('saveMediaFromStagedLibrary', () => {
     expect(existsSync(stagedPath)).toBe(false)
   })
 
-  it('throws when the staged row does not exist', () => {
-    const site = seedSite()
+  it('throws when the staged row does not exist', async () => {
+    const site = await seedSite()
     insertPostRow({ id: 'post', site_id: site.id })
     expect(() => saveMediaFromStagedLibrary(site.id, 'post', -999)).toThrow(/Staged library item not found/)
   })
@@ -53,7 +53,7 @@ describe('saveMediaFromStagedLibrary', () => {
 
 describe('saveMediaFromLibrary', () => {
   it('reuses the existing media row when the post already adopted the attachment (no network)', async () => {
-    const site = seedSite()
+    const site = await seedSite()
     insertPostRow({ id: 'post', site_id: site.id })
 
     const db = getDb()

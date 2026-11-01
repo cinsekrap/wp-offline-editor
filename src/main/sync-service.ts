@@ -61,7 +61,7 @@ async function resolvePendingTerms(siteId: string): Promise<{ errors: string[] }
   const site = getSiteById(siteId)
   if (!site) return { errors: [] }
 
-  const password = getCredential(site.keychain_ref)
+  const password = await getCredential(site.keychain_ref)
   if (!password) {
     return { errors: [`No credential to create ${pending.length} pending term(s) for ${site.label}`] }
   }
@@ -163,7 +163,7 @@ export async function pushPostToWp(
   const site = getSiteById(post.site_id)
   if (!site) throw new Error(`Site not found: ${post.site_id}`)
 
-  const password = getCredential(site.keychain_ref)
+  const password = await getCredential(site.keychain_ref)
   if (!password) throw new Error(`No credential found for site: ${site.label}`)
 
   // Pre-push safety check against the live remote copy. Pull-time conflict
@@ -354,7 +354,7 @@ export async function pushPendingDeletions(siteId: string): Promise<{ deleted: n
   const site = getSiteById(siteId)
   if (!site || rows.length === 0) return { deleted: 0, errors: [] }
 
-  const password = getCredential(site.keychain_ref)
+  const password = await getCredential(site.keychain_ref)
   if (!password) return { deleted: 0, errors: [] }
 
   let deleted = 0
@@ -403,7 +403,7 @@ export async function resolveConflict(
   const site = getSiteById(post.site_id)
   if (!site) throw new Error(`Site not found: ${post.site_id}`)
 
-  const password = getCredential(site.keychain_ref)
+  const password = await getCredential(site.keychain_ref)
   if (!password) throw new Error(`No credential found for site: ${site.label}`)
 
   if (strategy === 'fork') {
@@ -558,7 +558,7 @@ export async function resolveScratchpadConflict(
   const site = getSiteById(sp.site_id)
   if (!site) throw new Error(`Site not found: ${sp.site_id}`)
 
-  const password = getCredential(site.keychain_ref)
+  const password = await getCredential(site.keychain_ref)
   if (!password) throw new Error(`No credential found for site: ${site.label}`)
 
   const wp = await fetchSingleScratchpad(site.url, site.username, password, sp.wp_id)
@@ -578,7 +578,7 @@ export async function pushScratchpadsForSite(siteId: string): Promise<{ errors: 
   const site = getSiteById(siteId)
   if (!site) return { errors }
 
-  const password = getCredential(site.keychain_ref)
+  const password = await getCredential(site.keychain_ref)
   if (!password) return { errors }
 
   // Push scratchpad deletions first (delete on WP, then locally)
@@ -659,7 +659,7 @@ export async function pullScratchpadsForSite(siteId: string): Promise<void> {
   const site = getSiteById(siteId)
   if (!site) return
 
-  const password = getCredential(site.keychain_ref)
+  const password = await getCredential(site.keychain_ref)
   if (!password) return
 
   let remote
@@ -842,7 +842,7 @@ async function doSyncSite(siteId: string, options?: { force?: boolean }): Promis
 
   // Post-sync housekeeping (site icon + plugin version check)
   const site = getSiteById(siteId)
-  const pw = site ? getCredential(site.keychain_ref) : null
+  const pw = site ? await getCredential(site.keychain_ref) : null
 
   // Refresh site icon (non-critical)
   if (site && pw) {

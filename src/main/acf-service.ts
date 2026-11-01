@@ -9,7 +9,7 @@ export async function pullAcfSchemaForSite(siteId: string): Promise<AcfPullResul
   const site = getSiteById(siteId)
   if (!site) throw new Error(`Site not found: ${siteId}`)
 
-  const password = getCredential(site.keychain_ref)
+  const password = await getCredential(site.keychain_ref)
   if (!password) throw new Error(`No credential found for site: ${site.label}`)
 
   let groups

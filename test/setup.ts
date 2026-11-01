@@ -24,10 +24,14 @@ vi.mock('electron', () => {
       getName: () => 'NP Presspad',
       setName: () => {}
     },
+    // Async API only — a leftover call to the deprecated sync API fails loudly.
     safeStorage: {
-      isEncryptionAvailable: () => true,
-      encryptString: (s: string) => Buffer.from(s, 'utf-8'),
-      decryptString: (b: Buffer) => Buffer.from(b).toString('utf-8')
+      isAsyncEncryptionAvailable: async () => true,
+      encryptStringAsync: async (s: string) => Buffer.from(s, 'utf-8'),
+      decryptStringAsync: async (b: Buffer) => ({
+        result: Buffer.from(b).toString('utf-8'),
+        shouldReEncrypt: false
+      })
     },
     net: {
       fetch: vi.fn(async () => {

@@ -165,14 +165,25 @@ These are deliberate. Re-check them, don't just bump them.
   it early in a cycle, never the week of a release. Take `^26.17.0`, run a real
   signed build, and test an actual update from the previously published version,
   not just that the build succeeds.
-- **`@vitejs/plugin-react` held at `5.x`.** Version `6.x` requires `vite ^8`, and
-  `electron-vite@5.0.0` — the latest stable — peers `vite ^5 || ^6 || ^7`. Only
-  the electron-vite 6 betas support Vite 8 (`6.0.0-beta.8` as of 2026-10-12).
-  This is a whole-toolchain move (Vite 8 + an electron-vite beta), not a plugin
-  bump. Revisit when
-  electron-vite 6 is stable.
+- **Vite toolchain: no longer held back.** `electron-vite` 6.0.0 went stable on
+  2026-10-14 and peers `vite ^6 || ^7 || ^8`, so Vite 8, `electron-vite` 6 and
+  `@vitejs/plugin-react` 6 were taken together on 2026-11-01. `vite` is now a
+  direct devDependency so its major is explicit rather than whatever the peer
+  ranges resolve to. `externalizeDepsPlugin()` was dropped from
+  `electron.vite.config.ts` — deprecated since electron-vite 5, and
+  `build.externalizeDeps` defaults to `true`. If a future majors pass touches
+  this, check `out/main/index.js` still `require()`s its dependencies rather than
+  bundling them.
 - **Electron majors are *not* held back for the database module.** Since v1.3.0
   `better-sqlite3-multiple-ciphers` is N-API, so one binary works across Electron
   majors — no rebuild against a new V8. An Electron major still deserves a human
   launch of the app before release, but it is ordinary review, not a blocker.
-  (Electron 43 → 44 and vitest 4 → 5 were taken together on 2026-10-12.)
+  One catch: `postinstall` (`electron-builder install-app-deps`, and the same
+  step inside the release build) still asks `node-abi` for the new Electron's
+  ABI, and fails `pnpm install` outright — "Could not detect abi for version
+  45.2.1" — if the locked `node-abi` predates that major. The fix is
+  `pnpm update node-abi --depth Infinity` (it's transitive, via
+  `@electron/rebuild`; no override needed). Run `pnpm run postinstall` locally
+  after taking an Electron major — `pnpm add` doesn't surface the failure.
+  (Electron 43 → 44 and vitest 4 → 5 were taken together on 2026-10-12;
+  Electron 44 → 45 and `electron-store` 11 → 12 on 2026-11-01.)

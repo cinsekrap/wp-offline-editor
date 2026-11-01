@@ -107,7 +107,7 @@ export async function uploadMediaToWp(mediaId: string): Promise<Media> {
   const site = getSiteById(media.site_id)
   if (!site) throw new Error(`Site not found: ${media.site_id}`)
 
-  const password = getCredential(site.keychain_ref)
+  const password = await getCredential(site.keychain_ref)
   if (!password) throw new Error(`No credential found for site: ${site.label}`)
 
   const result = await uploadMedia(site.url, site.username, password, media.local_path, media.filename)

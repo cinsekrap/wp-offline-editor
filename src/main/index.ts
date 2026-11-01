@@ -236,7 +236,7 @@ protocol.registerSchemesAsPrivileged([
   { scheme: 'media', privileges: { bypassCSP: true, stream: true, supportFetchAPI: true } }
 ])
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   protocol.handle('media', (request) => {
     // media://file/absolute/path/to/file?t=123 (strip query params for cache-busting)
     const filePath = decodeURIComponent(request.url.split('?')[0].replace('media://file', ''))
@@ -255,7 +255,7 @@ app.whenReady().then(() => {
     return net.fetch(`file://${resolved}`)
   })
 
-  initDatabase()
+  await initDatabase()
   registerIpcHandlers()
 
   // Now that safeStorage has initialized with the old Keychain entry, rename for UI

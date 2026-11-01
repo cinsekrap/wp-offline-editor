@@ -7,8 +7,8 @@ import { wpPost } from '../helpers/wp'
 
 vi.mock('../../src/main/wp-client')
 
-beforeEach(() => {
-  initTestDb()
+beforeEach(async () => {
+  await initTestDb()
   vi.clearAllMocks()
   vi.mocked(wpClient.fetchUserNames).mockResolvedValue(new Map())
   // Default: no ghost sweep unless a test opts in (null = untrusted partial sweep).
@@ -25,7 +25,7 @@ describe('image downloads', () => {
     // Proves the wiring, not just the policy: img srcs are scraped from remote
     // post content, so the download path has to be guarded, and a refusal must
     // degrade to "leave the URL as it was" rather than throw mid-pull.
-    const site = seedSite()
+    const site = await seedSite()
     insertPostRow({ id: 'local', site_id: site.id, wp_id: 70, title: 'T', content: '' })
     const html = '<p><img src="http://cdn.example.com/photo.jpg"></p>'
 
@@ -40,7 +40,7 @@ describe('image downloads', () => {
 
 describe('upsertPost (via pullPostsForSite)', () => {
   it('creates a new local post from a remote one', async () => {
-    const site = seedSite()
+    const site = await seedSite()
     stagePull([wpPost({ id: 10, modified: '2026-01-01T00:00:00', title: { rendered: 'Hello' } })])
 
     const result = await pullPostsForSite(site.id)
@@ -57,7 +57,7 @@ describe('upsertPost (via pullPostsForSite)', () => {
   })
 
   it('leaves a post unchanged when the remote modified timestamp matches', async () => {
-    const site = seedSite()
+    const site = await seedSite()
     insertPostRow({
       id: 'local',
       site_id: site.id,
@@ -76,7 +76,7 @@ describe('upsertPost (via pullPostsForSite)', () => {
   })
 
   it('overwrites a synced post when the remote changed and there are no local edits', async () => {
-    const site = seedSite()
+    const site = await seedSite()
     insertPostRow({
       id: 'local',
       site_id: site.id,
@@ -103,7 +103,7 @@ describe('upsertPost (via pullPostsForSite)', () => {
   })
 
   it('stores the shortcode source rather than its rendered expansion', async () => {
-    const site = seedSite()
+    const site = await seedSite()
     stagePull([
       wpPost({
         id: 35,
@@ -124,7 +124,7 @@ describe('upsertPost (via pullPostsForSite)', () => {
   })
 
   it('backfills rendered-era content on the first pull, even when the stamp matches', async () => {
-    const site = seedSite()
+    const site = await seedSite()
     insertPostRow({
       id: 'local',
       site_id: site.id,
@@ -156,7 +156,7 @@ describe('upsertPost (via pullPostsForSite)', () => {
   })
 
   it('does not backfill over unsynced local edits', async () => {
-    const site = seedSite()
+    const site = await seedSite()
     insertPostRow({
       id: 'local',
       site_id: site.id,
@@ -184,7 +184,7 @@ describe('upsertPost (via pullPostsForSite)', () => {
   it('keeps local ACF when a pull does not report any', async () => {
     // An older companion plugin, or no edit rights on the post, means the
     // response simply omits ACF. Reading that as "cleared" destroys the values.
-    const site = seedSite()
+    const site = await seedSite()
     insertPostRow({
       id: 'local',
       site_id: site.id,
@@ -206,7 +206,7 @@ describe('upsertPost (via pullPostsForSite)', () => {
   })
 
   it('clears local ACF only when the remote explicitly reports none', async () => {
-    const site = seedSite()
+    const site = await seedSite()
     insertPostRow({
       id: 'local',
       site_id: site.id,
@@ -227,7 +227,7 @@ describe('upsertPost (via pullPostsForSite)', () => {
   })
 
   it('backfills newly reachable ACF values even when the stamp matches', async () => {
-    const site = seedSite()
+    const site = await seedSite()
     insertPostRow({
       id: 'local',
       site_id: site.id,
@@ -254,7 +254,7 @@ describe('upsertPost (via pullPostsForSite)', () => {
   })
 
   it('marks a conflict when the remote changed but local edits exist (synced=0)', async () => {
-    const site = seedSite()
+    const site = await seedSite()
     insertPostRow({
       id: 'local',
       site_id: site.id,
@@ -281,7 +281,7 @@ describe('upsertPost (via pullPostsForSite)', () => {
   })
 
   it('never resurrects a pending_delete post from a pull', async () => {
-    const site = seedSite()
+    const site = await seedSite()
     insertPostRow({
       id: 'doomed',
       site_id: site.id,
@@ -311,7 +311,7 @@ describe('upsertPost (via pullPostsForSite)', () => {
 
 describe('removeGhostPosts (via pullPostsForSite)', () => {
   it('removes only synced/clean posts confirmed gone, sparing edited/conflicted/deleting rows', async () => {
-    const site = seedSite()
+    const site = await seedSite()
     // Candidate that should be removed: synced, clean, absent from remote, GET says gone
     insertPostRow({ id: 'ghost', site_id: site.id, wp_id: 100, synced: 1, conflict: 0, pending_delete: 0 })
     // Absent from remote but GET says it still exists (REST filtering) — must survive
@@ -344,7 +344,7 @@ describe('removeGhostPosts (via pullPostsForSite)', () => {
   })
 
   it('does not sweep when the id fetch is untrusted (returns null)', async () => {
-    const site = seedSite()
+    const site = await seedSite()
     insertPostRow({ id: 'keep', site_id: site.id, wp_id: 200, synced: 1, conflict: 0, pending_delete: 0 })
     stagePull([])
     vi.mocked(wpClient.fetchAllPostIds).mockResolvedValue(null)

@@ -49,7 +49,7 @@ export function StatusMark({
   className
 }: StatusMarkProps): JSX.Element {
   return (
-    <span className={cn('relative inline-flex items-center gap-2 min-w-0 group/mark', className)}>
+    <span className={cn('relative inline-flex items-center gap-2 shrink-0 group/mark', className)}>
       <span className="inline-flex items-center gap-1.5 text-[11.5px] font-medium text-foreground/75 whitespace-nowrap">
         <StatusGlyph status={status} />
         {label ?? STATUS_LABELS[status] ?? status}

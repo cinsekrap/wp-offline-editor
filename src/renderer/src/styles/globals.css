@@ -3,6 +3,8 @@
 @import 'tw-animate-css';
 
 @custom-variant dark (&:is(.dark *));
+/* Main window on macOS: the sidebar shows the native translucent material */
+@custom-variant vibrant (&:is(.vibrant *));
 
 /*
  * NP Presspad 2.0 "Manuscript" design tokens.
@@ -111,8 +113,8 @@
     --popover: 0 0% 100%;
     --popover-foreground: 222 16.1% 12.2%;
 
-    /* Site tint (indigo until per-site colours land) */
-    --primary: 234.3 61.7% 52.9%;
+    /* Site tint — set per site by lib/site-colors.ts, indigo by default */
+    --primary: var(--tint-light, 234.3 61.7% 52.9%);
     --primary-foreground: 0 0% 100%;
 
     --secondary: 216 17.2% 94.3%;
@@ -143,7 +145,7 @@
 
     --border: 217.5 16.7% 90.6%;
     --input: 216 15.2% 87.1%;
-    --ring: 234.3 61.7% 52.9%;
+    --ring: var(--tint-light, 234.3 61.7% 52.9%);
 
     --radius: 0.625rem;
 
@@ -169,8 +171,8 @@
     --popover: 222 12.5% 15.7%;
     --popover-foreground: 220 15% 92.2%;
 
-    --primary: 233.1 100% 77.8%;
-    --primary-foreground: 233.1 44.8% 11.4%;
+    --primary: var(--tint-dark, 233.1 100% 77.8%);
+    --primary-foreground: 222 25% 10%;
 
     --secondary: 218.2 12.6% 17.1%;
     --secondary-foreground: 220 15% 92.2%;
@@ -200,7 +202,7 @@
 
     --border: 220 12.2% 19.2%;
     --input: 220 12.4% 23.7%;
-    --ring: 233.1 100% 77.8%;
+    --ring: var(--tint-dark, 233.1 100% 77.8%);
   }
 }
 
@@ -233,7 +235,8 @@
   -webkit-app-region: drag;
 }
 
-.no-drag {
+.no-drag,
+.drag-region :is(button, input, textarea, select, a, [role='button'], [role='combobox']) {
   -webkit-app-region: no-drag;
 }
 
@@ -272,4 +275,10 @@
 /* Selection follows the site tint */
 ::selection {
   background: hsl(var(--primary) / 0.22);
+}
+
+/* With vibrancy the window itself is clear; panes paint their own backgrounds */
+html.vibrant,
+html.vibrant body {
+  background: transparent;
 }

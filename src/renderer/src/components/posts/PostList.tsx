@@ -368,8 +368,8 @@ export function PostList({
   return (
     <div className="h-full flex flex-col relative">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-3 border-b shrink-0">
-        <h2 className="text-lg font-semibold">Posts</h2>
+      <div className="h-[52px] flex items-center justify-between px-6 border-b shrink-0 drag-region">
+        <h2 className="text-[15px] font-semibold tracking-tight select-none">Posts</h2>
         <div className="flex items-center gap-1">
           {/* Search toggle */}
           <Button

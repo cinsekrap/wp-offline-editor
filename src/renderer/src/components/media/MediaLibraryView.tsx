@@ -179,7 +179,7 @@ export function MediaLibraryView({ siteId, online }: MediaLibraryViewProps): JSX
     <div className="h-full flex">
       {/* Main column */}
       <div className="flex-1 min-w-0 flex flex-col">
-        <div className="flex items-center justify-between gap-4 px-6 py-4 border-b">
+        <div className="flex items-center justify-between gap-4 px-6 py-3 border-b drag-region">
           <div>
             <h1 className="text-xl font-semibold">Media Library</h1>
             <p className="text-sm text-muted-foreground mt-0.5">

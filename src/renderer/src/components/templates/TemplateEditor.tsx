@@ -93,7 +93,7 @@ export function TemplateEditor({ template, onBack, onSave }: TemplateEditorProps
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center gap-2 px-4 py-2 border-b shrink-0">
+      <div className="h-[52px] flex items-center gap-2 pl-[84px] pr-4 border-b shrink-0 drag-region">
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onBack}>
           <ArrowLeft className="h-4 w-4" />
         </Button>

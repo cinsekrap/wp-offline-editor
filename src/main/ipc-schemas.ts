@@ -25,7 +25,8 @@ export const SiteUpdateSchema = z.object({
   pull_published: z.number().int().positive().optional(),
   media_library_limit: z.number().int().positive().optional(),
   wp_author_id: z.number().int().nullable().optional(),
-  allow_plaintext: z.boolean().optional()
+  allow_plaintext: z.boolean().optional(),
+  site_color: z.string().regex(/^[a-z]+$/).max(20).nullable().optional()
 })
 
 // WP REST serializes an empty PHP array as [] — accept it and normalize to null

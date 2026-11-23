@@ -4,6 +4,7 @@ import { Button } from '@renderer/components/ui/button'
 import { Badge } from '@renderer/components/ui/badge'
 import { AcfSchemaViewer } from '@renderer/components/posts/AcfSchemaViewer'
 import type { Site } from '@shared/types'
+import { SiteAvatar } from '@renderer/components/layout/SiteAvatar'
 
 interface SiteListProps {
   sites: Site[]
@@ -13,52 +14,8 @@ interface SiteListProps {
   onSelect: (site: Site) => void
 }
 
-const AVATAR_COLORS = [
-  'bg-blue-500',
-  'bg-emerald-500',
-  'bg-violet-500',
-  'bg-amber-500',
-  'bg-rose-500',
-  'bg-cyan-500',
-  'bg-pink-500',
-  'bg-teal-500'
-]
-
-function hashCode(str: string): number {
-  let hash = 0
-  for (let i = 0; i < str.length; i++) {
-    hash = (hash << 5) - hash + str.charCodeAt(i)
-    hash |= 0
-  }
-  return Math.abs(hash)
-}
-
 function SiteFavicon({ site }: { site: Site }): JSX.Element {
-  const [error, setError] = useState(false)
-  const letter = (site.label || site.url)[0]?.toUpperCase() || '?'
-  const colorClass = AVATAR_COLORS[hashCode(site.id) % AVATAR_COLORS.length]
-
-  if (!site.site_icon_url || error) {
-    return (
-      <div
-        className={`h-10 w-10 rounded-lg ${colorClass} flex items-center justify-center text-white font-semibold text-lg shrink-0`}
-      >
-        {letter}
-      </div>
-    )
-  }
-
-  // Serve local icon file via media:// protocol
-  const iconSrc = `media://file${site.site_icon_url}`
-
-  return (
-    <img
-      src={iconSrc}
-      alt=""
-      className="h-10 w-10 rounded-lg object-contain shrink-0 bg-muted"
-      onError={() => setError(true)}
-    />
-  )
+  return <SiteAvatar site={site} className="size-10 rounded-lg text-lg" />
 }
 
 export function SiteList({ sites, onAdd, onEdit, onDelete, onSelect }: SiteListProps): JSX.Element {

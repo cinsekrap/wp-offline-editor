@@ -132,6 +132,13 @@ const api: ElectronAPI = {
   checkForUpdates: () => ipcRenderer.invoke('updater:check'),
   downloadUpdate: () => ipcRenderer.invoke('updater:download'),
   installUpdate: () => ipcRenderer.invoke('updater:install'),
+  onMenuNewPost: (callback: () => void) => {
+    const handler = (): void => callback()
+    ipcRenderer.on('menu:new-post', handler)
+    return (): void => {
+      ipcRenderer.removeListener('menu:new-post', handler)
+    }
+  },
   onCountsChanged: (callback: () => void) => {
     const handler = (): void => callback()
     ipcRenderer.on('counts-changed', handler)

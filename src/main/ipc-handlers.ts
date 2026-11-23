@@ -1,4 +1,4 @@
-import { ipcMain, app, dialog, BrowserWindow } from 'electron'
+import { ipcMain, app, dialog, BrowserWindow, nativeTheme } from 'electron'
 import { join } from 'path'
 import { copyFileSync, readFileSync, writeFileSync } from 'fs'
 import { z } from 'zod'
@@ -550,6 +550,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('settings:update', (_event, patch: unknown) => {
     const parsed = AppSettingsSchema.parse(patch)
     const updated = updateSettings(parsed)
+    if (parsed.theme !== undefined) nativeTheme.themeSource = parsed.theme
     if (parsed.autoDownloadUpdates !== undefined) {
       setAutoDownloadUpdates(parsed.autoDownloadUpdates)
     }

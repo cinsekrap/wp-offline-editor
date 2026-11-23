@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, shell, protocol, net, ipcMain, clipboard } from 'electron'
+import { app, BrowserWindow, Menu, shell, protocol, net, ipcMain, clipboard, nativeTheme } from 'electron'
 import { join, resolve, normalize } from 'path'
 import { is } from '@electron-toolkit/utils'
 import { initDatabase, closeDatabase } from './database'
@@ -6,6 +6,7 @@ import { registerIpcHandlers } from './ipc-handlers'
 import { initAutoUpdater } from './updater'
 import { deleteScratchpadIfPristine } from './scratchpad-service'
 import { buildContextMenuTemplate } from './context-menu'
+import { getSettings } from './settings-service'
 
 // Keep userData path stable (based on package name).
 // safeStorage uses app.name for the macOS Keychain service — keep the old name until
@@ -108,6 +109,11 @@ function createWindow(): void {
     show: false,
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 15, y: 10 },
+    // Translucent sidebar: the renderer paints everything else opaque. The
+    // material's light/dark follows nativeTheme.themeSource (the app's theme).
+    ...(process.platform === 'darwin'
+      ? { vibrancy: 'sidebar' as const, visualEffectState: 'followWindow' as const, backgroundColor: '#00000000' }
+      : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
@@ -166,8 +172,19 @@ function buildMenu(): void {
       label: 'File',
       submenu: [
         {
-          label: 'New Window',
+          label: 'New Post',
           accelerator: 'CmdOrCtrl+N',
+          click: (): void => {
+            // Main windows only — scratchpad pop-outs have no post list to add to
+            const win = BrowserWindow.getFocusedWindow()
+            const isScratchpad = win && [...scratchpadWindows.values()].includes(win)
+            const target = win && !isScratchpad ? win : BrowserWindow.getAllWindows().find((w) => ![...scratchpadWindows.values()].includes(w))
+            target?.webContents.send('menu:new-post')
+          }
+        },
+        {
+          label: 'New Window',
+          accelerator: 'CmdOrCtrl+Shift+N',
           click: (): void => createWindow()
         },
         { type: 'separator' },
@@ -257,6 +274,8 @@ app.whenReady().then(async () => {
 
   await initDatabase()
   registerIpcHandlers()
+  // Native chrome (vibrancy, scrollbars, menus) follows the app's theme, not just the system's
+  nativeTheme.themeSource = getSettings().theme
 
   // Now that safeStorage has initialized with the old Keychain entry, rename for UI
   app.name = 'NP Presspad'

@@ -17,6 +17,8 @@ export interface Site {
   site_icon_url: string | null
   /** Consent to plaintext HTTP for a LAN dev host; never permits a public host */
   allow_plaintext: boolean
+  /** Key into the site colour palette (renderer lib/site-colors); null = derived from the id */
+  site_color: string | null
   created_at: string
   updated_at: string
 }
@@ -43,6 +45,7 @@ export interface SiteUpdate {
   media_library_limit?: number
   wp_author_id?: number | null
   allow_plaintext?: boolean
+  site_color?: string | null
 }
 
 // ── Post ─────────────────────────────────────────────────────────────────
@@ -602,6 +605,8 @@ export interface ElectronAPI {
   downloadUpdate(): Promise<void>
   installUpdate(): Promise<void>
   onCountsChanged(callback: () => void): () => void
+  /** File ▸ New Post (⌘N) */
+  onMenuNewPost(callback: () => void): () => void
   onUpdaterEvent(callback: (status: string, data?: Record<string, unknown>) => void): () => void
 
   // Scratchpad window

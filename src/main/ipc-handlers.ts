@@ -1,4 +1,4 @@
-import { ipcMain, app, dialog, BrowserWindow } from 'electron'
+import { ipcMain, app, dialog, BrowserWindow, nativeTheme } from 'electron'
 import { join } from 'path'
 import { copyFileSync, readFileSync, writeFileSync } from 'fs'
 import { z } from 'zod'
@@ -14,6 +14,7 @@ import {
   saveMediaFromLibrary,
   saveMediaFromStagedLibrary,
   getMediaForPost,
+  getFeaturedImagePaths,
   getMediaQueue,
   uploadMediaToWp,
   deleteMedia,
@@ -320,6 +321,10 @@ export function registerIpcHandlers(): void {
     return getMediaForPost(uuidSchema.parse(postLocalId))
   })
 
+  ipcMain.handle('media:featured-paths', (_event, siteId: unknown) => {
+    return getFeaturedImagePaths(uuidSchema.parse(siteId))
+  })
+
   ipcMain.handle('media:get-queue', (_event, siteId: unknown) => {
     return getMediaQueue(uuidSchema.parse(siteId))
   })
@@ -550,6 +555,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('settings:update', (_event, patch: unknown) => {
     const parsed = AppSettingsSchema.parse(patch)
     const updated = updateSettings(parsed)
+    if (parsed.theme !== undefined) nativeTheme.themeSource = parsed.theme
     if (parsed.autoDownloadUpdates !== undefined) {
       setAutoDownloadUpdates(parsed.autoDownloadUpdates)
     }

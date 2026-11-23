@@ -10,19 +10,20 @@ export const STATUS_LABELS: Record<string, string> = {
   trash: 'Trash'
 }
 
-export const STATUS_COLORS: Record<string, string> = {
-  publish:
-    'bg-green-100 text-green-800 border-green-200 dark:bg-green-950/50 dark:text-green-400 dark:border-green-900',
-  draft:
-    'bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-950/50 dark:text-yellow-400 dark:border-yellow-900',
+/**
+ * Each status has its own shape as well as its own hue, so the marks read
+ * without colour: hollow (draft), half (pending), ringed (scheduled), solid
+ * (published), square (private), diamond (trash). Rendered by StatusGlyph.
+ */
+export const STATUS_GLYPH: Record<string, string> = {
+  draft: 'rounded-full border-[1.5px] border-status-draft',
   pending:
-    'bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-950/50 dark:text-orange-400 dark:border-orange-900',
-  private:
-    'bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-950/50 dark:text-purple-400 dark:border-purple-900',
+    'rounded-full border-[1.5px] border-status-pending bg-[linear-gradient(90deg,hsl(var(--status-pending))_50%,transparent_50%)]',
   future:
-    'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-950/50 dark:text-blue-400 dark:border-blue-900',
-  trash:
-    'bg-red-100 text-red-800 border-red-200 dark:bg-red-950/50 dark:text-red-400 dark:border-red-900'
+    'rounded-full border-[1.5px] border-status-scheduled bg-[radial-gradient(circle,hsl(var(--status-scheduled))_32%,transparent_36%)]',
+  publish: 'rounded-full bg-status-published',
+  private: 'rounded-[2px] bg-status-private',
+  trash: 'rotate-45 rounded-[1px] bg-status-trash'
 }
 
 /** Statuses offered in list filters — every user-facing status except trash. */

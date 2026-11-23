@@ -61,15 +61,16 @@ export async function updateSite(update: SiteUpdate): Promise<Site> {
   const pullPublished = update.pull_published ?? existing.pull_published
   const mediaLibraryLimit = update.media_library_limit ?? existing.media_library_limit
   const wpAuthorId = update.wp_author_id !== undefined ? update.wp_author_id : existing.wp_author_id
+  const siteColor = update.site_color !== undefined ? update.site_color : existing.site_color
 
   if (update.password) {
     await storeCredential(existing.keychain_ref, update.password)
   }
 
   db.prepare(`
-    UPDATE sites SET label = ?, url = ?, username = ?, auto_sync = ?, pull_published = ?, media_library_limit = ?, wp_author_id = ?, allow_plaintext = ?, updated_at = ?
+    UPDATE sites SET label = ?, url = ?, username = ?, auto_sync = ?, pull_published = ?, media_library_limit = ?, wp_author_id = ?, allow_plaintext = ?, site_color = ?, updated_at = ?
     WHERE id = ?
-  `).run(label, url, username, autoSync, pullPublished, mediaLibraryLimit, wpAuthorId, allowPlaintext ? 1 : 0, now, update.id)
+  `).run(label, url, username, autoSync, pullPublished, mediaLibraryLimit, wpAuthorId, allowPlaintext ? 1 : 0, siteColor, now, update.id)
 
   return getSiteById(update.id)!
 }
@@ -156,6 +157,7 @@ interface SiteRow {
   wp_author_id: number | null
   site_icon_url: string | null
   allow_plaintext: number
+  site_color: string | null
   created_at: string
   updated_at: string
 }
@@ -176,6 +178,7 @@ function normalizeSiteRow(row: SiteRow): Site {
     wp_author_id: row.wp_author_id ?? null,
     site_icon_url: row.site_icon_url || null,
     allow_plaintext: Boolean(row.allow_plaintext),
+    site_color: row.site_color ?? null,
     created_at: row.created_at,
     updated_at: row.updated_at
   }

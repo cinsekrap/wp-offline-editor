@@ -179,9 +179,9 @@ export function MediaLibraryView({ siteId, online }: MediaLibraryViewProps): JSX
     <div className="h-full flex">
       {/* Main column */}
       <div className="flex-1 min-w-0 flex flex-col">
-        <div className="flex items-center justify-between gap-4 px-6 py-4 border-b">
+        <div className="flex items-center justify-between gap-4 px-6 py-3 border-b drag-region">
           <div>
-            <h1 className="text-xl font-semibold">Media Library</h1>
+            <h1 className="text-[15px] font-semibold tracking-tight">Media</h1>
             <p className="text-sm text-muted-foreground mt-0.5">
               {loading ? 'Loading…' : `${items.length} item${items.length === 1 ? '' : 's'}`}
               {!online && (
@@ -268,9 +268,9 @@ export function MediaLibraryView({ siteId, online }: MediaLibraryViewProps): JSX
                   {item.id < 0 && (
                     <span
                       title="Awaiting sync"
-                      className="absolute top-1.5 right-1.5 h-4 w-4 rounded-full bg-blue-500 ring-2 ring-background flex items-center justify-center"
+                      className="absolute top-1.5 right-1.5 h-4 w-4 rounded-full bg-primary ring-2 ring-background flex items-center justify-center"
                     >
-                      <ArrowUp className="h-2.5 w-2.5 text-white" strokeWidth={3.5} />
+                      <ArrowUp className="h-2.5 w-2.5 text-primary-foreground" strokeWidth={3.5} />
                     </span>
                   )}
                 </button>
@@ -327,9 +327,9 @@ export function MediaLibraryView({ siteId, online }: MediaLibraryViewProps): JSX
                 <p>{formatDate(selected.uploaded_at)}</p>
               </div>
               {selected.id < 0 && (
-                <div className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400">
-                  <span className="h-3.5 w-3.5 rounded-full bg-blue-500 flex items-center justify-center shrink-0">
-                    <ArrowUp className="h-2.5 w-2.5 text-white" strokeWidth={3.5} />
+                <div className="flex items-center gap-1.5 text-xs text-primary">
+                  <span className="h-3.5 w-3.5 rounded-full bg-primary flex items-center justify-center shrink-0">
+                    <ArrowUp className="h-2.5 w-2.5 text-primary-foreground" strokeWidth={3.5} />
                   </span>
                   Awaiting sync — uploads to WordPress next time you sync
                 </div>

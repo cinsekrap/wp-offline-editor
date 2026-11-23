@@ -6,13 +6,14 @@ import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
 import Link from '@tiptap/extension-link'
 import Placeholder from '@tiptap/extension-placeholder'
+import { Focus } from '@tiptap/extensions'
 import { Table } from '@tiptap/extension-table'
 import { TableRow } from '@tiptap/extension-table-row'
 import { TableCell } from '@tiptap/extension-table-cell'
 import { TableHeader } from '@tiptap/extension-table-header'
 import { CodeBlockLowlight } from '@tiptap/extension-code-block-lowlight'
 import { common, createLowlight } from 'lowlight'
-import { useState, useEffect, type CSSProperties } from 'react'
+import { useState, useEffect, type CSSProperties, type ReactNode } from 'react'
 import { MediaImage } from '@renderer/extensions/MediaImage'
 import { useWordCount } from '@renderer/hooks/useWordCount'
 import { useToast } from '@renderer/components/ui/use-toast'
@@ -32,6 +33,8 @@ interface TipTapEditorProps {
   fontSize?: number
   focusMode?: boolean
   onExitFocusMode?: () => void
+  /** Rendered at the top of the page, inside the scrolling column (the post title). */
+  header?: ReactNode
 }
 
 function toMediaUrl(localPath: string): string {
@@ -66,7 +69,8 @@ export function TipTapEditor({
   onImageClick,
   fontSize,
   focusMode,
-  onExitFocusMode
+  onExitFocusMode,
+  header
 }: TipTapEditorProps): JSX.Element {
   const editor = useEditor(
     {
@@ -74,7 +78,9 @@ export function TipTapEditor({
         StarterKit.configure({ codeBlock: false }),
         Underline,
         Link.configure({ openOnClick: false }),
-        Placeholder.configure({ placeholder: 'Start writing...' }),
+        Placeholder.configure({ placeholder: 'Start writing…' }),
+        // Marks the top-level block holding the caret; focus mode dims the rest
+        Focus.configure({ className: 'has-focus', mode: 'shallowest' }),
         MediaImage.configure({ onImageClick }),
         Table.configure({ resizable: false }),
         TableRow,
@@ -132,6 +138,15 @@ export function TipTapEditor({
     editor,
     selector: ({ editor: e }) => e?.isActive('link') ?? false
   })
+  const marks = useEditorState({
+    editor,
+    selector: ({ editor: e }) => ({
+      bold: e?.isActive('bold') ?? false,
+      italic: e?.isActive('italic') ?? false,
+      h2: e?.isActive('heading', { level: 2 }) ?? false,
+      quote: e?.isActive('blockquote') ?? false
+    })
+  })
 
   const handleImageInsert = async (file: File): Promise<void> => {
     await insertImageFile(editor, file, siteId, postId)
@@ -184,14 +199,8 @@ export function TipTapEditor({
         siteId={siteId}
         onSelect={handleLibrarySelect}
       />
-      <div className="flex items-center justify-between px-3 py-1 border-x text-xs text-muted-foreground">
-        <span>{words} words</span>
-        <span>{readingTime}</span>
-      </div>
-      <div
-        className="flex-1 overflow-y-auto border rounded-b-md"
-        style={style}
-      >
+      <div className={cn('flex-1 overflow-y-auto bg-background', focusMode && 'focus-writing')} style={style}>
+        {header && <div className="max-w-[38em] mx-auto px-6 pt-10 pb-4 text-[length:var(--editor-font-size,18px)]">{header}</div>}
         {editor && (
           <BubbleMenu
             editor={editor}
@@ -199,7 +208,31 @@ export function TipTapEditor({
               !state.selection.empty && !e.isActive('codeBlock') && !e.isActive('image')
             }
           >
-            <div className="flex items-center gap-0.5 rounded-md border bg-popover text-popover-foreground shadow-md p-1">
+            <div className="flex items-center gap-0.5 rounded-lg border bg-popover text-popover-foreground shadow-lg p-1">
+              {(
+                [
+                  { key: 'bold', label: 'B', title: 'Bold (⌘B)', cls: 'font-bold', run: () => editor.chain().focus().toggleBold().run() },
+                  { key: 'italic', label: 'I', title: 'Italic (⌘I)', cls: 'italic font-editor', run: () => editor.chain().focus().toggleItalic().run() },
+                  { key: 'h2', label: 'H2', title: 'Heading', cls: 'font-semibold', run: () => editor.chain().focus().toggleHeading({ level: 2 }).run() },
+                  { key: 'quote', label: '“', title: 'Quote', cls: 'font-editor text-base leading-none', run: () => editor.chain().focus().toggleBlockquote().run() }
+                ] as const
+              ).map((b) => (
+                <button
+                  key={b.key}
+                  title={b.title}
+                  onClick={b.run}
+                  className={cn(
+                    'h-7 min-w-7 px-1.5 rounded-sm text-xs transition-colors',
+                    b.cls,
+                    marks?.[b.key]
+                      ? 'bg-accent text-accent-foreground'
+                      : 'text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground'
+                  )}
+                >
+                  {b.label}
+                </button>
+              ))}
+              <div className="w-px h-4 bg-border mx-0.5" />
               <button
                 className={cn(
                   'h-7 flex items-center gap-1.5 px-2 rounded-sm text-xs transition-colors',
@@ -226,6 +259,10 @@ export function TipTapEditor({
           </BubbleMenu>
         )}
         <EditorContent editor={editor} className="h-full" />
+      </div>
+      <div className="flex items-center gap-4 h-8 shrink-0 px-4 border-t text-[11px] text-muted-foreground tabular-nums">
+        <span>{words.toLocaleString()} words</span>
+        <span>{readingTime}</span>
       </div>
       <LinkDialog editor={editor} open={linkDialogOpen} onOpenChange={setLinkDialogOpen} />
     </div>

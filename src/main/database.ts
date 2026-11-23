@@ -369,6 +369,14 @@ const migrations: Array<(db: Database.Database) => void> = [
   // would stay empty until someone edited the post on the site.
   (db) => {
     safeAddColumn(db, 'sites', 'acf_values_backfilled', 'INTEGER NOT NULL DEFAULT 0')
+  },
+
+  // ── v13: per-site colour ──
+  // The accent the app uses while a site is selected (2.0 redesign). NULL means
+  // "derive from the site id", which reproduces the avatar colour sites have
+  // always had, so nothing changes until someone picks a colour.
+  (db) => {
+    safeAddColumn(db, 'sites', 'site_color', 'TEXT')
   }
 ]
 

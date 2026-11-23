@@ -1,5 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { AppShell } from '@renderer/components/layout/AppShell'
+import { Sidebar, type SidebarView } from '@renderer/components/layout/Sidebar'
+import { Button } from '@renderer/components/ui/button'
+import { Plus } from 'lucide-react'
+import { applySiteTint } from '@renderer/lib/site-colors'
 import { SettingsView } from '@renderer/components/settings/SettingsView'
 import { AddSiteDialog } from '@renderer/components/settings/AddSiteDialog'
 import { WhatsNewDialog } from '@renderer/components/settings/WhatsNewDialog'
@@ -125,6 +129,47 @@ function App(): JSX.Element {
       [refreshPosts, nav]
     )
   })
+
+  // ── Site tint ───────────────────────────────────────────────────────────
+  // The selected site's colour is the app's accent, so each blog looks like itself.
+  useEffect(() => {
+    applySiteTint(selectedSite)
+  }, [selectedSite?.id, selectedSite?.site_color]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Translucent sidebar (macOS vibrancy, set on the main window) ────────
+  useEffect(() => {
+    if (navigator.userAgent.includes('Macintosh')) document.documentElement.classList.add('vibrant')
+  }, [])
+
+  // ── File ▸ New Post (⌘N) ────────────────────────────────────────────────
+  useEffect(() => {
+    return window.electronAPI.onMenuNewPost(() => {
+      if (selectedSiteId) tmpl.handleNewPost()
+    })
+  }, [selectedSiteId, tmpl])
+
+  // ── ⌘K: search posts from anywhere ──────────────────────────────────────
+  const [searchRequest, setSearchRequest] = useState(0)
+  useEffect(() => {
+    function onKey(e: KeyboardEvent): void {
+      // Not from inside a post body — ⌘K means "link" in most editors, and
+      // jumping away mid-sentence would be a nasty surprise
+      if ((e.target as HTMLElement | null)?.closest?.('.tiptap')) return
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k' && selectedSiteId) {
+        e.preventDefault()
+        nav.goToPosts()
+        setSearchRequest((n) => n + 1)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [selectedSiteId, nav])
+
+  // ── Writing typeface ────────────────────────────────────────────────────
+  // CSS picks --font-editor from this attribute (globals.css); serif is the default.
+  useEffect(() => {
+    document.documentElement.dataset.editorFont = settings.editorFontFamily ?? 'serif'
+  }, [settings.editorFontFamily])
 
   // ── Theme ───────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -288,9 +333,11 @@ function App(): JSX.Element {
         return (
           <PostsView
             siteId={selectedSiteId}
+            sites={sites}
             pulling={sync.syncing}
             online={effectiveOnline}
             editorFontSize={settings.editorFontSize}
+            searchRequest={searchRequest}
             selectedPostId={nav.selectedPostId}
             onSelectPost={nav.selectPostFromList}
             onBack={nav.backFromPost}
@@ -342,27 +389,76 @@ function App(): JSX.Element {
     }
   }
 
-  const notSettings = nav.currentView !== 'settings'
+  // The sidebar folds away while writing (editor, template editor) and in
+  // Settings, which has its own navigation.
+  const inEditor =
+    (nav.currentView === 'posts' && nav.selectedPostId !== null) ||
+    (nav.currentView === 'templates' && tmpl.editingTemplate !== null)
+  const showSidebar = !!selectedSite && nav.currentView !== 'settings' && !inEditor
+
+  const sidebarView: SidebarView | null =
+    nav.currentView === 'settings' ? null : (nav.currentView as SidebarView)
+  const navigate = (view: SidebarView): void => {
+    if (view === 'dashboard') nav.goToDashboard()
+    else if (view === 'posts') nav.goToPosts()
+    else if (view === 'media') nav.goToMedia()
+    else {
+      tmpl.setEditingTemplate(null)
+      nav.goToTemplates()
+    }
+  }
+
+  const livePosts = posts.filter((p) => p.status !== 'trash')
+  const sidebar =
+    showSidebar && selectedSite ? (
+      <Sidebar
+        sites={sites}
+        site={selectedSite}
+        onSwitchSite={nav.handleSelectSite}
+        onManageSites={nav.goToSettings}
+        activeView={sidebarView}
+        onNavigate={navigate}
+        onSettings={nav.goToSettings}
+        postCount={livePosts.length}
+        templateCount={templates.length}
+        syncing={sync.syncing}
+        online={effectiveOnline}
+        pending={sync.pendingChanges}
+        conflicts={livePosts.filter((p) => p.conflict).length}
+        unsyncedScheduled={livePosts.some((p) => p.status === 'future' && !p.synced)}
+        lastSyncedAt={sync.lastSyncedAt ?? selectedSite.last_post_pull_at}
+        onSync={sync.handleSync}
+      />
+    ) : null
+
+  const newPostButton = (
+    <Button size="sm" className="h-8 gap-1.5" onClick={tmpl.handleNewPost} title="New post (⌘N)">
+      <Plus className="size-3.5" />
+      New post
+      <kbd className="ml-1 font-sans text-[10.5px] opacity-70">⌘N</kbd>
+    </Button>
+  )
+  const header =
+    nav.currentView === 'dashboard' && selectedSite
+      ? { title: 'Home', actions: newPostButton }
+      : nav.currentView === 'templates' && !tmpl.editingTemplate
+        ? {
+            title: 'Templates',
+            actions: (
+              <Button size="sm" variant="outline" className="h-8 gap-1.5" onClick={tmpl.handleNewTemplate}>
+                <Plus className="size-3.5" />
+                New template
+              </Button>
+            )
+          }
+        : undefined
 
   return (
     <>
       <AppShell
-        onSettingsClick={nav.goToSettings}
-        onPostsClick={selectedSiteId && notSettings ? nav.goToPosts : undefined}
-        onMediaClick={selectedSiteId && notSettings ? nav.goToMedia : undefined}
-        onSyncClick={sync.handleSync}
-        syncing={sync.syncing}
-        showSync={notSettings && !!selectedSiteId}
-        siteName={notSettings ? selectedSite?.label : undefined}
-        onSiteNameClick={
-          notSettings && nav.currentView !== 'dashboard' ? nav.backToDashboard : undefined
-        }
-        activeView={notSettings ? nav.currentView : undefined}
-        online={effectiveOnline}
-        pendingChanges={notSettings ? sync.pendingChanges : undefined}
-        sites={sites}
-        selectedSiteId={selectedSiteId}
-        onSwitchSite={notSettings ? nav.handleSelectSite : undefined}
+        sidebar={sidebar}
+        header={header}
+        viewKey={`${nav.currentView}:${nav.selectedPostId ?? ''}:${tmpl.editingTemplate?.id ?? ''}`}
       >
         {renderContent()}
       </AppShell>

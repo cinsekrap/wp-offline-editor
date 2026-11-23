@@ -7,8 +7,9 @@ import {
   Sun,
   Moon,
   Monitor,
-  X,
-  Loader2
+
+  Loader2,
+  ArrowLeft
 } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
 import { Switch } from '@renderer/components/ui/switch'
@@ -71,37 +72,45 @@ export function SettingsView({
   return (
     <div className="flex h-full">
       {/* Sidebar nav */}
-      <nav className="w-[200px] border-r p-3 shrink-0 flex flex-col">
+      <nav className="w-[232px] border-r shrink-0 flex flex-col bg-sidebar vibrant:bg-sidebar/55">
+        {/* Room for the traffic lights, and a handle to drag the window */}
+        <div className="h-11 shrink-0 drag-region" />
+        <div className="px-2.5 pb-2.5 flex flex-col flex-1">
         {onClose && (
           <button
             onClick={onClose}
-            className="mb-3 flex items-center gap-2 px-3 py-2 rounded-md text-sm text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground transition-colors"
+            className="mb-3 flex items-center gap-2 px-2 py-1.5 rounded-md text-[13px] text-muted-foreground hover:bg-foreground/[0.05] hover:text-foreground transition-colors"
             title="Close settings"
           >
-            <X className="h-4 w-4" />
-            Close
+            <ArrowLeft className="h-4 w-4" />
+            Back to writing
           </button>
         )}
-        <div className="space-y-1">
+        <p className="px-2 pb-1.5 text-[11px] font-semibold text-muted-foreground">Settings</p>
+        <div className="space-y-0.5">
           {NAV_ITEMS.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
               onClick={() => setActiveSection(id)}
-              className={`w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors ${
+              className={`w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md text-[13px] transition-colors ${
                 activeSection === id
-                  ? 'bg-accent text-accent-foreground font-medium'
-                  : 'text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground'
+                  ? 'bg-foreground/[0.07] text-foreground font-semibold'
+                  : 'text-foreground/75 hover:bg-foreground/[0.05] hover:text-foreground'
               }`}
             >
-              <Icon className="h-4 w-4" />
+              <Icon className={`h-4 w-4 ${activeSection === id ? 'text-primary' : 'text-muted-foreground'}`} />
               {label}
             </button>
           ))}
         </div>
+        </div>
       </nav>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 flex flex-col min-w-0">
+      <div className="h-11 shrink-0 drag-region" />
+      <div className="flex-1 overflow-y-auto px-8 pb-8">
+      <div className="max-w-2xl">
         {activeSection === 'general' && (
           <GeneralSection settings={settings} onUpdate={onUpdateSettings} />
         )}
@@ -123,6 +132,8 @@ export function SettingsView({
             onSelect={onSelectSite}
           />
         )}
+      </div>
+      </div>
       </div>
     </div>
   )
@@ -187,6 +198,29 @@ function AppearanceSection({
         </div>
       </div>
 
+      {/* Writing typeface */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="space-y-0.5">
+          <Label>Writing typeface</Label>
+          <p className="text-xs text-muted-foreground">
+            The face used for post and scratchpad text. The rest of the app always uses the system font.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          {(['serif', 'sans'] as const).map((family) => (
+            <Button
+              key={family}
+              variant={settings.editorFontFamily === family ? 'default' : 'outline'}
+              size="sm"
+              className={family === 'serif' ? 'font-serif' : 'font-sans'}
+              onClick={() => onUpdate({ editorFontFamily: family })}
+            >
+              {family === 'serif' ? 'Serif' : 'Sans'}
+            </Button>
+          ))}
+        </div>
+      </div>
+
       {/* Editor font size */}
       <div className="space-y-3">
         <Label>Editor font size</Label>
@@ -203,10 +237,11 @@ function AppearanceSection({
           <span className="text-sm font-mono w-8 text-right">{settings.editorFontSize}</span>
         </div>
         <p
-          className="text-muted-foreground border rounded-md p-3 mt-2"
+          className="font-editor leading-relaxed border rounded-lg p-4 mt-2 bg-canvas"
           style={{ fontSize: `${settings.editorFontSize}px` }}
         >
-          The quick brown fox jumps over the lazy dog.
+          Start with the work. If the way you run the business is clear, the marketing mostly writes
+          itself.
         </p>
       </div>
     </div>

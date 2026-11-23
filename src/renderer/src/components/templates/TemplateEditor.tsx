@@ -93,7 +93,7 @@ export function TemplateEditor({ template, onBack, onSave }: TemplateEditorProps
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center gap-2 px-4 py-2 border-b shrink-0">
+      <div className="h-[52px] flex items-center gap-2 pl-[84px] pr-4 border-b shrink-0 drag-region">
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onBack}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
@@ -137,7 +137,7 @@ export function TemplateEditor({ template, onBack, onSave }: TemplateEditorProps
         {/* Right panel */}
         <div className="w-[280px] border-l p-4 space-y-4 overflow-y-auto shrink-0">
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            <Label className="text-xs font-semibold text-foreground/80">
               Default Status
             </Label>
             <Select value={status} onValueChange={setStatus}>
@@ -154,7 +154,7 @@ export function TemplateEditor({ template, onBack, onSave }: TemplateEditorProps
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            <Label className="text-xs font-semibold text-foreground/80">
               Excerpt
             </Label>
             <Textarea
@@ -167,7 +167,7 @@ export function TemplateEditor({ template, onBack, onSave }: TemplateEditorProps
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            <Label className="text-xs font-semibold text-foreground/80">
               Category Names
             </Label>
             {categoryNames.length > 0 && (
@@ -192,7 +192,7 @@ export function TemplateEditor({ template, onBack, onSave }: TemplateEditorProps
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            <Label className="text-xs font-semibold text-foreground/80">
               Tag Names
             </Label>
             {tagNames.length > 0 && (

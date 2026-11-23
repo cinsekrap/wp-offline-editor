@@ -4,7 +4,25 @@ const ENTITIES: Record<string, string> = {
   '&gt;': '>',
   '&quot;': '"',
   '&#039;': "'",
-  '&apos;': "'"
+  '&apos;': "'",
+  // WordPress's texturize and excerpt filters emit these by name
+  '&nbsp;': '\u00a0',
+  '&hellip;': '\u2026',
+  '&ndash;': '\u2013',
+  '&mdash;': '\u2014',
+  '&lsquo;': '\u2018',
+  '&rsquo;': '\u2019',
+  '&ldquo;': '\u201c',
+  '&rdquo;': '\u201d',
+  '&laquo;': '\u00ab',
+  '&raquo;': '\u00bb',
+  '&middot;': '\u00b7',
+  '&bull;': '\u2022',
+  '&copy;': '\u00a9',
+  '&reg;': '\u00ae',
+  '&trade;': '\u2122',
+  '&pound;': '\u00a3',
+  '&euro;': '\u20ac'
 }
 
 const ENTITY_RE = /&(?:#(\d+)|#x([0-9a-fA-F]+)|(\w+));/g

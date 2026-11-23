@@ -20,6 +20,8 @@ interface UseSyncStatusReturn {
   massPushPaused: { count: number } | null
   handleForceSync: () => Promise<void>
   clearMassPushPaused: () => void
+  /** When this session last finished a sync for the selected site (ISO), or null */
+  lastSyncedAt: string | null
 }
 
 export function useSyncStatus({
@@ -30,6 +32,7 @@ export function useSyncStatus({
   const [syncing, setSyncing] = useState(false)
   const [pendingChanges, setPendingChanges] = useState<PendingChanges>(NO_PENDING_CHANGES)
   const [massPushPaused, setMassPushPaused] = useState<{ count: number } | null>(null)
+  const [lastSyncedBySite, setLastSyncedBySite] = useState<Record<string, string>>({})
 
   const refreshCounts = useCallback(async () => {
     if (!selectedSiteId) {
@@ -66,6 +69,7 @@ export function useSyncStatus({
           variant: 'warning'
         })
       } else {
+        setLastSyncedBySite((prev) => ({ ...prev, [selectedSiteId]: new Date().toISOString() }))
         const parts: string[] = []
         if (result.pushed > 0) parts.push(`pushed ${result.pushed}`)
         if (result.recreated > 0)
@@ -146,6 +150,7 @@ export function useSyncStatus({
     refreshCounts,
     massPushPaused,
     handleForceSync,
-    clearMassPushPaused
+    clearMassPushPaused,
+    lastSyncedAt: selectedSiteId ? (lastSyncedBySite[selectedSiteId] ?? null) : null
   }
 }

@@ -9,6 +9,7 @@ interface PostsViewProps {
   pulling?: boolean
   online?: boolean
   editorFontSize?: number
+  searchRequest?: number
   selectedPostId: string | null
   onSelectPost: (id: string | null) => void
   onBack?: () => void
@@ -30,6 +31,7 @@ export function PostsView({
   siteId,
   pulling,
   editorFontSize,
+  searchRequest,
   selectedPostId,
   onSelectPost,
   onBack,
@@ -88,6 +90,7 @@ export function PostsView({
 
   return (
     <PostList
+      searchRequest={searchRequest}
       posts={posts}
       // Keep showing the current list during a sync — only spin when there is
       // nothing to show yet (first pull on an empty site), like the dashboard

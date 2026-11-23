@@ -133,10 +133,10 @@ export function RevisionHistory({ postId, onRestore }: RevisionHistoryProps): JS
             ) : (
               diffs.map((part, i) => {
                 if (part.added) {
-                  return <span key={i} className="bg-green-100 text-green-900 dark:bg-green-900/40 dark:text-green-300">{part.value}</span>
+                  return <span key={i} className="bg-success-soft text-success">{part.value}</span>
                 }
                 if (part.removed) {
-                  return <span key={i} className="bg-red-100 text-red-900 line-through dark:bg-red-900/40 dark:text-red-300">{part.value}</span>
+                  return <span key={i} className="bg-destructive-soft text-destructive line-through">{part.value}</span>
                 }
                 return <span key={i}>{part.value}</span>
               })
@@ -167,9 +167,9 @@ export function RevisionHistory({ postId, onRestore }: RevisionHistoryProps): JS
                 </p>
                 <span className={
                   wcDelta > 0
-                    ? 'text-[11px] text-green-600'
+                    ? 'text-[11px] text-success'
                     : wcDelta < 0
-                      ? 'text-[11px] text-red-600'
+                      ? 'text-[11px] text-destructive'
                       : 'text-[11px] text-muted-foreground'
                 }>
                   {wcDelta > 0 ? '+' : ''}{wcDelta}

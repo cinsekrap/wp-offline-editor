@@ -3,7 +3,8 @@ import type { AppSettings } from '@shared/types'
 
 const defaultSettings: AppSettings = {
   theme: 'system',
-  editorFontSize: 16,
+  editorFontSize: 18,
+  editorFontFamily: 'serif',
   forceOffline: false,
   autoSyncInterval: 5,
   writingChartMode: 'daily',

@@ -82,7 +82,7 @@ export function UpdateChecker({ autoDownload, onAutoDownloadChange }: UpdateChec
 
         {status === 'up-to-date' && (
           <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-            <CheckCircle className="h-3.5 w-3.5 text-green-500" />
+            <CheckCircle className="h-3.5 w-3.5 text-success" />
             Up to date
           </span>
         )}

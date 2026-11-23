@@ -1,5 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { Label } from '@renderer/components/ui/label'
+import { useState, useEffect, useCallback, useRef, useMemo, type ReactNode } from 'react'
 import { Calendar } from '@renderer/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/components/ui/popover'
 import { Button } from '@renderer/components/ui/button'
@@ -8,10 +7,11 @@ import { Textarea } from '@renderer/components/ui/textarea'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
 import { Checkbox } from '@renderer/components/ui/checkbox'
 import { Badge } from '@renderer/components/ui/badge'
-import { CalendarIcon, ImageIcon, X, Upload, Loader2, Lock, Globe, KeyRound, AlertTriangle, Plus } from 'lucide-react'
+import { CalendarIcon, ImageIcon, X, Upload, Loader2, Lock, Globe, KeyRound, AlertTriangle, Plus, Check, ChevronDown, Undo2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { cn } from '@renderer/lib/utils'
-import { STATUS_COLORS, STATUS_LABELS } from '@renderer/lib/post-status'
+import { STATUS_LABELS } from '@renderer/lib/post-status'
+import { StatusGlyph } from '@renderer/components/posts/StatusMark'
 import { useToast } from '@renderer/components/ui/use-toast'
 import type { PostStatus, Media, MediaLibraryItem, TaxonomyTerm } from '@shared/types'
 
@@ -260,86 +260,102 @@ export function PostMeta({
     [siteId, postId, onFeaturedImageChange, refreshMedia, toast]
   )
 
+  const statusLine = (() => {
+    switch (status) {
+      case 'future':
+        return scheduledDate ? `Goes live ${format(scheduledDate, 'EEE d MMM, p')}` : 'Scheduled'
+      case 'publish':
+        return scheduledDate ? `Published ${format(scheduledDate, 'd MMM yyyy, p')}` : 'Public on your site'
+      case 'private':
+        return 'Only editors and admins can see it'
+      case 'pending':
+        return 'Waiting for review'
+      default:
+        return 'Not public yet'
+    }
+  })()
+  const visibilityOpt = VISIBILITY_OPTIONS.find((v) => v.value === visibility)!
+  const VisibilityIcon = visibilityOpt.icon
+
   return (
     <ScrollArea className="flex-1">
-    <div className="space-y-4 p-4">
-      {/* Status */}
-      <div className="space-y-1.5">
-        {!published ? (
-          <>
-            <div className="w-full h-8 flex items-center justify-center rounded-md border text-sm">
-              <Badge
-                variant="outline"
-                className={cn('text-xs border-0', STATUS_COLORS[status] ?? STATUS_COLORS.draft)}
-              >
-                {STATUS_LABELS[status] ?? 'Draft'}
-              </Badge>
+      <div className="divide-y divide-border/70">
+        {/* Publishing: where the post stands, and the one decision that matters */}
+        <section className="space-y-3 px-4 py-4">
+          <div className="flex items-start gap-2.5">
+            <StatusGlyph status={status} className="mt-1.5" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold leading-tight">{STATUS_LABELS[status] ?? 'Draft'}</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">{statusLine}</p>
             </div>
+          </div>
 
-            {/* Publish actions */}
-            <div className="space-y-1.5">
-              {!scheduling && (
-                <Popover open={publishConfirmOpen} onOpenChange={setPublishConfirmOpen}>
-                  <PopoverTrigger asChild>
-                    <Button variant="default" size="sm" className="w-full h-8 text-sm">
-                      Publish immediately
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent align="start" className="w-72 p-3">
-                    <div className="flex gap-2 mb-2">
-                      <AlertTriangle className="h-4 w-4 text-orange-500 shrink-0 mt-0.5" />
-                      <p className="text-sm text-muted-foreground">
-                        This post will go <strong>live on your site</strong> at the next sync. Are you sure?
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1 h-7 text-xs"
-                        onClick={() => setPublishConfirmOpen(false)}
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        variant="default"
-                        size="sm"
-                        className="flex-1 h-7 text-xs"
-                        onClick={handlePublishImmediately}
-                      >
-                        Publish
-                      </Button>
-                    </div>
-                  </PopoverContent>
-                </Popover>
-              )}
-              {!scheduling && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full h-8 text-sm"
-                  onClick={handlePublishLater}
-                >
-                  <CalendarIcon className="mr-2 h-3.5 w-3.5" />
-                  Publish later
-                </Button>
-              )}
-            </div>
+          {published && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 w-full bg-background text-[13px]"
+              onClick={handleRevertToDraft}
+            >
+              <Undo2 className="mr-1.5 h-3.5 w-3.5" />
+              Revert to draft
+            </Button>
+          )}
 
-            {/* Schedule date picker (shown before committing) */}
-            {scheduling && pendingDate && (
-              <div className="space-y-2 border rounded-md p-3">
-                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Schedule for
-                </Label>
-                <Popover>
-                  <PopoverTrigger asChild>
+          {!published && !scheduling && (
+            <div className="grid grid-cols-[1fr_auto] gap-2">
+              <Popover open={publishConfirmOpen} onOpenChange={setPublishConfirmOpen}>
+                <PopoverTrigger asChild>
+                  <Button size="sm" className="h-8 text-[13px] font-semibold">
+                    Publish
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-72 p-3">
+                  <div className="flex gap-2 mb-3">
+                    <AlertTriangle className="h-4 w-4 text-warning shrink-0 mt-0.5" />
+                    <p className="text-sm text-muted-foreground">
+                      This post will go <strong className="text-foreground">live on your site</strong> at the
+                      next sync. Are you sure?
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
                     <Button
                       variant="outline"
-                      className="h-8 w-full justify-start text-left text-sm font-normal"
+                      size="sm"
+                      className="flex-1 h-7 text-xs"
+                      onClick={() => setPublishConfirmOpen(false)}
                     >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {format(pendingDate, 'PPP')}
+                      Cancel
+                    </Button>
+                    <Button size="sm" className="flex-1 h-7 text-xs" onClick={handlePublishImmediately}>
+                      Publish now
+                    </Button>
+                  </div>
+                </PopoverContent>
+              </Popover>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 bg-background px-3 text-[13px]"
+                onClick={handlePublishLater}
+                title="Publish later"
+              >
+                <CalendarIcon className="mr-1.5 h-3.5 w-3.5" />
+                Schedule
+              </Button>
+            </div>
+          )}
+
+          {/* Picking a time before committing to "scheduled" */}
+          {!published && scheduling && pendingDate && (
+            <div className="space-y-2.5 rounded-lg border bg-background p-3">
+              <p className="text-xs font-semibold text-foreground/80">Publish on</p>
+              <div className="grid grid-cols-[1fr_92px] gap-2">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="h-8 justify-start px-2.5 text-left text-[13px] font-normal">
+                      <CalendarIcon className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
+                      {format(pendingDate, 'd MMM yyyy')}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
@@ -358,7 +374,7 @@ export function PostMeta({
                 </Popover>
                 <Input
                   type="time"
-                  className="h-8 text-sm"
+                  className="h-8 px-2 text-[13px]"
                   value={format(pendingDate, 'HH:mm')}
                   onChange={(e) => {
                     const [hours, minutes] = e.target.value.split(':').map(Number)
@@ -367,347 +383,320 @@ export function PostMeta({
                     setPendingDate(next)
                   }}
                 />
-                <div className="flex gap-2 pt-1">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1 h-7 text-xs"
-                    onClick={handleCancelSchedule}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    variant="default"
-                    size="sm"
-                    className="flex-1 h-7 text-xs"
-                    onClick={handleConfirmSchedule}
-                  >
-                    Schedule
-                  </Button>
-                </div>
               </div>
-            )}
-          </>
-        ) : (
-          <div className="space-y-1.5">
-            <div className="w-full h-8 flex items-center justify-center rounded-md border text-sm">
-              <Badge
-                variant="outline"
-                className={cn('text-xs border-0', STATUS_COLORS[status] ?? STATUS_COLORS.publish)}
-              >
-                {STATUS_LABELS[status] ?? 'Published'}
-              </Badge>
-            </div>
-            {status === 'future' && scheduledDate && (
-              <p className="text-xs text-muted-foreground text-center">
-                {format(scheduledDate, 'PPP')} at {format(scheduledDate, 'p')}
-              </p>
-            )}
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full h-8 text-sm"
-              onClick={handleRevertToDraft}
-            >
-              Revert to draft
-            </Button>
-          </div>
-        )}
-      </div>
-
-      {/* Publish date (only when published with a date or scheduling) */}
-      {published && (
-        <div className="space-y-1.5">
-          <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            Publish Date
-          </Label>
-          {!dateExpanded && !scheduledDate ? (
-            <button
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-              onClick={() => {
-                setDateExpanded(true)
-                handleDateChange(new Date())
-              }}
-            >
-              Immediately
-              <span className="ml-1.5 text-xs text-primary hover:underline">(change)</span>
-            </button>
-          ) : (
-            <div className="space-y-2">
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      'h-8 w-full justify-start text-left text-sm font-normal',
-                      !scheduledDate && 'text-muted-foreground'
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {scheduledDate ? format(scheduledDate, 'PPP') : 'Pick a date'}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar mode="single" selected={scheduledDate} onSelect={handleDateChange} />
-                </PopoverContent>
-              </Popover>
-              {scheduledDate && (
-                <Input
-                  type="time"
-                  className="h-8 text-sm"
-                  value={format(scheduledDate, 'HH:mm')}
-                  onChange={(e) => {
-                    const [hours, minutes] = e.target.value.split(':').map(Number)
-                    const next = new Date(scheduledDate)
-                    next.setHours(hours, minutes)
-                    handleDateChange(next)
-                  }}
-                />
-              )}
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full h-8 text-sm"
-                onClick={() => {
-                  // Same fallback trap as publish-immediately: undefined would
-                  // silently keep the stored date, so set "now" explicitly.
-                  handleDateChange(new Date())
-                }}
-              >
-                Reset to now
-              </Button>
+              <div className="flex gap-2">
+                <Button variant="ghost" size="sm" className="flex-1 h-7 text-xs" onClick={handleCancelSchedule}>
+                  Cancel
+                </Button>
+                <Button size="sm" className="flex-1 h-7 text-xs" onClick={handleConfirmSchedule}>
+                  Schedule
+                </Button>
+              </div>
             </div>
           )}
-        </div>
-      )}
+        </section>
 
-      {/* Visibility */}
-      <div className="space-y-1.5">
-        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-          Visibility
-        </Label>
-        <Popover open={visibilityOpen} onOpenChange={setVisibilityOpen}>
-          <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              className="h-8 w-full justify-start text-left text-sm font-normal"
-            >
-              {(() => {
-                const opt = VISIBILITY_OPTIONS.find((v) => v.value === visibility)!
-                const Icon = opt.icon
-                return (
-                  <>
-                    <Icon className="mr-2 h-3.5 w-3.5" />
-                    {opt.label}
-                  </>
-                )
-              })()}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent align="start" className="w-52 p-1">
-            {VISIBILITY_OPTIONS.map((opt) => {
-              const Icon = opt.icon
-              return (
+        {/* Details: short properties, label on the left */}
+        <section className="space-y-1 px-4 py-3">
+          {published && (
+            <PropertyRow label="Date">
+              {!dateExpanded && !scheduledDate ? (
                 <button
-                  key={opt.value}
-                  className={cn(
-                    'flex items-center gap-2 w-full text-left text-sm px-2 py-1.5 rounded hover:bg-accent hover:text-accent-foreground',
-                    visibility === opt.value && 'bg-accent'
-                  )}
-                  onClick={() => handleVisibilityChange(opt.value)}
+                  className={QUIET_BUTTON}
+                  onClick={() => {
+                    setDateExpanded(true)
+                    handleDateChange(new Date())
+                  }}
                 >
-                  <Icon className="h-3.5 w-3.5" />
-                  {opt.label}
+                  <span className="flex-1 truncate text-left">Immediately</span>
+                  <span className="text-xs text-primary">Change</span>
                 </button>
-              )
-            })}
-          </PopoverContent>
-        </Popover>
-      </div>
+              ) : (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button className={cn(QUIET_BUTTON, !scheduledDate && 'text-muted-foreground')}>
+                      <span className="flex-1 truncate text-left">
+                        {scheduledDate ? format(scheduledDate, 'd MMM yyyy, p') : 'Pick a date'}
+                      </span>
+                      <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="end">
+                    <Calendar mode="single" selected={scheduledDate} onSelect={handleDateChange} />
+                    <div className="flex items-center gap-2 border-t p-2">
+                      {scheduledDate && (
+                        <Input
+                          type="time"
+                          className="h-8 w-[100px] px-2 text-[13px]"
+                          value={format(scheduledDate, 'HH:mm')}
+                          onChange={(e) => {
+                            const [hours, minutes] = e.target.value.split(':').map(Number)
+                            const next = new Date(scheduledDate)
+                            next.setHours(hours, minutes)
+                            handleDateChange(next)
+                          }}
+                        />
+                      )}
+                      <div className="flex-1" />
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 text-xs"
+                        onClick={() => {
+                          // Same fallback trap as publish-immediately: undefined would
+                          // silently keep the stored date, so set "now" explicitly.
+                          handleDateChange(new Date())
+                        }}
+                      >
+                        Reset to now
+                      </Button>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              )}
+            </PropertyRow>
+          )}
 
-      {/* Slug */}
-      <div className="space-y-1.5">
-        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-          Slug
-        </Label>
-        <Input
-          value={slug}
-          onChange={(e) => onSlugChange(e.target.value)}
-          placeholder="post-url-slug"
-          className="h-8 text-sm font-mono"
-        />
-      </div>
+          <PropertyRow label="Visibility">
+            <Popover open={visibilityOpen} onOpenChange={setVisibilityOpen}>
+              <PopoverTrigger asChild>
+                <button className={QUIET_BUTTON}>
+                  <VisibilityIcon className="size-3.5 shrink-0 text-muted-foreground" />
+                  <span className="flex-1 truncate text-left">{visibilityOpt.label}</span>
+                  <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-52 p-1">
+                {VISIBILITY_OPTIONS.map((opt) => {
+                  const Icon = opt.icon
+                  return (
+                    <button
+                      key={opt.value}
+                      className={cn(
+                        'flex items-center gap-2 w-full text-left text-sm px-2 py-1.5 rounded hover:bg-accent hover:text-accent-foreground',
+                        visibility === opt.value && 'bg-accent'
+                      )}
+                      onClick={() => handleVisibilityChange(opt.value)}
+                    >
+                      <Icon className="h-3.5 w-3.5" />
+                      <span className="flex-1">{opt.label}</span>
+                      {visibility === opt.value && <Check className="h-3.5 w-3.5 text-primary" />}
+                    </button>
+                  )
+                })}
+              </PopoverContent>
+            </Popover>
+          </PropertyRow>
 
-      {/* Excerpt */}
-      <div className="space-y-1.5">
-        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-          Excerpt
-        </Label>
-        <Textarea
-          value={excerpt}
-          onChange={(e) => onExcerptChange(e.target.value)}
-          placeholder="Brief description..."
-          rows={3}
-          className="text-sm resize-none"
-        />
-      </div>
+          <PropertyRow label="Slug">
+            <Input
+              value={slug}
+              onChange={(e) => onSlugChange(e.target.value)}
+              placeholder="from-the-title"
+              spellCheck={false}
+              className={cn(QUIET_FIELD, 'h-8 px-2 font-mono text-[12px]')}
+            />
+          </PropertyRow>
+        </section>
 
-      {/* Featured Image */}
-      <div className="space-y-1.5">
-        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-          Featured Image
-        </Label>
-        {featuredMedia ? (
-          <div className="space-y-2">
-            <div className="relative rounded-md overflow-hidden border">
+        {/* Excerpt: it's writing, so it's set in the writing face */}
+        <InspectorSection title="Excerpt">
+          <Textarea
+            value={excerpt}
+            onChange={(e) => onExcerptChange(e.target.value)}
+            placeholder="A line or two for search results and link previews"
+            rows={3}
+            className={cn(
+              QUIET_FIELD,
+              'min-h-[72px] max-h-64 resize-none px-2.5 py-2 font-editor text-[14px] leading-relaxed field-sizing-content'
+            )}
+          />
+        </InspectorSection>
+
+        {/* Featured image */}
+        <InspectorSection title="Featured image">
+          {featuredMedia ? (
+            <div className="group relative overflow-hidden rounded-lg border bg-muted">
               <img
                 src={`media://file${encodeURI(featuredMedia.local_path)}`}
                 alt="Featured"
-                className="w-full h-auto max-h-40 object-cover"
+                className="aspect-[16/10] w-full object-cover"
               />
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 text-xs text-muted-foreground hover:text-destructive w-full"
-              onClick={() => onFeaturedImageChange(null)}
-            >
-              <X className="h-3 w-3 mr-1" />
-              Remove featured image
-            </Button>
-          </div>
-        ) : (
-          <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                className="h-8 w-full justify-start text-left text-sm font-normal text-muted-foreground"
+              <button
+                className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-md bg-background/90 px-2 py-1 text-xs font-medium text-foreground opacity-0 shadow-sm backdrop-blur transition-opacity hover:text-destructive group-hover:opacity-100 focus-visible:opacity-100"
+                onClick={() => onFeaturedImageChange(null)}
+                title="Remove featured image"
               >
-                <ImageIcon className="mr-2 h-4 w-4" />
-                Set featured image
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align="start" className="w-72 p-0">
-              <div className="p-3 border-b">
-                <span className="text-sm font-medium">Choose featured image</span>
-              </div>
-              {/* Upload from disk */}
-              <div className="p-3 border-b">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleFileSelect}
-                />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full h-8 text-sm"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploading}
-                >
-                  {uploading ? (
-                    <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                  ) : (
-                    <Upload className="h-3.5 w-3.5 mr-1.5" />
-                  )}
-                  Upload from disk
-                </Button>
-              </div>
-              {/* Pick from post media */}
-              {mediaItems.length > 0 && (
-                <div className="border-b">
-                  <div className="px-3 pt-2 pb-1 text-xs font-medium text-muted-foreground">
-                    In this post
-                  </div>
-                  <ScrollArea className="max-h-36">
-                    <div className="p-2 pt-0 space-y-1">
-                      {mediaItems.map((media) => (
-                        <button
-                          key={media.id}
-                          className="flex items-center gap-2 w-full p-2 rounded-md text-sm hover:bg-muted/50 transition-colors"
-                          onClick={() => handlePickFromLibrary(media.id)}
-                        >
-                          <img
-                            src={`media://file${encodeURI(media.local_path)}`}
-                            alt={media.filename}
-                            className="h-8 w-8 rounded object-cover shrink-0"
-                          />
-                          <span className="truncate flex-1 text-left">{media.filename}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </ScrollArea>
+                <X className="h-3 w-3" />
+                Remove
+              </button>
+            </div>
+          ) : (
+            <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+              <PopoverTrigger asChild>
+                <button className="flex h-24 w-full flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-foreground/15 bg-foreground/[0.02] text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/[0.04] hover:text-foreground">
+                  <ImageIcon className="size-5" />
+                  <span className="text-xs font-medium">Add a featured image</span>
+                </button>
+              </PopoverTrigger>
+              <PopoverContent align="start" className="w-72 p-0">
+                <div className="p-3 border-b">
+                  <span className="text-sm font-medium">Choose featured image</span>
                 </div>
-              )}
-              {/* Pick from the site's media library */}
-              <div>
-                <div className="px-3 pt-2 pb-1 text-xs font-medium text-muted-foreground">
-                  Media library
+                {/* Upload from disk */}
+                <div className="p-3 border-b">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleFileSelect}
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full h-8 text-sm"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading}
+                  >
+                    {uploading ? (
+                      <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                    ) : (
+                      <Upload className="h-3.5 w-3.5 mr-1.5" />
+                    )}
+                    Upload from disk
+                  </Button>
                 </div>
-                {libraryLoading ? (
-                  <div className="p-3 pt-1 flex justify-center">
-                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                  </div>
-                ) : libraryItems.length === 0 ? (
-                  <div className="p-3 pt-1 text-xs text-muted-foreground text-center">
-                    No images in the media library yet
-                  </div>
-                ) : (
-                  <ScrollArea className="max-h-48">
-                    <div className="grid grid-cols-4 gap-1.5 p-2 pt-0">
-                      {libraryItems.map((item) => (
-                        <button
-                          key={item.id}
-                          className="relative aspect-square rounded-md overflow-hidden border hover:ring-2 hover:ring-primary/50 transition-shadow disabled:opacity-50"
-                          onClick={() => handlePickFromMediaLibrary(item)}
-                          disabled={pickingLibraryId !== null}
-                          title={item.title || item.filename}
-                        >
-                          <img
-                            src={`media://file${encodeURI(item.thumbnail_path)}`}
-                            alt={item.alt_text || item.filename}
-                            className="h-full w-full object-cover"
-                            loading="lazy"
-                          />
-                          {pickingLibraryId === item.id && (
-                            <div className="absolute inset-0 bg-background/60 flex items-center justify-center">
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            </div>
-                          )}
-                        </button>
-                      ))}
+                {/* Pick from post media */}
+                {mediaItems.length > 0 && (
+                  <div className="border-b">
+                    <div className="px-3 pt-2 pb-1 text-xs font-medium text-muted-foreground">
+                      In this post
                     </div>
-                  </ScrollArea>
+                    <ScrollArea className="max-h-36">
+                      <div className="p-2 pt-0 space-y-1">
+                        {mediaItems.map((media) => (
+                          <button
+                            key={media.id}
+                            className="flex items-center gap-2 w-full p-2 rounded-md text-sm hover:bg-muted/50 transition-colors"
+                            onClick={() => handlePickFromLibrary(media.id)}
+                          >
+                            <img
+                              src={`media://file${encodeURI(media.local_path)}`}
+                              alt={media.filename}
+                              className="h-8 w-8 rounded object-cover shrink-0"
+                            />
+                            <span className="truncate flex-1 text-left">{media.filename}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  </div>
                 )}
-              </div>
-            </PopoverContent>
-          </Popover>
-        )}
+                {/* Pick from the site's media library */}
+                <div>
+                  <div className="px-3 pt-2 pb-1 text-xs font-medium text-muted-foreground">
+                    Media library
+                  </div>
+                  {libraryLoading ? (
+                    <div className="p-3 pt-1 flex justify-center">
+                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : libraryItems.length === 0 ? (
+                    <div className="p-3 pt-1 text-xs text-muted-foreground text-center">
+                      No images in the media library yet
+                    </div>
+                  ) : (
+                    <ScrollArea className="max-h-48">
+                      <div className="grid grid-cols-4 gap-1.5 p-2 pt-0">
+                        {libraryItems.map((item) => (
+                          <button
+                            key={item.id}
+                            className="relative aspect-square rounded-md overflow-hidden border hover:ring-2 hover:ring-primary/50 transition-shadow disabled:opacity-50"
+                            onClick={() => handlePickFromMediaLibrary(item)}
+                            disabled={pickingLibraryId !== null}
+                            title={item.title || item.filename}
+                          >
+                            <img
+                              src={`media://file${encodeURI(item.thumbnail_path)}`}
+                              alt={item.alt_text || item.filename}
+                              className="h-full w-full object-cover"
+                              loading="lazy"
+                            />
+                            {pickingLibraryId === item.id && (
+                              <div className="absolute inset-0 bg-background/60 flex items-center justify-center">
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              </div>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  )}
+                </div>
+              </PopoverContent>
+            </Popover>
+          )}
+        </InspectorSection>
+
+        <CategoriesSection
+          terms={categoryTerms}
+          selected={categories}
+          onChange={onCategoriesChange}
+          siteId={siteId}
+          onTermCreated={handleTermCreated}
+        />
+
+        <TagsSection
+          terms={tagTerms}
+          selected={tags}
+          onChange={onTagsChange}
+          tagInput={tagInput}
+          onTagInputChange={setTagInput}
+          siteId={siteId}
+          onTermCreated={handleTermCreated}
+        />
       </div>
-
-      {/* Categories */}
-      <CategoriesSection
-        terms={categoryTerms}
-        selected={categories}
-        onChange={onCategoriesChange}
-        siteId={siteId}
-        onTermCreated={handleTermCreated}
-      />
-
-      {/* Tags */}
-      <TagsSection
-        terms={tagTerms}
-        selected={tags}
-        onChange={onTagsChange}
-        tagInput={tagInput}
-        onTagInputChange={setTagInput}
-        siteId={siteId}
-        onTermCreated={handleTermCreated}
-      />
-    </div>
     </ScrollArea>
+  )
+}
+
+// ── Layout pieces ─────────────────────────────────────────────────────────
+
+/** Fields that look like text until you point at them */
+const QUIET_FIELD =
+  'border-transparent bg-foreground/[0.035] shadow-none hover:bg-foreground/[0.06] focus-visible:bg-background focus-visible:border-input focus-visible:ring-offset-0'
+
+/** A value you click to change, set like the text around it */
+const QUIET_BUTTON =
+  'flex h-8 w-full items-center gap-2 rounded-md px-2 text-[13px] transition-colors hover:bg-foreground/[0.06] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-foreground/[0.06]'
+
+function InspectorSection({
+  title,
+  action,
+  children
+}: {
+  title: string
+  action?: ReactNode
+  children: ReactNode
+}): JSX.Element {
+  return (
+    <section className="space-y-2.5 px-4 py-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-xs font-semibold text-foreground/80">{title}</h3>
+        {action}
+      </div>
+      {children}
+    </section>
+  )
+}
+
+function PropertyRow({ label, children }: { label: string; children: ReactNode }): JSX.Element {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="w-[68px] shrink-0 text-[13px] text-muted-foreground">{label}</span>
+      <div className="min-w-0 flex-1">{children}</div>
+    </div>
   )
 }
 
@@ -780,8 +769,8 @@ function CategoriesSection({
   const renderTerm = (term: TaxonomyTerm, depth: number): JSX.Element => (
     <div key={term.id}>
       <label
-        className="flex items-center gap-2 py-0.5 cursor-pointer hover:bg-muted/50 rounded px-1"
-        style={{ paddingLeft: `${depth * 16 + 4}px` }}
+        className="flex items-center gap-2.5 rounded-md py-1 pr-2 cursor-pointer hover:bg-foreground/[0.05]"
+        style={{ paddingLeft: `${depth * 18 + 8}px` }}
       >
         <Checkbox
           checked={selected.includes(term.id)}
@@ -789,7 +778,11 @@ function CategoriesSection({
           className="h-3.5 w-3.5"
         />
         <span
-          className={cn('text-sm truncate', term.id < 0 && 'italic text-muted-foreground')}
+          className={cn(
+            'text-[13px] truncate',
+            selected.includes(term.id) ? 'text-foreground' : 'text-foreground/75',
+            term.id < 0 && 'italic text-muted-foreground'
+          )}
           title={term.id < 0 ? 'Will be created on next sync' : undefined}
         >
           {term.name}
@@ -800,16 +793,28 @@ function CategoriesSection({
   )
 
   return (
-    <div className="space-y-1.5">
-      <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-        Categories
-      </Label>
-      {terms.length > 0 && (
-        <div className="max-h-48 overflow-y-auto border rounded-md p-1">
+    <InspectorSection
+      title={selected.length > 0 ? `Categories · ${selected.length}` : 'Categories'}
+      action={
+        !adding && (
+          <button
+            className="-my-1 -mr-1 flex items-center gap-1 rounded px-1 py-0.5 text-xs text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground transition-colors"
+            onClick={() => setAdding(true)}
+          >
+            <Plus className="h-3 w-3" />
+            New
+          </button>
+        )
+      }
+    >
+      {terms.length > 0 ? (
+        <div className="-mx-2 max-h-56 overflow-y-auto">
           {roots.map((t) => renderTerm(t, 0))}
         </div>
+      ) : (
+        !adding && <p className="text-xs text-muted-foreground">No categories yet.</p>
       )}
-      {adding ? (
+      {adding && (
         <div className="flex gap-1">
           <Input
             autoFocus
@@ -825,22 +830,14 @@ function CategoriesSection({
               }
             }}
             placeholder="New category name"
-            className="h-8 text-sm"
+            className="h-8 text-[13px] focus-visible:ring-offset-0"
           />
-          <Button size="sm" className="h-8 px-2 text-xs" onClick={() => void createCategory()}>
+          <Button size="sm" className="h-8 px-2.5 text-xs" onClick={() => void createCategory()}>
             Add
           </Button>
         </div>
-      ) : (
-        <button
-          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-          onClick={() => setAdding(true)}
-        >
-          <Plus className="h-3.5 w-3.5" />
-          Add category
-        </button>
       )}
-    </div>
+    </InspectorSection>
   )
 }
 
@@ -935,10 +932,7 @@ function TagsSection({
   )
 
   return (
-    <div className="space-y-1.5">
-      <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-        Tags
-      </Label>
+    <InspectorSection title="Tags">
       {selected.length > 0 && (
         <div className="flex flex-wrap gap-1">
           {selected.map((id) => {
@@ -950,15 +944,16 @@ function TagsSection({
                 key={id}
                 variant="secondary"
                 className={cn(
-                  'text-xs pl-2 pr-1 py-0 h-6 gap-1',
+                  'h-6 gap-1 rounded-full border-transparent bg-foreground/[0.07] py-0 pl-2.5 pr-1 text-xs font-medium text-foreground',
                   pending && 'border border-dashed border-muted-foreground/50 bg-transparent italic'
                 )}
                 title={pending ? 'Will be created on next sync' : undefined}
               >
                 {term.name}
                 <button
-                  className="ml-0.5 hover:text-destructive"
+                  className="rounded-full p-0.5 text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
                   onClick={() => removeTag(id)}
+                  title={`Remove ${term.name}`}
                 >
                   <X className="h-3 w-3" />
                 </button>
@@ -977,8 +972,8 @@ function TagsSection({
           onFocus={() => setShowDropdown(true)}
           onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
           onKeyDown={handleKeyDown}
-          placeholder="Search or add tags..."
-          className="h-8 text-sm"
+          placeholder="Add a tag…"
+          className={cn(QUIET_FIELD, 'h-8 px-2.5 text-[13px]')}
         />
         {showDropdown && (filtered.length > 0 || (tagInput.trim() && !hasExactMatch)) && (
           <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-md">
@@ -1005,6 +1000,6 @@ function TagsSection({
           </div>
         )}
       </div>
-    </div>
+    </InspectorSection>
   )
 }

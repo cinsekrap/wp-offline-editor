@@ -3,13 +3,28 @@
 @import 'tw-animate-css';
 
 @custom-variant dark (&:is(.dark *));
+/* Main window on macOS: the sidebar shows the native translucent material */
+@custom-variant vibrant (&:is(.vibrant *));
 
-@theme {
+/*
+ * NP Presspad 2.0 "Manuscript" design tokens.
+ *
+ * Every colour in the renderer comes from here: component code uses the
+ * semantic names (bg-canvas, text-success, text-status-draft …) and never a
+ * raw Tailwind palette colour, so light and dark can't drift apart.
+ *
+ * Values are bare HSL triplets so `hsl(var(--x) / alpha)` works everywhere.
+ * `--primary` is the site tint: the accent for primary buttons, focus rings,
+ * links and selection.
+ */
+@theme inline {
   --color-border: hsl(var(--border));
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
+  --color-canvas: hsl(var(--canvas));
+  --color-sidebar: hsl(var(--sidebar));
 
   --color-primary: hsl(var(--primary));
   --color-primary-foreground: hsl(var(--primary-foreground));
@@ -19,6 +34,7 @@
 
   --color-destructive: hsl(var(--destructive));
   --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-destructive-soft: hsl(var(--destructive-soft));
 
   --color-muted: hsl(var(--muted));
   --color-muted-foreground: hsl(var(--muted-foreground));
@@ -32,9 +48,31 @@
   --color-card: hsl(var(--card));
   --color-card-foreground: hsl(var(--card-foreground));
 
+  /* Semantic feedback */
+  --color-success: hsl(var(--success));
+  --color-success-soft: hsl(var(--success-soft));
+  --color-warning: hsl(var(--warning));
+  --color-warning-soft: hsl(var(--warning-soft));
+  --color-highlight: hsl(var(--highlight));
+
+  /* Post status — one hue each, paired with a distinct shape in StatusMark */
+  --color-status-draft: hsl(var(--status-draft));
+  --color-status-pending: hsl(var(--status-pending));
+  --color-status-scheduled: hsl(var(--status-scheduled));
+  --color-status-published: hsl(var(--status-published));
+  --color-status-private: hsl(var(--status-private));
+  --color-status-trash: hsl(var(--status-trash));
+
+  /* Type: the system face for the app, a book face for the writing */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, 'Helvetica Neue',
+    sans-serif;
+  --font-serif: ui-serif, 'New York', 'Iowan Old Style', Charter, Georgia, serif;
+  --font-editor: var(--editor-font-family);
+
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
+  --radius-xl: calc(var(--radius) + 4px);
 
   --animate-accordion-down: accordion-down 0.2s ease-out;
   --animate-accordion-up: accordion-up 0.2s ease-out;
@@ -62,66 +100,109 @@
     /* Native chrome (scrollbars, form controls, pickers) follows this, not
        the CSS variables — without it dark mode gets light scrollbars. */
     color-scheme: light;
+
+    /* Cool paper */
     --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --foreground: 222 16.1% 12.2%;
+    --canvas: 220 20% 97.1%;
+    --sidebar: 220 18.7% 93.7%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 222 16.1% 12.2%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: 222 16.1% 12.2%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    /* Site tint — set per site by lib/site-colors.ts, indigo by default */
+    --primary: var(--tint-light, 234.3 61.7% 52.9%);
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 216 17.2% 94.3%;
+    --secondary-foreground: 222 16.1% 12.2%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 225 18.2% 95.7%;
+    --muted-foreground: 220.9 9.7% 44.3%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 220 21.4% 94.5%;
+    --accent-foreground: 222 16.1% 12.2%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 3.2 62% 52.5%;
+    --destructive-foreground: 0 0% 100%;
+    --destructive-soft: 6.3 70.4% 94.7%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --success: 147.7 51.4% 34.7%;
+    --success-soft: 145.7 36.8% 92.5%;
+    --warning: 36.2 82.5% 33.5%;
+    --warning-soft: 39.3 78.4% 92.7%;
+    --highlight: 46.7 91.8% 80.8%;
 
-    --radius: 0.5rem;
+    --status-draft: 220.9 9% 52.2%;
+    --status-pending: 35.5 71% 42%;
+    --status-scheduled: 201.9 85.6% 38.2%;
+    --status-published: 147.5 50.5% 37.3%;
+    --status-private: 220 8.9% 46.1%;
+    --status-trash: 3.2 62% 52.5%;
+
+    --border: 217.5 16.7% 90.6%;
+    --input: 216 15.2% 87.1%;
+    --ring: var(--tint-light, 234.3 61.7% 52.9%);
+
+    --radius: 0.625rem;
+
+    --editor-font-family: var(--font-serif);
+  }
+
+  :root[data-editor-font='sans'] {
+    --editor-font-family: var(--font-sans);
   }
 
   .dark {
     color-scheme: dark;
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
 
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
+    /* Warm graphite, not navy */
+    --background: 220 14.3% 12.4%;
+    --foreground: 220 15% 92.2%;
+    --canvas: 222.9 14.3% 9.6%;
+    --sidebar: 222.9 13.2% 10.4%;
 
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
+    --card: 222 13.9% 14.1%;
+    --card-foreground: 220 15% 92.2%;
 
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    --popover: 222 12.5% 15.7%;
+    --popover-foreground: 220 15% 92.2%;
 
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
+    --primary: var(--tint-dark, 233.1 100% 77.8%);
+    --primary-foreground: 222 25% 10%;
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --secondary: 218.2 12.6% 17.1%;
+    --secondary-foreground: 220 15% 92.2%;
 
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    --muted: 222 12.5% 15.7%;
+    --muted-foreground: 217.9 10.4% 64.1%;
 
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    --accent: 220 12.5% 18.8%;
+    --accent-foreground: 220 15% 92.2%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    --destructive: 1.7 64.5% 58%;
+    --destructive-foreground: 0 0% 100%;
+    --destructive-soft: 2.1 31.8% 17.3%;
+
+    --success: 147.6 44.2% 55.7%;
+    --success-soft: 146.7 24.3% 14.5%;
+    --warning: 37.6 70.8% 58.4%;
+    --warning-soft: 39.4 43.2% 15.9%;
+    --highlight: 45.8 64.3% 22%;
+
+    --status-draft: 220.9 10.4% 58.4%;
+    --status-pending: 37.6 70.8% 58.4%;
+    --status-scheduled: 201.4 73.7% 62.7%;
+    --status-published: 147.6 44.2% 55.7%;
+    --status-private: 217.9 10.6% 64.9%;
+    --status-trash: 2.6 72.8% 62.5%;
+
+    --border: 220 12.2% 19.2%;
+    --input: 220 12.4% 23.7%;
+    --ring: var(--tint-dark, 233.1 100% 77.8%);
   }
 }
 
@@ -144,8 +225,7 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell,
-      'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+    @apply font-sans;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -155,7 +235,8 @@
   -webkit-app-region: drag;
 }
 
-.no-drag {
+.no-drag,
+.drag-region :is(button, input, textarea, select, a, [role='button'], [role='combobox']) {
   -webkit-app-region: no-drag;
 }
 
@@ -184,4 +265,20 @@
 
 .release-notes a {
   @apply underline underline-offset-2;
+}
+
+/* Search-result highlighting (FTS snippets render <mark>) */
+.search-marks mark {
+  @apply rounded-[2px] bg-highlight text-foreground;
+}
+
+/* Selection follows the site tint */
+::selection {
+  background: hsl(var(--primary) / 0.22);
+}
+
+/* With vibrancy the window itself is clear; panes paint their own backgrounds */
+html.vibrant,
+html.vibrant body {
+  background: transparent;
 }

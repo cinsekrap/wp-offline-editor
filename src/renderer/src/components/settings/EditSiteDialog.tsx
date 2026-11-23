@@ -10,11 +10,12 @@ import {
 import { Button } from '@renderer/components/ui/button'
 import { Input } from '@renderer/components/ui/input'
 import { Label } from '@renderer/components/ui/label'
+import { SITE_COLORS, siteColor, siteSwatch } from '@renderer/lib/site-colors'
 import { Switch } from '@renderer/components/ui/switch'
 import { Checkbox } from '@renderer/components/ui/checkbox'
-import { Loader2, XCircle } from 'lucide-react'
+import { Check, Loader2, XCircle } from 'lucide-react'
 import type { Site, SiteUpdate } from '@shared/types'
-import { ipcErrorMessage } from '@renderer/lib/utils'
+import { cn, ipcErrorMessage } from '@renderer/lib/utils'
 
 interface EditSiteDialogProps {
   site: Site | null
@@ -34,6 +35,7 @@ export function EditSiteDialog({
   const [pullPublished, setPullPublished] = useState(50)
   const [mediaLibraryLimit, setMediaLibraryLimit] = useState(100)
   const [allowPlaintext, setAllowPlaintext] = useState(false)
+  const [colorKey, setColorKey] = useState<string>('indigo')
   const [password, setPassword] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -45,6 +47,7 @@ export function EditSiteDialog({
       setPullPublished(site.pull_published)
       setMediaLibraryLimit(site.media_library_limit)
       setAllowPlaintext(site.allow_plaintext)
+      setColorKey(siteColor(site).key)
       setPassword('')
       setError(null)
     }
@@ -61,7 +64,10 @@ export function EditSiteDialog({
         auto_sync: autoSync,
         pull_published: pullPublished,
         media_library_limit: mediaLibraryLimit,
-        allow_plaintext: allowPlaintext
+        allow_plaintext: allowPlaintext,
+        // Only store a colour once it differs from the derived one, so an
+        // untouched site keeps following the default
+        site_color: site.site_color || colorKey !== siteColor(site).key ? colorKey : null
       }
       if (password.trim()) {
         update.password = password
@@ -77,102 +83,147 @@ export function EditSiteDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[420px]">
+      <DialogContent className="sm:max-w-[640px] gap-5">
         <DialogHeader>
-          <DialogTitle>Edit Site</DialogTitle>
+          <DialogTitle>Edit site</DialogTitle>
           <DialogDescription>
             Update settings for {site?.label || 'this site'}.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
-          <div className="space-y-2">
-            <Label htmlFor="edit-label">Label</Label>
-            <Input
-              id="edit-label"
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-            />
+        <div className="space-y-5">
+          {/* Identity: what you call it and how it looks */}
+          <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+            <div className="space-y-2">
+              <Label htmlFor="edit-label">Label</Label>
+              <Input
+                id="edit-label"
+                value={label}
+                onChange={(e) => setLabel(e.target.value)}
+                className="h-9"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label id="edit-color-label">Colour</Label>
+              <div role="radiogroup" aria-labelledby="edit-color-label" className="flex h-9 items-center gap-1.5">
+                {SITE_COLORS.map((c) => {
+                  const swatch = siteSwatch(c)
+                  const selected = c.key === colorKey
+                  return (
+                    <button
+                      key={c.key}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      title={c.label}
+                      onClick={() => setColorKey(c.key)}
+                      style={swatch.style}
+                      className={cn(
+                        'size-6 shrink-0 rounded-full flex items-center justify-center transition-shadow',
+                        swatch.className,
+                        selected ? 'ring-2 ring-offset-2 ring-offset-background ring-foreground/40' : 'hover:ring-2 hover:ring-foreground/15'
+                      )}
+                    >
+                      {selected && <Check className="size-3" strokeWidth={3} />}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+            <p className="col-span-2 text-xs text-muted-foreground">
+              Buttons, links and highlights take this colour while you&rsquo;re working on this site.
+            </p>
           </div>
 
-          <div className="space-y-2">
-            <Label>URL</Label>
-            <p className="text-sm text-muted-foreground">{site?.url}</p>
+          {/* Connection */}
+          <div className="grid grid-cols-2 gap-x-6 border-t pt-5">
+            <div className="space-y-2 min-w-0">
+              <Label>Connected to</Label>
+              <div className="flex h-9 flex-col justify-center">
+                <p className="truncate text-sm">{site?.url}</p>
+                <p className="truncate text-xs text-muted-foreground">as {site?.username}</p>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-password">Application password</Label>
+              <Input
+                id="edit-password"
+                type="password"
+                placeholder="Leave empty to keep current"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="h-9"
+              />
+            </div>
           </div>
 
-          <div className="space-y-2">
-            <Label>Username</Label>
-            <p className="text-sm text-muted-foreground">{site?.username}</p>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="edit-password">Application Password</Label>
-            <Input
-              id="edit-password"
-              type="password"
-              placeholder="Leave empty to keep current"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </div>
-
-          <div className="flex items-center justify-between">
-            <div>
-              <Label htmlFor="edit-auto-sync">Auto-sync</Label>
+          {/* Sync */}
+          <div className="space-y-4 border-t pt-5">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <Label htmlFor="edit-auto-sync">Auto-sync</Label>
+                <p className="text-xs text-muted-foreground">
+                  Automatically sync changes when online
+                </p>
+              </div>
+              <Switch
+                id="edit-auto-sync"
+                checked={autoSync}
+                onCheckedChange={setAutoSync}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+              <div className="space-y-2">
+                <Label htmlFor="edit-pull-published">Published posts to pull</Label>
+                <Input
+                  id="edit-pull-published"
+                  type="number"
+                  min={1}
+                  max={500}
+                  value={pullPublished}
+                  onChange={(e) => setPullPublished(Number(e.target.value))}
+                  className="h-9"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-media-library-limit">Media library images to sync</Label>
+                <Input
+                  id="edit-media-library-limit"
+                  type="number"
+                  min={0}
+                  max={500}
+                  value={mediaLibraryLimit}
+                  onChange={(e) => setMediaLibraryLimit(Number(e.target.value))}
+                  className="h-9"
+                />
+              </div>
               <p className="text-xs text-muted-foreground">
-                Automatically sync changes when online
+                Newest first. Drafts and scheduled posts always come too.
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Thumbnails cached for offline browsing (0 to disable)
               </p>
             </div>
-            <Switch
-              id="edit-auto-sync"
-              checked={autoSync}
-              onCheckedChange={setAutoSync}
-            />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="edit-pull-published">Published posts to pull</Label>
-            <Input
-              id="edit-pull-published"
-              type="number"
-              min={1}
-              max={500}
-              value={pullPublished}
-              onChange={(e) => setPullPublished(Number(e.target.value))}
+          {/* Rarely needed, so last and quiet */}
+          <div className="flex items-start gap-2.5 border-t pt-5">
+            <Checkbox
+              id="edit-allow-plaintext"
+              checked={allowPlaintext}
+              onCheckedChange={(checked) => setAllowPlaintext(checked === true)}
+              className="mt-0.5"
             />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="edit-media-library-limit">Media library images to sync</Label>
-            <Input
-              id="edit-media-library-limit"
-              type="number"
-              min={0}
-              max={500}
-              value={mediaLibraryLimit}
-              onChange={(e) => setMediaLibraryLimit(Number(e.target.value))}
-            />
-            <p className="text-xs text-muted-foreground">
-              Thumbnails of recent images cached for offline browsing (0 to disable)
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="edit-allow-plaintext"
-                checked={allowPlaintext}
-                onCheckedChange={(checked) => setAllowPlaintext(checked === true)}
-              />
-              <Label htmlFor="edit-allow-plaintext" className="font-normal cursor-pointer">
+            <div className="space-y-1">
+              <Label htmlFor="edit-allow-plaintext" className="cursor-pointer">
                 Allow unencrypted connection
               </Label>
+              <p className="text-xs text-muted-foreground">
+                Only for sites on your own network (http:// with a .local or .test address). The
+                password and post content will cross the network unencrypted. Public sites always
+                require https://.
+              </p>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Only for sites on your own network (http:// with a .local or .test address). The
-              password and post content will cross the network unencrypted. Public sites always
-              require https://.
-            </p>
           </div>
 
           {error && (
@@ -189,7 +240,7 @@ export function EditSiteDialog({
           </Button>
           <Button onClick={handleSave} disabled={!label.trim() || saving}>
             {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Save Changes
+            Save changes
           </Button>
         </DialogFooter>
       </DialogContent>

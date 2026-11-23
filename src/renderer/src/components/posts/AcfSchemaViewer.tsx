@@ -103,13 +103,13 @@ function FieldNode({ field, depth }: { field: AcfField; depth: number }): JSX.El
 
   const typeColor =
     field.type === 'layout'
-      ? 'bg-indigo-100 text-indigo-700 border-indigo-200'
+      ? 'bg-primary/10 text-primary border-primary/20'
       : field.type === 'repeater'
-        ? 'bg-teal-100 text-teal-700 border-teal-200'
+        ? 'bg-primary/10 text-primary border-primary/20'
         : field.type === 'flexible_content'
-          ? 'bg-violet-100 text-violet-700 border-violet-200'
+          ? 'bg-primary/10 text-primary border-primary/20'
           : field.type === 'group'
-            ? 'bg-sky-100 text-sky-700 border-sky-200'
+            ? 'bg-primary/10 text-primary border-primary/20'
             : ''
 
   return (
@@ -137,7 +137,7 @@ function FieldNode({ field, depth }: { field: AcfField; depth: number }): JSX.El
         </Badge>
 
         {field.required && (
-          <span className="text-red-500 text-xs font-bold" title="Required">*</span>
+          <span className="text-destructive text-xs font-bold" title="Required">*</span>
         )}
 
         {field.label !== field.name && (

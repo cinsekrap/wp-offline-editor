@@ -17,6 +17,8 @@ export interface Site {
   site_icon_url: string | null
   /** Consent to plaintext HTTP for a LAN dev host; never permits a public host */
   allow_plaintext: boolean
+  /** Key into the site colour palette (renderer lib/site-colors); null = derived from the id */
+  site_color: string | null
   created_at: string
   updated_at: string
 }
@@ -43,6 +45,7 @@ export interface SiteUpdate {
   media_library_limit?: number
   wp_author_id?: number | null
   allow_plaintext?: boolean
+  site_color?: string | null
 }
 
 // ── Post ─────────────────────────────────────────────────────────────────
@@ -441,6 +444,8 @@ export interface ExportMetadata {
 export interface AppSettings {
   theme: 'light' | 'dark' | 'system'
   editorFontSize: number
+  /** Typeface for post and scratchpad text. UI chrome always uses the system sans. */
+  editorFontFamily: 'serif' | 'sans'
   forceOffline: boolean
   autoSyncInterval: number // minutes — 0 means disabled
   writingChartMode: 'daily' | 'weekly'
@@ -516,6 +521,8 @@ export interface ElectronAPI {
     buffer: ArrayBuffer
   ): Promise<Media>
   getMediaForPost(postLocalId: string): Promise<Media[]>
+  /** Post id → local path of its featured image, for every post on a site that has one */
+  getFeaturedImagePaths(siteId: string): Promise<Record<string, string>>
   getMediaQueue(siteId: string): Promise<Media[]>
   uploadMedia(mediaId: string): Promise<Media>
   deleteMedia(id: string): Promise<void>
@@ -600,6 +607,8 @@ export interface ElectronAPI {
   downloadUpdate(): Promise<void>
   installUpdate(): Promise<void>
   onCountsChanged(callback: () => void): () => void
+  /** File ▸ New Post (⌘N) */
+  onMenuNewPost(callback: () => void): () => void
   onUpdaterEvent(callback: (status: string, data?: Record<string, unknown>) => void): () => void
 
   // Scratchpad window

@@ -1,7 +1,6 @@
 import '@renderer/styles/globals.css'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Loader2, CheckCircle, AlertCircle } from 'lucide-react'
-import { Input } from '@renderer/components/ui/input'
 import { ScratchpadEditor } from './ScratchpadEditor'
 import { ScratchpadConflictBanner } from './ScratchpadConflictBanner'
 import type { Scratchpad, AppSettings } from '@shared/types'
@@ -19,7 +18,7 @@ function SaveIndicator({ status }: { status: SaveStatus }): JSX.Element | null {
       )
     case 'saved':
       return (
-        <span className="flex items-center gap-1 text-xs text-green-600">
+        <span className="flex items-center gap-1 text-xs text-muted-foreground">
           <CheckCircle className="h-3 w-3" />
           Saved
         </span>
@@ -53,6 +52,7 @@ export function ScratchpadWindow({ scratchpadId }: { scratchpadId: string }): JS
     let cleanup: (() => void) | undefined
     window.electronAPI.getSettings().then((settings: AppSettings) => {
       const root = document.documentElement
+      root.dataset.editorFont = settings.editorFontFamily ?? 'serif'
       function applyTheme(dark: boolean): void {
         if (dark) root.classList.add('dark')
         else root.classList.remove('dark')
@@ -184,12 +184,13 @@ export function ScratchpadWindow({ scratchpadId }: { scratchpadId: string }): JS
       {/* Drag region for hidden title bar */}
       <div className="h-10 shrink-0 drag-region" />
 
-      <div className="flex items-center gap-2 px-4 pb-2 shrink-0">
-        <Input
+      <div className="flex items-center gap-3 px-6 pb-3 shrink-0">
+        <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="Scratchpad title"
-          className="h-8 text-sm font-medium flex-1"
+          placeholder="Untitled"
+          aria-label="Scratchpad title"
+          className="flex-1 min-w-0 bg-transparent font-editor text-[22px] font-bold tracking-[-0.01em] outline-none placeholder:text-muted-foreground/50"
         />
         <SaveIndicator status={saveStatus} />
       </div>
@@ -200,7 +201,7 @@ export function ScratchpadWindow({ scratchpadId }: { scratchpadId: string }): JS
         </div>
       )}
 
-      <div className="flex-1 min-h-0 px-4 pb-4">
+      <div className="flex-1 min-h-0 px-2 pb-2">
         <ScratchpadEditor
           key={scratchpadId}
           content={content}

@@ -4,6 +4,7 @@ import { Button } from '@renderer/components/ui/button'
 import { Badge } from '@renderer/components/ui/badge'
 import { AcfSchemaViewer } from '@renderer/components/posts/AcfSchemaViewer'
 import type { Site } from '@shared/types'
+import { SiteAvatar } from '@renderer/components/layout/SiteAvatar'
 
 interface SiteListProps {
   sites: Site[]
@@ -13,52 +14,8 @@ interface SiteListProps {
   onSelect: (site: Site) => void
 }
 
-const AVATAR_COLORS = [
-  'bg-blue-500',
-  'bg-emerald-500',
-  'bg-violet-500',
-  'bg-amber-500',
-  'bg-rose-500',
-  'bg-cyan-500',
-  'bg-pink-500',
-  'bg-teal-500'
-]
-
-function hashCode(str: string): number {
-  let hash = 0
-  for (let i = 0; i < str.length; i++) {
-    hash = (hash << 5) - hash + str.charCodeAt(i)
-    hash |= 0
-  }
-  return Math.abs(hash)
-}
-
 function SiteFavicon({ site }: { site: Site }): JSX.Element {
-  const [error, setError] = useState(false)
-  const letter = (site.label || site.url)[0]?.toUpperCase() || '?'
-  const colorClass = AVATAR_COLORS[hashCode(site.id) % AVATAR_COLORS.length]
-
-  if (!site.site_icon_url || error) {
-    return (
-      <div
-        className={`h-10 w-10 rounded-lg ${colorClass} flex items-center justify-center text-white font-semibold text-lg shrink-0`}
-      >
-        {letter}
-      </div>
-    )
-  }
-
-  // Serve local icon file via media:// protocol
-  const iconSrc = `media://file${site.site_icon_url}`
-
-  return (
-    <img
-      src={iconSrc}
-      alt=""
-      className="h-10 w-10 rounded-lg object-contain shrink-0 bg-muted"
-      onError={() => setError(true)}
-    />
-  )
+  return <SiteAvatar site={site} className="size-10 rounded-lg text-lg" />
 }
 
 export function SiteList({ sites, onAdd, onEdit, onDelete, onSelect }: SiteListProps): JSX.Element {
@@ -90,7 +47,7 @@ export function SiteList({ sites, onAdd, onEdit, onDelete, onSelect }: SiteListP
           </Button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="flex flex-col gap-3">
           {sites.map((site) => (
             <SiteCard
               key={site.id}
@@ -125,45 +82,46 @@ function SiteCard({
         className="p-4 hover:bg-accent/30 transition-colors cursor-pointer group"
         onClick={() => onSelect(site)}
       >
-        <div className="flex items-start gap-3">
+        <div className="flex items-center gap-3">
           <SiteFavicon site={site} />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <span className="font-medium truncate">{site.label}</span>
               {site.auto_sync && (
-                <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                <Badge variant="secondary" className="shrink-0 whitespace-nowrap text-[10px] px-1.5 py-0">
                   Auto-sync
                 </Badge>
               )}
             </div>
             <p className="text-xs text-muted-foreground truncate mt-0.5">{site.url}</p>
           </div>
-        </div>
-        <div className="flex items-center justify-end gap-1 mt-3 opacity-0 group-hover:opacity-100 transition-opacity">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            onClick={(e) => {
-              e.stopPropagation()
-              onEdit(site)
-            }}
-            title="Edit site"
-          >
-            <Pencil className="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            onClick={(e) => {
-              e.stopPropagation()
-              onDelete(site)
-            }}
-            title="Delete site"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
+          {/* Shown on hover, in the header row so they don't hold open a blank strip */}
+          <div className="flex shrink-0 items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={(e) => {
+                e.stopPropagation()
+                onEdit(site)
+              }}
+              title="Edit site"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={(e) => {
+                e.stopPropagation()
+                onDelete(site)
+              }}
+              title="Delete site"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
         </div>
       </div>
 

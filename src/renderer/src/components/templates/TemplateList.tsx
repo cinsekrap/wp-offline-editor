@@ -21,26 +21,10 @@ export function TemplateList({ templates, loading, onNew, onSelect, onDelete, on
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-2">
-          {onBack && (
-            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={onBack} title="Back to posts">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          )}
-          <div>
-            <h1 className="text-xl font-semibold">Post Templates</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Create reusable templates for new posts
-            </p>
-          </div>
-        </div>
-        <Button onClick={onNew} size="sm">
-          <Plus className="h-4 w-4 mr-1" />
-          New template
-        </Button>
-      </div>
+    <div className="h-full overflow-y-auto"><div className="p-6 max-w-4xl mx-auto">
+      <p className="text-sm text-muted-foreground mb-5">
+        Reusable starting points for new posts: structure, categories, tags and custom fields.
+      </p>
 
       {templates.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">
@@ -76,6 +60,6 @@ export function TemplateList({ templates, loading, onNew, onSelect, onDelete, on
           ))}
         </div>
       )}
-    </div>
+    </div></div>
   )
 }

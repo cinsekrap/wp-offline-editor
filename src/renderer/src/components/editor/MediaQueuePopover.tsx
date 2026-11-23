@@ -64,7 +64,7 @@ export function MediaQueuePopover({
                 <ImageIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
                 <span className="truncate flex-1">{media.filename}</span>
                 {media.synced ? (
-                  <CheckCircle className="h-4 w-4 text-green-600 shrink-0" />
+                  <CheckCircle className="h-4 w-4 text-success shrink-0" />
                 ) : (
                   <Button
                     variant="ghost"

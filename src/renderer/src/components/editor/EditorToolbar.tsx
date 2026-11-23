@@ -3,19 +3,12 @@ import type { Editor } from '@tiptap/react'
 import {
   Bold,
   Italic,
-  Underline,
-  Heading1,
-  Heading2,
-  Heading3,
   List,
   ListOrdered,
-  Quote,
-  Code,
   Link,
   ImageIcon,
   Braces,
-  Undo2,
-  Redo2,
+  ChevronDown,
   Library,
   Upload,
   Table2,
@@ -42,6 +35,7 @@ export function EditorToolbar({ editor, siteId, onImageInsert, onLibraryImageIns
   const [imageMenuOpen, setImageMenuOpen] = useState(false)
   const [tableMenuOpen, setTableMenuOpen] = useState(false)
   const [linkDialogOpen, setLinkDialogOpen] = useState(false)
+  const [blockMenuOpen, setBlockMenuOpen] = useState(false)
 
   useEffect(() => {
     if (!shortcodesOpen || !siteId || shortcodesLoaded) return
@@ -68,68 +62,33 @@ export function EditorToolbar({ editor, siteId, onImageInsert, onLibraryImageIns
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
+  // Block style: one menu instead of six buttons
+  const BLOCK_STYLES = [
+    { label: 'Paragraph', active: editor.isActive('paragraph'), run: () => editor.chain().focus().setParagraph().run() },
+    { label: 'Heading 1', active: editor.isActive('heading', { level: 1 }), run: () => editor.chain().focus().toggleHeading({ level: 1 }).run(), cls: 'text-lg font-bold' },
+    { label: 'Heading 2', active: editor.isActive('heading', { level: 2 }), run: () => editor.chain().focus().toggleHeading({ level: 2 }).run(), cls: 'text-base font-semibold' },
+    { label: 'Heading 3', active: editor.isActive('heading', { level: 3 }), run: () => editor.chain().focus().toggleHeading({ level: 3 }).run(), cls: 'font-semibold' },
+    { label: 'Quote', active: editor.isActive('blockquote'), run: () => editor.chain().focus().toggleBlockquote().run(), cls: 'italic' },
+    { label: 'Code block', active: editor.isActive('codeBlock'), run: () => editor.chain().focus().toggleCodeBlock().run(), cls: 'font-mono text-xs' }
+  ]
+  // Quote wraps paragraphs, so prefer it over "Paragraph" when both match
+  const currentStyle =
+    BLOCK_STYLES.slice(1).find((b) => b.active)?.label ?? 'Paragraph'
+
   const items = [
+    { type: 'block-menu' as const },
+    { type: 'separator' as const },
     {
       icon: Bold,
-      label: 'Bold',
+      label: 'Bold (⌘B)',
       action: () => editor.chain().focus().toggleBold().run(),
       active: editor.isActive('bold')
     },
     {
       icon: Italic,
-      label: 'Italic',
+      label: 'Italic (⌘I)',
       action: () => editor.chain().focus().toggleItalic().run(),
       active: editor.isActive('italic')
-    },
-    {
-      icon: Underline,
-      label: 'Underline',
-      action: () => editor.chain().focus().toggleUnderline().run(),
-      active: editor.isActive('underline')
-    },
-    { type: 'separator' as const },
-    {
-      icon: Heading1,
-      label: 'Heading 1',
-      action: () => editor.chain().focus().toggleHeading({ level: 1 }).run(),
-      active: editor.isActive('heading', { level: 1 })
-    },
-    {
-      icon: Heading2,
-      label: 'Heading 2',
-      action: () => editor.chain().focus().toggleHeading({ level: 2 }).run(),
-      active: editor.isActive('heading', { level: 2 })
-    },
-    {
-      icon: Heading3,
-      label: 'Heading 3',
-      action: () => editor.chain().focus().toggleHeading({ level: 3 }).run(),
-      active: editor.isActive('heading', { level: 3 })
-    },
-    { type: 'separator' as const },
-    {
-      icon: List,
-      label: 'Bullet List',
-      action: () => editor.chain().focus().toggleBulletList().run(),
-      active: editor.isActive('bulletList')
-    },
-    {
-      icon: ListOrdered,
-      label: 'Ordered List',
-      action: () => editor.chain().focus().toggleOrderedList().run(),
-      active: editor.isActive('orderedList')
-    },
-    {
-      icon: Quote,
-      label: 'Blockquote',
-      action: () => editor.chain().focus().toggleBlockquote().run(),
-      active: editor.isActive('blockquote')
-    },
-    {
-      icon: Code,
-      label: 'Code',
-      action: () => editor.chain().focus().toggleCodeBlock().run(),
-      active: editor.isActive('codeBlock')
     },
     {
       icon: Link,
@@ -137,6 +96,20 @@ export function EditorToolbar({ editor, siteId, onImageInsert, onLibraryImageIns
       action: () => setLinkDialogOpen(true),
       active: editor.isActive('link')
     },
+    { type: 'separator' as const },
+    {
+      icon: List,
+      label: 'Bullet list',
+      action: () => editor.chain().focus().toggleBulletList().run(),
+      active: editor.isActive('bulletList')
+    },
+    {
+      icon: ListOrdered,
+      label: 'Numbered list',
+      action: () => editor.chain().focus().toggleOrderedList().run(),
+      active: editor.isActive('orderedList')
+    },
+    { type: 'separator' as const },
     ...(siteId && onLibraryImageInsert
       ? [{ type: 'image-menu' as const }]
       : [{
@@ -145,28 +118,49 @@ export function EditorToolbar({ editor, siteId, onImageInsert, onLibraryImageIns
           action: handleImageClick,
           active: false
         }]),
-    ...(siteId ? [{ type: 'shortcode-button' as const }] : []),
     { type: 'table-button' as const },
-    { type: 'separator' as const },
-    {
-      icon: Undo2,
-      label: 'Undo',
-      action: () => editor.chain().focus().undo().run(),
-      active: false
-    },
-    {
-      icon: Redo2,
-      label: 'Redo',
-      action: () => editor.chain().focus().redo().run(),
-      active: false
-    },
+    ...(siteId ? [{ type: 'shortcode-button' as const }] : [])
   ]
 
   return (
-    <div className="flex items-center gap-0.5 p-1 border border-b-0 rounded-t-md bg-muted/30 flex-wrap">
+    <div className="flex justify-center px-4 pt-3 pb-1 shrink-0 bg-background">
+    <div className="flex items-center gap-0.5 rounded-xl border bg-background p-1 shadow-[0_6px_18px_-12px_hsl(var(--foreground)/0.35)] flex-wrap">
       {items.map((item, i) => {
         if ('type' in item && item.type === 'separator') {
-          return <div key={i} className="w-px h-6 bg-border mx-1" />
+          return <div key={i} className="w-px h-4 bg-border mx-1" />
+        }
+        if ('type' in item && item.type === 'block-menu') {
+          return (
+            <Popover key="block-menu" open={blockMenuOpen} onOpenChange={setBlockMenuOpen}>
+              <PopoverTrigger asChild>
+                <button
+                  className="flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium text-foreground/80 hover:bg-accent hover:text-foreground"
+                  title="Text style"
+                >
+                  {currentStyle}
+                  <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-44 p-1" align="start">
+                {BLOCK_STYLES.map((b) => (
+                  <button
+                    key={b.label}
+                    className={cn(
+                      'flex w-full items-center rounded px-2 py-1.5 text-left text-sm hover:bg-accent',
+                      b.label === currentStyle && 'bg-accent',
+                      b.cls
+                    )}
+                    onClick={() => {
+                      b.run()
+                      setBlockMenuOpen(false)
+                    }}
+                  >
+                    {b.label}
+                  </button>
+                ))}
+              </PopoverContent>
+            </Popover>
+          )
         }
         if ('type' in item && item.type === 'image-menu') {
           return (
@@ -175,10 +169,10 @@ export function EditorToolbar({ editor, siteId, onImageInsert, onLibraryImageIns
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8"
-                  title="Insert Image"
+                  className="h-7 w-7"
+                  title="Insert image"
                 >
-                  <ImageIcon className="h-4 w-4" />
+                  <ImageIcon className="h-3.5 w-3.5" />
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-44 p-1" align="start">
@@ -213,10 +207,10 @@ export function EditorToolbar({ editor, siteId, onImageInsert, onLibraryImageIns
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8"
-                  title="Insert Shortcode"
+                  className="h-7 w-7"
+                  title="Insert shortcode"
                 >
-                  <Braces className="h-4 w-4" />
+                  <Braces className="h-3.5 w-3.5" />
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-56 p-2" align="start">
@@ -252,10 +246,10 @@ export function EditorToolbar({ editor, siteId, onImageInsert, onLibraryImageIns
                 <Button
                   variant="ghost"
                   size="icon"
-                  className={cn('h-8 w-8', inTable && 'bg-accent text-accent-foreground')}
+                  className={cn('h-7 w-7', inTable && 'bg-accent text-accent-foreground')}
                   title="Table"
                 >
-                  <Table2 className="h-4 w-4" />
+                  <Table2 className="h-3.5 w-3.5" />
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-48 p-1" align="start">
@@ -294,25 +288,25 @@ export function EditorToolbar({ editor, siteId, onImageInsert, onLibraryImageIns
             key={label}
             variant="ghost"
             size="icon"
-            className={cn('h-8 w-8', active && 'bg-accent text-accent-foreground')}
+            className={cn('h-7 w-7', active && 'bg-accent text-accent-foreground')}
             onClick={action}
             title={label}
           >
-            <Icon className="h-4 w-4" />
+            <Icon className="h-3.5 w-3.5" />
           </Button>
         )
       })}
       {onExitFocusMode && (
         <>
-          <div className="flex-1" />
+          <div className="w-px h-4 bg-border mx-1" />
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8"
+            className="h-7 w-7"
             onClick={onExitFocusMode}
             title="Exit focus mode"
           >
-            <Minimize2 className="h-4 w-4" />
+            <Minimize2 className="h-3.5 w-3.5" />
           </Button>
         </>
       )}
@@ -324,6 +318,7 @@ export function EditorToolbar({ editor, siteId, onImageInsert, onLibraryImageIns
         onChange={handleFileChange}
       />
       <LinkDialog editor={editor} open={linkDialogOpen} onOpenChange={setLinkDialogOpen} />
+    </div>
     </div>
   )
 }

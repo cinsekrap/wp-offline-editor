@@ -148,6 +148,23 @@ function App(): JSX.Element {
     })
   }, [selectedSiteId, tmpl])
 
+  // ── ⌘K: search posts from anywhere ──────────────────────────────────────
+  const [searchRequest, setSearchRequest] = useState(0)
+  useEffect(() => {
+    function onKey(e: KeyboardEvent): void {
+      // Not from inside a post body — ⌘K means "link" in most editors, and
+      // jumping away mid-sentence would be a nasty surprise
+      if ((e.target as HTMLElement | null)?.closest?.('.tiptap')) return
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k' && selectedSiteId) {
+        e.preventDefault()
+        nav.goToPosts()
+        setSearchRequest((n) => n + 1)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [selectedSiteId, nav])
+
   // ── Writing typeface ────────────────────────────────────────────────────
   // CSS picks --font-editor from this attribute (globals.css); serif is the default.
   useEffect(() => {
@@ -319,6 +336,7 @@ function App(): JSX.Element {
             pulling={sync.syncing}
             online={effectiveOnline}
             editorFontSize={settings.editorFontSize}
+            searchRequest={searchRequest}
             selectedPostId={nav.selectedPostId}
             onSelectPost={nav.selectPostFromList}
             onBack={nav.backFromPost}

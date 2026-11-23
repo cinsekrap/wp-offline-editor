@@ -9,10 +9,21 @@ import {
   Plus,
   Settings,
   StickyNote,
-  AlertTriangle
+  AlertTriangle,
+  Trash2,
+  Loader2
 } from 'lucide-react'
 import type { PendingChanges, Scratchpad, Site } from '@shared/types'
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/components/ui/popover'
+import { Button } from '@renderer/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@renderer/components/ui/dialog'
 import { cn } from '@renderer/lib/utils'
 import { SiteAvatar } from './SiteAvatar'
 import { SyncStatus } from './SyncStatus'
@@ -127,6 +138,20 @@ export function Sidebar({
     return window.electronAPI.onScratchpadChanged(() => loadScratchpads())
   }, [loadScratchpads])
 
+  const [deleting, setDeleting] = useState<Scratchpad | null>(null)
+  const [deletingBusy, setDeletingBusy] = useState(false)
+  const confirmDelete = async (): Promise<void> => {
+    if (!deleting) return
+    setDeletingBusy(true)
+    try {
+      await window.electronAPI.deleteScratchpad(deleting.id)
+      await loadScratchpads()
+    } finally {
+      setDeletingBusy(false)
+      setDeleting(null)
+    }
+  }
+
   const newScratchpad = async (): Promise<void> => {
     const sp = await window.electronAPI.createScratchpad({ site_id: site.id, title: 'Untitled' })
     await window.electronAPI.openScratchpadWindow(sp.id)
@@ -222,10 +247,10 @@ export function Sidebar({
             </button>
           ) : (
             scratchpads.slice(0, 6).map((sp) => (
+              <div key={sp.id} className="group relative">
               <button
-                key={sp.id}
                 onClick={() => window.electronAPI.openScratchpadWindow(sp.id)}
-                className="flex items-center gap-2.5 rounded-md px-2 py-1 text-left text-[12.5px] text-foreground/75 hover:bg-foreground/[0.05] hover:text-foreground"
+                className="flex w-full items-center gap-2.5 rounded-md px-2 py-1 text-left text-[12.5px] text-foreground/75 hover:bg-foreground/[0.05] hover:text-foreground"
                 title="Open in scratchpad window"
               >
                 {sp.conflict ? (
@@ -234,10 +259,18 @@ export function Sidebar({
                   <StickyNote className="size-3.5 shrink-0 text-muted-foreground" />
                 )}
                 <span className="flex-1 truncate">{sp.title || 'Untitled'}</span>
-                <span className="text-[10.5px] tabular-nums text-muted-foreground">
+                <span className="text-[10.5px] tabular-nums text-muted-foreground group-hover:invisible">
                   {shortAge(sp.modified_local)}
                 </span>
               </button>
+              <button
+                onClick={() => setDeleting(sp)}
+                className="absolute right-1 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100"
+                title="Delete scratchpad"
+              >
+                <Trash2 className="size-3" />
+              </button>
+              </div>
             ))
           )}
         </div>
@@ -257,6 +290,28 @@ export function Sidebar({
           />
         </div>
       </div>
+      <Dialog open={deleting !== null} onOpenChange={(open) => { if (!open) setDeleting(null) }}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Delete scratchpad</DialogTitle>
+            <DialogDescription>
+              Delete &ldquo;{deleting?.title || 'Untitled'}&rdquo;?
+              {deleting?.wp_id != null
+                ? ' It will also be removed from WordPress on the next sync.'
+                : ' It has never been synced, so it will be removed immediately.'}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleting(null)} disabled={deletingBusy}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmDelete} disabled={deletingBusy}>
+              {deletingBusy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </aside>
   )
 }

@@ -49,6 +49,7 @@ const api: ElectronAPI = {
   saveMediaLocal: (siteId, postLocalId, filename, buffer) =>
     ipcRenderer.invoke('media:save-local', siteId, postLocalId, filename, buffer),
   getMediaForPost: (postLocalId) => ipcRenderer.invoke('media:get-for-post', postLocalId),
+  getFeaturedImagePaths: (siteId) => ipcRenderer.invoke('media:featured-paths', siteId),
   getMediaQueue: (siteId) => ipcRenderer.invoke('media:get-queue', siteId),
   uploadMedia: (mediaId) => ipcRenderer.invoke('media:upload', mediaId),
   deleteMedia: (id) => ipcRenderer.invoke('media:delete', id),

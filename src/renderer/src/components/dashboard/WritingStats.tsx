@@ -35,136 +35,50 @@ function aggregateWeeks(days: ChartPoint[]): ChartPoint[] {
     .map(([date, wordCount]) => ({ date, wordCount }))
 }
 
-function Sparkline({
+/** Word counts as bars: today (or this week) in the site colour, empty days as stubs. */
+function Bars({
   series,
-  compact,
-  centerLabel,
-  endLabel,
   pointLabel,
-  futureSlots
+  startLabel,
+  centerLabel,
+  endLabel
 }: {
   series: ChartPoint[]
-  compact?: boolean
+  pointLabel: (date: string) => string
+  startLabel: string
   centerLabel: string
   endLabel: string
-  pointLabel: (date: string) => string
-  futureSlots: number
 }): JSX.Element {
-  const [hoverIdx, setHoverIdx] = useState<number | null>(null)
-
-  const height = compact ? 36 : 56
-  if (series.length === 0) return <div style={{ height }} />
-  const pad = 4
-  const n = series.length
   const max = Math.max(...series.map((d) => d.wordCount), 1)
-
-  // Runway after the last point so the line doesn't end hard against the
-  // right edge
-  const slots = n + futureSlots
-
-  // x in viewBox percent (stretched to container), y in fixed pixels
-  const points = series.map((d, i) => ({
-    x: slots > 1 ? (i / (slots - 1)) * 100 : 50,
-    y: pad + (1 - d.wordCount / max) * (height - pad * 2)
-  }))
-  const todayX = points[n - 1].x
-
-  // Catmull-Rom smoothing, control points clamped to the plot band so
-  // spikes never overshoot below the baseline
-  const clampY = (y: number): number => Math.min(height - pad, Math.max(pad, y))
-  let linePath = `M${points[0].x},${points[0].y}`
-  for (let i = 0; i < points.length - 1; i++) {
-    const p0 = points[i - 1] ?? points[i]
-    const p1 = points[i]
-    const p2 = points[i + 1]
-    const p3 = points[i + 2] ?? p2
-    const cp1x = p1.x + (p2.x - p0.x) / 6
-    const cp1y = clampY(p1.y + (p2.y - p0.y) / 6)
-    const cp2x = p2.x - (p3.x - p1.x) / 6
-    const cp2y = clampY(p2.y - (p3.y - p1.y) / 6)
-    linePath += ` C${cp1x},${cp1y} ${cp2x},${cp2y} ${p2.x},${p2.y}`
-  }
-
-  const hover = hoverIdx != null ? { point: points[hoverIdx], day: series[hoverIdx] } : null
-
   return (
-    <div>
-      <div
-        className="relative"
-        onMouseLeave={() => setHoverIdx(null)}
-        onMouseMove={(e) => {
-          const rect = e.currentTarget.getBoundingClientRect()
-          const idx = Math.round(((e.clientX - rect.left) / rect.width) * (slots - 1))
-          setHoverIdx(Math.min(n - 1, Math.max(0, idx)))
-        }}
-      >
-        <svg
-          viewBox={`0 0 100 ${height}`}
-          width="100%"
-          height={height}
-          preserveAspectRatio="none"
-          className="block"
-        >
-          {/* Baseline */}
-          <line
-            x1={0}
-            x2={100}
-            y1={height - pad}
-            y2={height - pad}
-            className="stroke-border"
-            strokeWidth={1}
-            vectorEffect="non-scaling-stroke"
-          />
-          {/* The ECG line */}
-          <path
-            d={linePath}
-            fill="none"
-            className="stroke-primary"
-            strokeWidth={2}
-            strokeLinejoin="round"
-            strokeLinecap="round"
-            vectorEffect="non-scaling-stroke"
-          />
-        </svg>
-
-        {hover && (
-          <>
-            {/* Crosshair */}
-            <div
-              className="pointer-events-none absolute top-0 bottom-0 w-px bg-border"
-              style={{ left: `${hover.point.x}%` }}
+    <div className="min-w-0">
+      <div className="flex h-14 items-end gap-[3px]">
+        {series.map((d, i) => {
+          const last = i === series.length - 1
+          const h = d.wordCount === 0 ? 3 : Math.max(4, Math.round((d.wordCount / max) * 56))
+          return (
+            <span
+              key={d.date}
+              title={`${pointLabel(d.date)}: ${d.wordCount.toLocaleString()} words`}
+              style={{ height: h }}
+              className={
+                'flex-1 rounded-t-[2px] ' +
+                (last ? 'bg-primary' : d.wordCount === 0 ? 'bg-border' : 'bg-primary/30 hover:bg-primary/50')
+              }
             />
-            {/* Marker dot with surface ring */}
-            <div
-              className="pointer-events-none absolute h-2 w-2 rounded-full bg-primary ring-2 ring-background"
-              style={{
-                left: `calc(${hover.point.x}% - 4px)`,
-                top: hover.point.y - 4
-              }}
-            />
-            {/* Tooltip */}
-            <div
-              className="pointer-events-none absolute -top-1 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-md border bg-popover text-popover-foreground shadow-md px-2 py-1 text-[11px] z-10"
-              style={{ left: `${Math.min(88, Math.max(12, hover.point.x))}%` }}
-            >
-              {pointLabel(hover.day.date)} &middot;{' '}
-              <strong>{hover.day.wordCount.toLocaleString()}</strong> words
-            </div>
-          </>
-        )}
+          )
+        })}
       </div>
-
-      {/* Time axis: label the window; the end label sits under the line's end */}
-      <div className="relative mt-1 h-4 text-[10px] text-muted-foreground/70">
-        <span className="absolute left-0">{formatDay(series[0].date)}</span>
-        <span className="absolute left-1/2 -translate-x-1/2">{centerLabel}</span>
-        <span className="absolute -translate-x-1/2" style={{ left: `${todayX}%` }}>
-          {endLabel}
-        </span>
+      <div className="mt-1.5 flex justify-between text-[10.5px] text-muted-foreground">
+        <span>{startLabel}</span>
+        <span>{centerLabel}</span>
+        <span>{endLabel}</span>
       </div>
     </div>
   )
 }
+
+const DAY_INITIALS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
 
 export function WritingStats({ siteId, compact, chartMode = 'daily' }: WritingStatsProps): JSX.Element | null {
   const [stats, setStats] = useState<WritingStatsType | null>(null)
@@ -229,11 +143,12 @@ export function WritingStats({ siteId, compact, chartMode = 'daily' }: WritingSt
   if (!stats) return null
 
   const authorLabel = selectedAuthor?.name || 'All authors'
+  const lastWeek = stats.dailyCounts.slice(-7)
 
   return (
-    <section className={compact ? 'mb-3' : 'mb-5'}>
+    <section>
       <div className="flex items-center justify-between mb-2">
-        <h2 className="text-sm font-medium text-muted-foreground">Writing activity</h2>
+        <h2 className="text-[13px] font-semibold">Writing</h2>
         <Popover open={authorPopoverOpen} onOpenChange={(open) => { setAuthorPopoverOpen(open); if (open) handleLoadAuthors() }}>
           <PopoverTrigger asChild>
             <button className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
@@ -264,19 +179,58 @@ export function WritingStats({ siteId, compact, chartMode = 'daily' }: WritingSt
         </Popover>
       </div>
 
-      <div className={compact ? 'border rounded-lg p-2' : 'border rounded-lg p-3'}>
-        <Sparkline
+      <div
+        className={`grid items-end gap-x-7 gap-y-4 rounded-xl border bg-card px-5 grid-cols-[auto_minmax(0,1fr)] lg:grid-cols-[auto_minmax(0,1fr)_auto] ${compact ? 'py-3' : 'py-4'}`}
+      >
+        <div>
+          <p className="text-[32px] font-semibold leading-none tracking-tight tabular-nums">
+            {stats.todayWords.toLocaleString()}
+          </p>
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            words today · <strong className="font-semibold text-foreground">{stats.weekWords.toLocaleString()}</strong> this week
+          </p>
+        </div>
+        <Bars
           series={series}
-          compact={compact}
+          pointLabel={(date) => (chartMode === 'weekly' ? `Week of ${formatDay(date)}` : formatDay(date))}
+          startLabel={series[0] ? formatDay(series[0].date) : ''}
           centerLabel={chartMode === 'weekly' ? 'Last 12 weeks' : 'Last 30 days'}
           endLabel={chartMode === 'weekly' ? 'This week' : 'Today'}
-          pointLabel={(date) => (chartMode === 'weekly' ? `Week of ${formatDay(date)}` : formatDay(date))}
-          futureSlots={chartMode === 'weekly' ? 1 : 3}
         />
-        <div className={`flex items-center gap-4 ${compact ? 'mt-1.5' : 'mt-2'} text-sm text-muted-foreground`}>
-          <span>Today: <strong className="text-foreground">{stats.todayWords.toLocaleString()}</strong> words</span>
-          <span>This week: <strong className="text-foreground">{stats.weekWords.toLocaleString()}</strong></span>
-          <span>Streak: <strong className="text-foreground">{stats.streak}</strong> {stats.streak === 1 ? 'day' : 'days'}</span>
+        <div className="hidden lg:block">
+          <div className="flex gap-1.5">
+            {lastWeek.map((d, i) => {
+              const today = i === lastWeek.length - 1
+              const wrote = d.wordCount > 0
+              return (
+                <span
+                  key={d.date}
+                  title={`${formatDay(d.date)}: ${d.wordCount.toLocaleString()} words`}
+                  className={
+                    'size-[22px] rounded-full grid place-items-center text-[10px] font-semibold ' +
+                    (today && wrote
+                      ? 'bg-primary text-primary-foreground'
+                      : wrote
+                        ? 'bg-primary/15 text-primary'
+                        : today
+                          ? 'border border-dashed border-primary/50 text-primary'
+                          : 'bg-muted text-muted-foreground')
+                  }
+                >
+                  {DAY_INITIALS[new Date(d.date).getDay()]}
+                </span>
+              )
+            })}
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">
+            {stats.streak > 0 ? (
+              <>
+                <strong className="font-semibold text-foreground">{stats.streak}-day</strong> writing streak
+              </>
+            ) : (
+              'Write today to start a streak'
+            )}
+          </p>
         </div>
       </div>
     </section>

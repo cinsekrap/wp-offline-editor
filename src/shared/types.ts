@@ -521,6 +521,8 @@ export interface ElectronAPI {
     buffer: ArrayBuffer
   ): Promise<Media>
   getMediaForPost(postLocalId: string): Promise<Media[]>
+  /** Post id → local path of its featured image, for every post on a site that has one */
+  getFeaturedImagePaths(siteId: string): Promise<Record<string, string>>
   getMediaQueue(siteId: string): Promise<Media[]>
   uploadMedia(mediaId: string): Promise<Media>
   deleteMedia(id: string): Promise<void>

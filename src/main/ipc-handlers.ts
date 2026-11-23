@@ -14,6 +14,7 @@ import {
   saveMediaFromLibrary,
   saveMediaFromStagedLibrary,
   getMediaForPost,
+  getFeaturedImagePaths,
   getMediaQueue,
   uploadMediaToWp,
   deleteMedia,
@@ -318,6 +319,10 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('media:get-for-post', (_event, postLocalId: unknown) => {
     return getMediaForPost(uuidSchema.parse(postLocalId))
+  })
+
+  ipcMain.handle('media:featured-paths', (_event, siteId: unknown) => {
+    return getFeaturedImagePaths(uuidSchema.parse(siteId))
   })
 
   ipcMain.handle('media:get-queue', (_event, siteId: unknown) => {

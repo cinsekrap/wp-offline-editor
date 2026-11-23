@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import {
   Plus, Loader2,
-  Filter, ArrowUpDown, Search, X, CheckSquare, FileText
+  Filter, ArrowUpDown, Search, X, CheckSquare, LayoutGrid, Rows3, ImageIcon
 } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
 import { Input } from '@renderer/components/ui/input'
@@ -11,6 +11,9 @@ import { cn } from '@renderer/lib/utils'
 import { FILTER_STATUSES } from '@renderer/lib/post-status'
 import { useCategoryNames, useTermNames, categoryLabel } from '@renderer/hooks/useCategoryNames'
 import { StatusMark } from './StatusMark'
+import { PostCard } from './PostCard'
+import { postSnippet } from '@renderer/lib/post-text'
+import { useFeaturedImages } from '@renderer/hooks/useFeaturedImages'
 import type { Post, PostStatus, SearchResult } from '@shared/types'
 
 /** Strip all HTML tags except <mark> from FTS5 snippets to prevent XSS. */
@@ -63,6 +66,8 @@ interface PostListProps {
   onNewPost: () => void
   onTemplates?: () => void
   initialFilter?: PostListFilter | null
+  /** Bumped by ⌘K: open the search field and focus it */
+  searchRequest?: number
   onBulkStatus?: (postIds: string[], status: PostStatus) => Promise<void>
   onBulkDelete?: (postIds: string[]) => Promise<void>
 }
@@ -75,9 +80,28 @@ export function PostList({
   onNewPost,
   onTemplates,
   initialFilter,
+  searchRequest,
   onBulkStatus,
   onBulkDelete
 }: PostListProps): JSX.Element {
+  const images = useFeaturedImages(siteId, posts)
+
+  // List or grid, remembered per machine
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>(() => {
+    try {
+      return localStorage.getItem('npp-posts-view') === 'grid' ? 'grid' : 'list'
+    } catch {
+      return 'list'
+    }
+  })
+  const chooseView = (mode: 'list' | 'grid'): void => {
+    setViewMode(mode)
+    try {
+      localStorage.setItem('npp-posts-view', mode)
+    } catch {
+      // Not worth failing over
+    }
+  }
   const categoryNames = useCategoryNames(siteId)
   const tagNames = useTermNames(siteId, 'post_tag')
   const [activeFilters, setActiveFilters] = useState<Set<PostStatus>>(new Set())
@@ -101,6 +125,10 @@ export function PostList({
       return !prev
     })
   }, [])
+
+  useEffect(() => {
+    if (searchRequest) setSearchOpen(true)
+  }, [searchRequest])
 
   // Multi-select state
   const [selectMode, setSelectMode] = useState(false)
@@ -361,6 +389,53 @@ export function PostList({
     }
   }
 
+  // Status chips with counts (Private only when there is any)
+  const statusChips = useMemo(() => {
+    const count = (st: PostStatus): number => posts.filter((p) => p.status === st).length
+    const chips: { label: string; status: PostStatus | null; count: number }[] = [
+      { label: 'All', status: null, count: posts.length },
+      { label: 'Drafts', status: 'draft', count: count('draft') },
+      { label: 'Pending', status: 'pending', count: count('pending') },
+      { label: 'Scheduled', status: 'future', count: count('future') },
+      { label: 'Published', status: 'publish', count: count('publish') },
+      { label: 'Private', status: 'private', count: count('private') }
+    ]
+    return chips.filter((c) => c.status === null || c.count > 0 || c.status === 'draft' || c.status === 'publish')
+  }, [posts])
+
+  // Group into "in progress" and "published" when the list isn't already
+  // narrowed to one kind, and isn't sorted alphabetically
+  const groups = useMemo(() => {
+    if (activeFilters.size > 0 || sortBy === 'title') return [{ label: null as string | null, posts: filteredAndSorted }]
+    const inProgress = filteredAndSorted.filter((p) => p.status === 'draft' || p.status === 'pending' || p.status === 'future')
+    const done = filteredAndSorted.filter((p) => !(p.status === 'draft' || p.status === 'pending' || p.status === 'future'))
+    return [
+      { label: 'In progress', posts: inProgress },
+      { label: 'Published', posts: done }
+    ].filter((g) => g.posts.length > 0)
+  }, [filteredAndSorted, activeFilters, sortBy])
+
+  const checkbox = (post: Post): JSX.Element => (
+    <span
+      role="checkbox"
+      aria-checked={selectedIds.has(post.id)}
+      className={cn(
+        'mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded border',
+        selectedIds.has(post.id) ? 'border-primary bg-primary text-primary-foreground' : 'border-input bg-background'
+      )}
+    >
+      {selectedIds.has(post.id) && (
+        <svg className="h-3 w-3" viewBox="0 0 16 16" fill="none">
+          <path d="M3 8l3.5 3.5L13 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      )}
+    </span>
+  )
+  const activate = (post: Post): void => {
+    if (selectMode) toggleSelected(post.id)
+    else onSelectPost(post.id)
+  }
+
   // Render search results
   const isSearching = searchQuery.trim().length > 0
   const showSearchResults = isSearching && searchResults !== null
@@ -369,8 +444,33 @@ export function PostList({
     <div className="h-full flex flex-col relative">
       {/* Header */}
       <div className="h-[52px] flex items-center justify-between px-6 border-b shrink-0 drag-region">
-        <h2 className="text-[15px] font-semibold tracking-tight select-none">Posts</h2>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-4 min-w-0">
+          <h2 className="text-[15px] font-semibold tracking-tight select-none">Posts</h2>
+          <div className="flex items-center gap-0.5 min-w-0 overflow-hidden">
+            {statusChips.map((chip) => {
+              const active =
+                chip.status === null
+                  ? activeFilters.size === 0
+                  : activeFilters.size === 1 && activeFilters.has(chip.status)
+              return (
+                <button
+                  key={chip.label}
+                  onClick={() => setActiveFilters(new Set(chip.status ? [chip.status] : []))}
+                  className={cn(
+                    'h-7 shrink-0 rounded-full px-2.5 text-xs font-semibold transition-colors',
+                    active ? 'bg-foreground text-background' : 'text-foreground/70 hover:bg-accent hover:text-foreground'
+                  )}
+                >
+                  {chip.label}
+                  <span className={cn('ml-1.5 font-normal tabular-nums', active ? 'opacity-65' : 'text-muted-foreground')}>
+                    {chip.count}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
           {/* Search toggle */}
           <Button
             variant="ghost"
@@ -541,20 +641,26 @@ export function PostList({
             </PopoverContent>
           </Popover>
 
-          {onTemplates && (
-            <>
-              <div className="w-px h-5 bg-border mx-1" />
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                onClick={onTemplates}
-                title="Post templates"
+          <div className="mx-1 flex items-center rounded-md bg-muted p-0.5">
+            {(['list', 'grid'] as const).map((mode) => (
+              <button
+                key={mode}
+                onClick={() => chooseView(mode)}
+                className={cn(
+                  'grid h-7 w-7 place-items-center rounded transition-colors',
+                  viewMode === mode ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                )}
+                title={mode === 'list' ? 'List' : 'Cards'}
+                aria-pressed={viewMode === mode}
               >
-                <FileText className="h-4 w-4" />
-              </Button>
-            </>
-          )}
+                {mode === 'list' ? <Rows3 className="h-3.5 w-3.5" /> : <LayoutGrid className="h-3.5 w-3.5" />}
+              </button>
+            ))}
+          </div>
+          <Button size="sm" className="h-8 gap-1.5" onClick={onNewPost} title="New post (⌘N)">
+            <Plus className="size-3.5" />
+            New post
+          </Button>
         </div>
       </div>
 
@@ -657,96 +763,79 @@ export function PostList({
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 px-6 py-4">
-            {/* Dummy "new post" card — mirrors the dashboard quick action */}
-            {!selectMode && (
-              <button
-                onClick={onNewPost}
-                className="border border-dashed border-primary/35 rounded-xl p-4 hover:border-primary/70 hover:bg-primary/5 transition-colors cursor-pointer flex items-center justify-center gap-2"
-              >
-                <Plus className="h-5 w-5 text-primary" />
-                <span className="text-sm font-medium text-primary">
-                  New post
-                </span>
-              </button>
-            )}
-            {filteredAndSorted.map((post) => {
-              // Drafts and pending posts read as tentative; published/scheduled/private are "definite"
-              const definite = post.status !== 'draft' && post.status !== 'pending'
-              return (
-                <button
-                  key={post.id}
-                  onClick={() => {
-                    if (selectMode) {
-                      toggleSelected(post.id)
-                    } else {
-                      onSelectPost(post.id)
-                    }
-                  }}
-                  className={cn(
-                    'border rounded-lg p-4 text-left transition-colors flex flex-col',
-                    definite
-                      ? 'bg-card hover:bg-accent/30'
-                      : 'bg-muted/40 border-border/70 hover:bg-muted/70',
-                    selectMode && selectedIds.has(post.id) && 'ring-2 ring-foreground/40 bg-accent/40'
-                  )}
-                >
-                  {/* Eyebrow: date (+ checkbox in select mode) */}
-                  <div className="flex items-center gap-2 min-w-0">
-                    {selectMode && (
-                      <div
-                        className={cn(
-                          'h-4 w-4 rounded border shrink-0 flex items-center justify-center',
-                          selectedIds.has(post.id)
-                            ? 'bg-foreground border-foreground'
-                            : 'border-border'
-                        )}
-                        onClick={(e) => { e.stopPropagation(); toggleSelected(post.id) }}
-                      >
-                        {selectedIds.has(post.id) && (
-                          <svg className="h-3 w-3 text-background" viewBox="0 0 16 16" fill="none">
-                            <path d="M3 8l3.5 3.5L13 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
-                        )}
-                      </div>
-                    )}
-                    <span className="text-[11px] text-muted-foreground flex-1 truncate">
-                      {getDisplayDate(post)}
-                    </span>
-                    {categoryLabel(post.categories, categoryNames) && (
-                      <span className="text-[11px] text-muted-foreground truncate max-w-[55%] shrink-0 text-right">
-                        {categoryLabel(post.categories, categoryNames)}
-                      </span>
-                    )}
+          <div className="px-4 pb-24 pt-1">
+            {groups.map((group) => (
+              <section key={group.label ?? 'all'}>
+                {group.label && (
+                  <h3 className="flex gap-2 px-2.5 pb-2 pt-4 text-[11.5px] font-semibold text-muted-foreground">
+                    {group.label}
+                    <span className="font-normal">{group.posts.length}</span>
+                  </h3>
+                )}
+                {viewMode === 'grid' ? (
+                  <div className="grid grid-cols-1 gap-3.5 px-2 pb-2 sm:grid-cols-2 lg:grid-cols-3">
+                    {group.posts.map((post) => (
+                      <PostCard
+                        key={post.id}
+                        post={post}
+                        imageUrl={images[post.id]}
+                        meta={[getDisplayDate(post), categoryLabel(post.categories, categoryNames)].filter(Boolean).join(' · ')}
+                        onClick={() => activate(post)}
+                        selected={selectMode && selectedIds.has(post.id)}
+                        leading={selectMode ? checkbox(post) : undefined}
+                      />
+                    ))}
                   </div>
-                  <p
-                    className={cn(
-                      'text-sm line-clamp-2 min-h-10 mt-1.5',
-                      definite ? 'font-semibold text-foreground' : 'font-medium text-muted-foreground'
-                    )}
-                  >
-                    {post.title || '(Untitled)'}
-                  </p>
-                  <div className="mt-2 flex items-center justify-between gap-2 min-w-0">
-                    <StatusMark
-                      status={post.status}
-                      synced={post.synced}
-                      conflict={post.conflict}
-                      hasRemote={post.wp_id != null}
-                    />
-                    {post.tags.length > 0 && (
-                      <span className="text-[11px] text-muted-foreground truncate text-right">
-                        {post.tags
-                          .map((id) => tagNames.get(id))
-                          .filter(Boolean)
-                          .map((n) => `#${n}`)
-                          .join(' ')}
-                      </span>
-                    )}
+                ) : (
+                  <div>
+                    {group.posts.map((post) => {
+                      const image = images[post.id]
+                      const snippet = postSnippet(post, 140)
+                      const tags = post.tags.map((id) => tagNames.get(id)).filter(Boolean)
+                      return (
+                        <button
+                          key={post.id}
+                          onClick={() => activate(post)}
+                          className={cn(
+                            'grid w-full grid-cols-[auto_56px_minmax(0,1fr)_150px_112px_96px] items-center gap-4 rounded-xl px-2.5 py-2.5 text-left transition-colors hover:bg-canvas',
+                            selectMode && selectedIds.has(post.id) && 'bg-primary/5 hover:bg-primary/10'
+                          )}
+                        >
+                          {selectMode ? checkbox(post) : <span className="w-0" />}
+                          {image ? (
+                            <img src={image} alt="" loading="lazy" className="h-10 w-14 rounded-md object-cover bg-muted" />
+                          ) : (
+                            <span className="grid h-10 w-14 place-items-center rounded-md border border-dashed text-muted-foreground/60">
+                              <ImageIcon className="h-3.5 w-3.5" />
+                            </span>
+                          )}
+                          <span className="min-w-0">
+                            <span className="block truncate font-editor text-[15px] font-semibold leading-snug">
+                              {post.title || 'Untitled'}
+                            </span>
+                            <span className="mt-0.5 block truncate font-editor text-[12.5px] text-muted-foreground">
+                              {snippet || (tags.length > 0 ? tags.map((t) => `#${t}`).join(' ') : '\u00a0')}
+                            </span>
+                          </span>
+                          <span className="truncate text-xs text-foreground/70">
+                            {categoryLabel(post.categories, categoryNames)}
+                          </span>
+                          <StatusMark
+                            status={post.status}
+                            synced={post.synced}
+                            conflict={post.conflict}
+                            hasRemote={post.wp_id != null}
+                          />
+                          <span className="text-right text-xs tabular-nums text-muted-foreground">
+                            {getDisplayDate(post)}
+                          </span>
+                        </button>
+                      )
+                    })}
                   </div>
-                </button>
-              )
-            })}
+                )}
+              </section>
+            ))}
           </div>
         )}
       </ScrollArea>

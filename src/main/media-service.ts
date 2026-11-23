@@ -91,6 +91,23 @@ export function getMediaForPost(postLocalId: string): Media[] {
   return rows.map(normalizeMediaRow)
 }
 
+/**
+ * Local file for each post's featured image on a site, keyed by post id.
+ * Lets lists show thumbnails from the offline copy without a query per post.
+ */
+export function getFeaturedImagePaths(siteId: string): Record<string, string> {
+  const rows = getDb()
+    .prepare(
+      `SELECT p.id AS post_id, m.local_path AS local_path
+         FROM posts p JOIN media m ON m.id = p.featured_image
+        WHERE p.site_id = ? AND p.featured_image IS NOT NULL`
+    )
+    .all(siteId) as { post_id: string; local_path: string }[]
+  const out: Record<string, string> = {}
+  for (const r of rows) out[r.post_id] = r.local_path
+  return out
+}
+
 export function getMediaQueue(siteId: string): Media[] {
   const db = getDb()
   const rows = db

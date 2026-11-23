@@ -7,7 +7,7 @@ import { Textarea } from '@renderer/components/ui/textarea'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
 import { Checkbox } from '@renderer/components/ui/checkbox'
 import { Badge } from '@renderer/components/ui/badge'
-import { CalendarIcon, ImageIcon, X, Upload, Loader2, Lock, Globe, KeyRound, AlertTriangle, Plus, Check, ChevronDown } from 'lucide-react'
+import { CalendarIcon, ImageIcon, X, Upload, Loader2, Lock, Globe, KeyRound, AlertTriangle, Plus, Check, ChevronDown, Undo2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { cn } from '@renderer/lib/utils'
 import { STATUS_LABELS } from '@renderer/lib/post-status'
@@ -288,17 +288,19 @@ export function PostMeta({
               <p className="text-sm font-semibold leading-tight">{STATUS_LABELS[status] ?? 'Draft'}</p>
               <p className="mt-0.5 text-xs text-muted-foreground">{statusLine}</p>
             </div>
-            {published && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="-mr-2 h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
-                onClick={handleRevertToDraft}
-              >
-                Revert to draft
-              </Button>
-            )}
           </div>
+
+          {published && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 w-full bg-background text-[13px]"
+              onClick={handleRevertToDraft}
+            >
+              <Undo2 className="mr-1.5 h-3.5 w-3.5" />
+              Revert to draft
+            </Button>
+          )}
 
           {!published && !scheduling && (
             <div className="grid grid-cols-[1fr_auto] gap-2">

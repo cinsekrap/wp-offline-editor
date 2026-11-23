@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { wpContentToHtml } from '../../src/main/html-utils'
+import { decodeHtmlEntities, wpContentToHtml } from '../../src/main/html-utils'
 
 describe('wpContentToHtml', () => {
   it('falls back to rendered when the site gave us no raw content', () => {
@@ -64,5 +64,16 @@ describe('wpContentToHtml', () => {
 
   it('returns an empty string for an empty raw post', () => {
     expect(wpContentToHtml({ raw: '', rendered: '' })).toBe('')
+  })
+})
+
+describe('decodeHtmlEntities', () => {
+  it('decodes the named entities WordPress puts in rendered excerpts', () => {
+    expect(decodeHtmlEntities('love it because&hellip;')).toBe('love it because\u2026')
+    expect(decodeHtmlEntities('a&nbsp;&ndash;&nbsp;b &mdash; c')).toBe('a\u00a0\u2013\u00a0b \u2014 c')
+  })
+
+  it('decodes numeric entities and leaves unknown names alone', () => {
+    expect(decodeHtmlEntities('it&#8217;s &#x2019; &amp; &madeup;')).toBe('it\u2019s \u2019 & &madeup;')
   })
 })

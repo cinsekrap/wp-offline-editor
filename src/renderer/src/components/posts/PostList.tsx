@@ -716,7 +716,7 @@ export function PostList({
       {/* List */}
       <ScrollArea className="flex-1">
         {loading ? (
-          <div className="mx-auto max-w-[1080px] px-7 pt-6 space-y-8" aria-label="Loading posts">
+          <div className="px-7 pt-6 space-y-8" aria-label="Loading posts">
             {Array.from({ length: 6 }).map((_, i) => (
               <div key={i} className="flex items-center gap-5">
                 <Skeleton className="h-[68px] w-[104px] rounded-lg" />
@@ -773,7 +773,7 @@ export function PostList({
             </button>
           </div>
         ) : (
-          <div className="mx-auto max-w-[1080px] px-4 pb-24 pt-1">
+          <div className="px-4 pb-24 pt-1">
             {groups.map((group) => (
               <section key={group.label ?? 'all'}>
                 {group.label && (

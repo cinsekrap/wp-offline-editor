@@ -130,18 +130,21 @@ export function AddSiteDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-[480px]">
+      <DialogContent className="sm:max-w-[640px] gap-5">
         <DialogHeader>
-          <DialogTitle>Add WordPress Site</DialogTitle>
+          <p className="text-xs font-medium text-muted-foreground">
+            Step {step === 'settings' ? 2 : 1} of 2
+          </p>
+          <DialogTitle>{step === 'settings' ? 'Set up your site' : 'Add a WordPress site'}</DialogTitle>
           <DialogDescription>
-            {step === 'credentials'
-              ? 'Enter your site URL and application password credentials.'
-              : 'Configure site settings.'}
+            {step === 'settings'
+              ? 'Choose what to keep on this Mac. You can change these later.'
+              : 'Connect with your WordPress username and an application password.'}
           </DialogDescription>
         </DialogHeader>
 
         {step === 'credentials' && (
-          <div className="space-y-4 py-2">
+          <div className="space-y-5">
             <div className="space-y-2">
               <Label htmlFor="site-url">Site URL</Label>
               <Input
@@ -149,49 +152,58 @@ export function AddSiteDialog({
                 placeholder="https://your-site.com"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
+                className="h-9"
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="site-username">Username</Label>
-              <Input
-                id="site-username"
-                placeholder="admin"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="site-password">Application Password</Label>
-              <Input
-                id="site-password"
-                type="password"
-                placeholder="xxxx xxxx xxxx xxxx xxxx xxxx"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground">
-                Generate an application password in WordPress under Users → Profile.
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="site-allow-plaintext"
-                  checked={allowPlaintext}
-                  onCheckedChange={(checked) => setAllowPlaintext(checked === true)}
+            <div className="grid grid-cols-2 gap-x-6">
+              <div className="space-y-2">
+                <Label htmlFor="site-username">Username</Label>
+                <Input
+                  id="site-username"
+                  placeholder="admin"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className="h-9"
                 />
-                <Label htmlFor="site-allow-plaintext" className="font-normal cursor-pointer">
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="site-password">Application password</Label>
+                <Input
+                  id="site-password"
+                  type="password"
+                  placeholder="xxxx xxxx xxxx xxxx xxxx xxxx"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="h-9"
+                />
+              </div>
+            </div>
+
+            <div className="rounded-lg bg-muted/60 px-3.5 py-3 text-xs text-muted-foreground">
+              <p className="mb-1 font-semibold text-foreground/80">Where do I get an application password?</p>
+              In WordPress, go to <span className="text-foreground/80">Users &rarr; Profile</span>, scroll
+              to Application Passwords, enter a name such as &ldquo;NP Presspad&rdquo; and click Add New Application Password.
+              Copy the password it shows. It isn&rsquo;t your normal login password.
+            </div>
+
+            <div className="flex items-start gap-2.5 border-t pt-5">
+              <Checkbox
+                id="site-allow-plaintext"
+                checked={allowPlaintext}
+                onCheckedChange={(checked) => setAllowPlaintext(checked === true)}
+                className="mt-0.5"
+              />
+              <div className="space-y-1">
+                <Label htmlFor="site-allow-plaintext" className="cursor-pointer">
                   Allow unencrypted connection
                 </Label>
+                <p className="text-xs text-muted-foreground">
+                  Only for sites on your own network (http:// with a .local or .test address). The
+                  password and post content will cross the network unencrypted. Public sites always
+                  require https://.
+                </p>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Only for sites on your own network (http:// with a .local or .test address). The
-                password and post content will cross the network unencrypted. Public sites always
-                require https://.
-              </p>
             </div>
 
             {testResult && !testResult.success && (
@@ -211,129 +223,127 @@ export function AddSiteDialog({
         )}
 
         {step === 'settings' && testResult?.success && (
-          <div className="space-y-4 py-2">
-            <div className="p-3 rounded-md bg-success-soft border border-success/25">
-              <div className="flex items-center gap-2 text-success text-sm font-medium mb-2">
-                <CheckCircle className="h-4 w-4" />
-                Connection successful
-              </div>
-              <div className="space-y-1 text-xs text-foreground/75">
-                <p>Site: {testResult.siteName}</p>
-                <p>WordPress: {testResult.wpVersion}</p>
-                <p className="flex items-center gap-1">
-                  ACF:{' '}
-                  {testResult.acfActive ? (
-                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                      Active
-                    </Badge>
-                  ) : (
-                    <span className="text-muted-foreground">Not detected</span>
-                  )}
-                </p>
-              </div>
+          <div className="space-y-5">
+            <div className="flex items-center gap-2.5 rounded-lg border border-success/25 bg-success-soft px-3.5 py-2.5 text-sm">
+              <CheckCircle className="h-4 w-4 shrink-0 text-success" />
+              <span className="min-w-0 flex-1 truncate">
+                <span className="font-medium">Connected to {testResult.siteName}</span>
+                <span className="text-foreground/70"> &middot; WordPress {testResult.wpVersion}</span>
+              </span>
+              <span className="flex shrink-0 items-center gap-1.5 text-xs text-foreground/70">
+                ACF
+                {testResult.acfActive ? (
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                    Active
+                  </Badge>
+                ) : (
+                  <span className="text-muted-foreground">not detected</span>
+                )}
+              </span>
             </div>
 
             {testResult.acfActive && !testResult.wpoePluginActive && (
-              <div className="p-3 rounded-md bg-warning-soft border border-warning/30">
-                <div className="flex items-center gap-2 text-warning text-sm font-medium mb-2">
-                  <AlertTriangle className="h-4 w-4" />
-                  Companion plugin not detected
+              <div className="flex items-start gap-3 rounded-lg border border-warning/30 bg-warning-soft p-3.5">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+                <div className="min-w-0 flex-1 space-y-1 text-xs text-foreground/75">
+                  <p className="text-sm font-medium text-foreground">Companion plugin not detected</p>
+                  <p>
+                    Code-registered ACF field groups need the NP Presspad Companion plugin for
+                    schema discovery. Posts will sync fine without it.
+                  </p>
+                  <p>
+                    Install via WP Admin &rarr; Plugins &rarr; Add New &rarr; Upload Plugin, then
+                    re-test the connection.
+                  </p>
                 </div>
-                <p className="text-xs text-foreground/75 mb-2">
-                  Code-registered ACF field groups require the NP Presspad Companion plugin
-                  for schema discovery. Posts will sync fine without it.
-                </p>
                 <Button
                   variant="outline"
                   size="sm"
-                  className="mb-2"
+                  className="shrink-0 bg-background"
                   onClick={() => window.electronAPI.saveCompanionPlugin()}
                 >
                   <Download className="mr-2 h-3 w-3" />
-                  Download Plugin
+                  Download plugin
                 </Button>
-                <p className="text-xs text-foreground/75">
-                  Install via WP Admin &rarr; Plugins &rarr; Add New &rarr; Upload Plugin, then
-                  re-test the connection.
-                </p>
               </div>
             )}
 
             {pluginMismatch && (
-              <div className="p-3 rounded-md bg-warning-soft border border-warning/30">
-                <div className="flex items-center gap-2 text-warning text-sm font-medium mb-2">
-                  <AlertTriangle className="h-4 w-4" />
-                  Companion plugin version mismatch
+              <div className="flex items-start gap-3 rounded-lg border border-warning/30 bg-warning-soft p-3.5">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+                <div className="min-w-0 flex-1 space-y-1 text-xs text-foreground/75">
+                  <p className="text-sm font-medium text-foreground">Companion plugin version mismatch</p>
+                  <p>{pluginMismatchMessage(appVersion)}</p>
+                  <p>
+                    Replace the existing plugin ZIP via WP Admin &rarr; Plugins &rarr; Add New &rarr;
+                    Upload Plugin, then re-test the connection.
+                  </p>
                 </div>
-                <p className="text-xs text-foreground/75 mb-2">
-                  {pluginMismatchMessage(appVersion)}
-                </p>
                 <Button
                   variant="outline"
                   size="sm"
-                  className="mb-2"
+                  className="shrink-0 bg-background"
                   onClick={() => window.electronAPI.saveCompanionPlugin()}
                 >
                   <Download className="mr-2 h-3 w-3" />
-                  Download Latest Plugin
+                  Download latest
                 </Button>
-                <p className="text-xs text-foreground/75">
-                  Replace the existing plugin ZIP via WP Admin &rarr; Plugins &rarr; Add New &rarr;
-                  Upload Plugin, then re-test the connection.
-                </p>
               </div>
             )}
 
-            <div className="space-y-2">
-              <Label htmlFor="site-label">Label</Label>
-              <Input
-                id="site-label"
-                value={label}
-                onChange={(e) => setLabel(e.target.value)}
-              />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div>
-                <Label htmlFor="auto-sync">Auto-sync</Label>
-                <p className="text-xs text-muted-foreground">
-                  Automatically sync changes when online
-                </p>
+            <div className="grid grid-cols-2 items-end gap-x-6">
+              <div className="space-y-2">
+                <Label htmlFor="site-label">Label</Label>
+                <Input
+                  id="site-label"
+                  value={label}
+                  onChange={(e) => setLabel(e.target.value)}
+                  className="h-9"
+                />
               </div>
-              <Switch
-                id="auto-sync"
-                checked={autoSync}
-                onCheckedChange={setAutoSync}
-              />
+              <div className="flex h-9 items-center justify-between gap-4">
+                <div>
+                  <Label htmlFor="auto-sync">Auto-sync</Label>
+                  <p className="text-xs text-muted-foreground">Sync changes when online</p>
+                </div>
+                <Switch
+                  id="auto-sync"
+                  checked={autoSync}
+                  onCheckedChange={setAutoSync}
+                />
+              </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="pull-published">Published posts to pull</Label>
-              <Input
-                id="pull-published"
-                type="number"
-                min={1}
-                max={500}
-                value={pullPublished}
-                onChange={(e) => setPullPublished(Number(e.target.value))}
-              />
+            <div className="grid grid-cols-2 gap-x-6 gap-y-2 border-t pt-5">
+              <div className="space-y-2">
+                <Label htmlFor="pull-published">Published posts to pull</Label>
+                <Input
+                  id="pull-published"
+                  type="number"
+                  min={1}
+                  max={500}
+                  value={pullPublished}
+                  onChange={(e) => setPullPublished(Number(e.target.value))}
+                  className="h-9"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="media-library-limit">Media library images to sync</Label>
+                <Input
+                  id="media-library-limit"
+                  type="number"
+                  min={0}
+                  max={500}
+                  value={mediaLibraryLimit}
+                  onChange={(e) => setMediaLibraryLimit(Number(e.target.value))}
+                  className="h-9"
+                />
+              </div>
               <p className="text-xs text-muted-foreground">
-                Number of published posts to download for offline access
+                Newest first. Drafts and scheduled posts always come too.
               </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="media-library-limit">Media library images to sync</Label>
-              <Input
-                id="media-library-limit"
-                type="number"
-                min={0}
-                max={500}
-                value={mediaLibraryLimit}
-                onChange={(e) => setMediaLibraryLimit(Number(e.target.value))}
-              />
               <p className="text-xs text-muted-foreground">
-                Thumbnails of recent images cached for offline browsing (0 to disable)
+                Thumbnails cached for offline browsing (0 to disable)
               </p>
             </div>
 
@@ -354,7 +364,7 @@ export function AddSiteDialog({
               </Button>
               <Button onClick={handleTestConnection} disabled={!canTest || testing}>
                 {testing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Test Connection
+                Test connection
               </Button>
             </>
           )}
@@ -365,7 +375,7 @@ export function AddSiteDialog({
               </Button>
               <Button onClick={handleSave} disabled={!label.trim() || saving}>
                 {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Save Site
+                Add site
               </Button>
             </>
           )}

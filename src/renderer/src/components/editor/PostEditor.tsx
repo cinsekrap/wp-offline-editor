@@ -170,11 +170,19 @@ export function PostEditor({
   // Flush on unmount or post switch, then checkpoint a revision
   const flushRef = useRef(flush)
   flushRef.current = flush
+  const onPostUpdatedRef = useRef(onPostUpdated)
+  onPostUpdatedRef.current = onPostUpdated
   useEffect(() => {
     const id = postId
     return () => {
-      // Chain captureRevision after flush completes so the save lands first
-      flushRef.current().then(() => window.electronAPI.captureRevision(id))
+      // Chain captureRevision after flush completes so the save lands first.
+      // Then refresh the list: a change made less than the autosave delay
+      // before leaving (one click on Revert to draft, then back) is saved
+      // only by this flush, and the "saved" effect below never fires for an
+      // unmounted editor, so the list kept showing the old status.
+      flushRef.current()
+        .then(() => window.electronAPI.captureRevision(id))
+        .finally(() => onPostUpdatedRef.current())
     }
   }, [postId])
 

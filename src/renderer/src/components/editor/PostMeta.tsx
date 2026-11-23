@@ -263,7 +263,7 @@ export function PostMeta({
 
   return (
     <ScrollArea className="flex-1">
-    <div className="space-y-4 p-4">
+    <div className="space-y-3 p-3 [&>div]:rounded-xl [&>div]:border [&>div]:bg-card [&>div]:p-3">
       {/* Status */}
       <div className="space-y-1.5">
         {!published ? (
@@ -328,7 +328,7 @@ export function PostMeta({
             {/* Schedule date picker (shown before committing) */}
             {scheduling && pendingDate && (
               <div className="space-y-2 border rounded-md p-3">
-                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                <Label className="text-xs font-semibold text-foreground/80">
                   Schedule for
                 </Label>
                 <Popover>
@@ -415,7 +415,7 @@ export function PostMeta({
       {/* Publish date (only when published with a date or scheduling) */}
       {published && (
         <div className="space-y-1.5">
-          <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+          <Label className="text-xs font-semibold text-foreground/80">
             Publish Date
           </Label>
           {!dateExpanded && !scheduledDate ? (
@@ -480,7 +480,7 @@ export function PostMeta({
 
       {/* Visibility */}
       <div className="space-y-1.5">
-        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+        <Label className="text-xs font-semibold text-foreground/80">
           Visibility
         </Label>
         <Popover open={visibilityOpen} onOpenChange={setVisibilityOpen}>
@@ -524,7 +524,7 @@ export function PostMeta({
 
       {/* Slug */}
       <div className="space-y-1.5">
-        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+        <Label className="text-xs font-semibold text-foreground/80">
           Slug
         </Label>
         <Input
@@ -537,7 +537,7 @@ export function PostMeta({
 
       {/* Excerpt */}
       <div className="space-y-1.5">
-        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+        <Label className="text-xs font-semibold text-foreground/80">
           Excerpt
         </Label>
         <Textarea
@@ -551,7 +551,7 @@ export function PostMeta({
 
       {/* Featured Image */}
       <div className="space-y-1.5">
-        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+        <Label className="text-xs font-semibold text-foreground/80">
           Featured Image
         </Label>
         {featuredMedia ? (
@@ -798,7 +798,7 @@ function CategoriesSection({
 
   return (
     <div className="space-y-1.5">
-      <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+      <Label className="text-xs font-semibold text-foreground/80">
         Categories
       </Label>
       {terms.length > 0 && (
@@ -933,7 +933,7 @@ function TagsSection({
 
   return (
     <div className="space-y-1.5">
-      <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+      <Label className="text-xs font-semibold text-foreground/80">
         Tags
       </Label>
       {selected.length > 0 && (

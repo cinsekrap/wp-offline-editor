@@ -333,6 +333,7 @@ function App(): JSX.Element {
         return (
           <PostsView
             siteId={selectedSiteId}
+            sites={sites}
             pulling={sync.syncing}
             online={effectiveOnline}
             editorFontSize={settings.editorFontSize}

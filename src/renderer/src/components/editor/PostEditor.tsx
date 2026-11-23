@@ -1,15 +1,13 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import type { Editor } from '@tiptap/react'
 import {
-  ArrowLeft,
+  ChevronLeft,
   Loader2,
   CheckCircle,
   AlertCircle,
   PanelRight,
   AlertTriangle,
-  Trash2,
   Maximize2,
-  Clock,
   Eye
 } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
@@ -28,6 +26,7 @@ import { ImageContextMenu } from './ImageContextMenu'
 import { MediaQueuePopover } from './MediaQueuePopover'
 import { PostActionsMenu } from './PostActionsMenu'
 import { PreviewDialog } from './PreviewDialog'
+import { SiteAvatar } from '@renderer/components/layout/SiteAvatar'
 import { useAutoSave, type SaveStatus } from '@renderer/hooks/useAutoSave'
 import { useMediaQueue } from '@renderer/hooks/useMediaQueue'
 import { useAcfSchema } from '@renderer/hooks/useAcfSchema'
@@ -52,25 +51,25 @@ function SaveIndicator({ status }: { status: SaveStatus }): JSX.Element | null {
       return (
         <span className="flex items-center gap-1 text-xs text-muted-foreground">
           <Loader2 className="h-3 w-3 animate-spin" />
-          Saving
+          Saving…
         </span>
       )
     case 'saved':
       return (
         <span className="flex items-center gap-1 text-xs text-muted-foreground">
           <CheckCircle className="h-3 w-3" />
-          Saved
+          Saved on this Mac
         </span>
       )
     case 'error':
       return (
         <span className="flex items-center gap-1 text-xs text-destructive">
           <AlertCircle className="h-3 w-3" />
-          Error saving
+          Couldn&rsquo;t save
         </span>
       )
     default:
-      return null
+      return <span className="text-xs text-muted-foreground">Saved on this Mac</span>
   }
 }
 
@@ -133,6 +132,7 @@ export function PostEditor({
   const initializedRef = useRef(false)
 
   const { queue, pending, refresh: refreshQueue, uploadItem, uploadAll } = useMediaQueue(siteId, postId)
+  const currentSite = sites.find((s) => s.id === siteId) ?? null
   const { schemas: acfSchemas } = useAcfSchema(siteId)
   const hasAcf = acfSchemas.some((s) => s.fields.length > 0)
   const [sidebarTab, setSidebarTab] = useState<'post' | 'acf' | 'scratchpad' | 'history'>('post')
@@ -520,13 +520,12 @@ export function PostEditor({
 
       {/* Main editor area */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Header */}
         {/* Title bar — the sidebar folds away while writing, so leave room for the traffic lights */}
-        <div className="h-[52px] flex items-center gap-2 pl-[84px] pr-4 border-b shrink-0 drag-region">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleBack} title="Back to post list">
-            <ArrowLeft className="h-4 w-4" />
+        <div className="h-[52px] flex items-center gap-2 pl-[84px] pr-3 border-b shrink-0 drag-region">
+          <Button variant="ghost" size="sm" className="h-8 gap-1 px-2 text-muted-foreground hover:text-foreground" onClick={handleBack} title="Back">
+            <ChevronLeft className="h-4 w-4" />
+            Posts
           </Button>
-          <SaveIndicator status={saveStatus} />
 
           {/* Conflict button */}
           {post.conflict && (
@@ -541,7 +540,17 @@ export function PostEditor({
             </Button>
           )}
 
-          <div className="flex-1" />
+          {/* Where this post lives, and whether it's safe */}
+          <div className="flex-1 flex items-center justify-center gap-2 min-w-0 text-xs text-muted-foreground select-none">
+            {currentSite && (
+              <>
+                <SiteAvatar site={currentSite} className="size-[18px] text-[9px] rounded" />
+                <span className="truncate max-w-[180px]">{currentSite.label || currentSite.url}</span>
+                <span className="opacity-40">·</span>
+              </>
+            )}
+            <SaveIndicator status={saveStatus} />
+          </div>
 
           <MediaQueuePopover
             queue={queue}
@@ -551,22 +560,7 @@ export function PostEditor({
             onUploadAll={handleUploadAll}
           />
 
-          <PostActionsMenu
-            onImportMarkdown={handleImportMarkdown}
-            onExportMarkdown={handleExportMarkdown}
-            onDuplicate={onDuplicate ? () => handleDuplicate() : undefined}
-            onDuplicateTo={sites.length > 1 ? () => setDuplicateToOpen(true) : undefined}
-            duplicating={duplicating}
-            sites={sites}
-          />
-
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            onClick={() => setPreviewOpen(true)}
-            title="Preview"
-          >
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setPreviewOpen(true)} title="Preview">
             <Eye className="h-4 w-4" />
           </Button>
 
@@ -575,44 +569,31 @@ export function PostEditor({
             size="icon"
             className="h-8 w-8"
             onClick={() => setFocusMode(true)}
-            title="Focus mode (Cmd+Shift+F)"
+            title="Focus mode (⇧⌘F)"
           >
             <Maximize2 className="h-4 w-4" />
           </Button>
 
-          <Button
-            variant="ghost"
-            size="icon"
-            className={cn('h-8 w-8', sidebarTab === 'history' && 'bg-accent')}
-            onClick={() => {
-              if (sidebarTab === 'history') {
-                setSidebarTab('post')
-              } else {
-                setSidebarTab('history')
-                setRightPanelOpen(true)
-              }
+          <PostActionsMenu
+            onImportMarkdown={handleImportMarkdown}
+            onExportMarkdown={handleExportMarkdown}
+            onDuplicate={onDuplicate ? () => handleDuplicate() : undefined}
+            onDuplicateTo={sites.length > 1 ? () => setDuplicateToOpen(true) : undefined}
+            duplicating={duplicating}
+            sites={sites}
+            onHistory={() => {
+              setSidebarTab('history')
+              setRightPanelOpen(true)
             }}
-            title="Revision history"
-          >
-            <Clock className="h-4 w-4" />
-          </Button>
+            onDelete={() => setDeleteDialogOpen(true)}
+          />
 
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 text-muted-foreground hover:text-destructive"
-            onClick={() => setDeleteDialogOpen(true)}
-            title="Delete post"
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
-
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
+            className={cn('h-8 w-8', rightPanelOpen && 'bg-accent')}
             onClick={() => setRightPanelOpen((prev) => !prev)}
-            title={rightPanelOpen ? 'Hide details panel' : 'Show details panel'}
+            title={rightPanelOpen ? 'Hide details' : 'Show details'}
           >
             <PanelRight className="h-4 w-4" />
           </Button>
@@ -644,43 +625,45 @@ export function PostEditor({
 
       {/* Right panel */}
       {rightPanelOpen && (
-        <div className="w-[320px] border-l flex flex-col shrink-0 overflow-hidden">
-          <div className="flex border-b shrink-0 drag-region">
-            <button
-              className={cn(
-                'flex-1 text-xs font-medium h-[52px] transition-colors',
-                sidebarTab === 'post'
-                  ? 'text-foreground border-b-2 border-foreground'
-                  : 'text-muted-foreground hover:text-foreground'
-              )}
-              onClick={() => setSidebarTab('post')}
-            >
-              Post
-            </button>
-            {hasAcf && (
+        <div className="w-[320px] border-l flex flex-col shrink-0 overflow-hidden bg-canvas">
+          <div className="h-[52px] flex items-center px-3 border-b shrink-0 drag-region">
+            <div className="flex flex-1 rounded-lg bg-muted p-0.5">
               <button
                 className={cn(
-                  'flex-1 text-xs font-medium h-[52px] transition-colors',
-                  sidebarTab === 'acf'
-                    ? 'text-foreground border-b-2 border-foreground'
+                  'flex-1 h-7 rounded-md text-xs font-semibold transition-colors',
+                  sidebarTab === 'post'
+                    ? 'bg-background text-foreground shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
                 )}
-                onClick={() => setSidebarTab('acf')}
+                onClick={() => setSidebarTab('post')}
               >
-                Custom Fields
+                Post
               </button>
-            )}
-            <button
-              className={cn(
-                'flex-1 text-xs font-medium h-[52px] transition-colors',
-                sidebarTab === 'scratchpad'
-                  ? 'text-foreground border-b-2 border-foreground'
-                  : 'text-muted-foreground hover:text-foreground'
+              {hasAcf && (
+                <button
+                  className={cn(
+                    'flex-1 h-7 rounded-md text-xs font-semibold transition-colors',
+                    sidebarTab === 'acf'
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
+                  onClick={() => setSidebarTab('acf')}
+                >
+                  Fields
+                </button>
               )}
-              onClick={() => setSidebarTab('scratchpad')}
-            >
-              Scratchpad
-            </button>
+              <button
+                className={cn(
+                  'flex-1 h-7 rounded-md text-xs font-semibold transition-colors',
+                  sidebarTab === 'scratchpad'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+                onClick={() => setSidebarTab('scratchpad')}
+              >
+                Scratchpad
+              </button>
+            </div>
           </div>
           {sidebarTab === 'post' && (
             <PostMeta

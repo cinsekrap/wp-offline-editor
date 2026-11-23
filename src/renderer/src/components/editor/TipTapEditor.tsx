@@ -135,6 +135,15 @@ export function TipTapEditor({
     editor,
     selector: ({ editor: e }) => e?.isActive('link') ?? false
   })
+  const marks = useEditorState({
+    editor,
+    selector: ({ editor: e }) => ({
+      bold: e?.isActive('bold') ?? false,
+      italic: e?.isActive('italic') ?? false,
+      h2: e?.isActive('heading', { level: 2 }) ?? false,
+      quote: e?.isActive('blockquote') ?? false
+    })
+  })
 
   const handleImageInsert = async (file: File): Promise<void> => {
     await insertImageFile(editor, file, siteId, postId)
@@ -197,6 +206,30 @@ export function TipTapEditor({
             }
           >
             <div className="flex items-center gap-0.5 rounded-lg border bg-popover text-popover-foreground shadow-lg p-1">
+              {(
+                [
+                  { key: 'bold', label: 'B', title: 'Bold (⌘B)', cls: 'font-bold', run: () => editor.chain().focus().toggleBold().run() },
+                  { key: 'italic', label: 'I', title: 'Italic (⌘I)', cls: 'italic font-editor', run: () => editor.chain().focus().toggleItalic().run() },
+                  { key: 'h2', label: 'H2', title: 'Heading', cls: 'font-semibold', run: () => editor.chain().focus().toggleHeading({ level: 2 }).run() },
+                  { key: 'quote', label: '“', title: 'Quote', cls: 'font-editor text-base leading-none', run: () => editor.chain().focus().toggleBlockquote().run() }
+                ] as const
+              ).map((b) => (
+                <button
+                  key={b.key}
+                  title={b.title}
+                  onClick={b.run}
+                  className={cn(
+                    'h-7 min-w-7 px-1.5 rounded-sm text-xs transition-colors',
+                    b.cls,
+                    marks?.[b.key]
+                      ? 'bg-accent text-accent-foreground'
+                      : 'text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground'
+                  )}
+                >
+                  {b.label}
+                </button>
+              ))}
+              <div className="w-px h-4 bg-border mx-0.5" />
               <button
                 className={cn(
                   'h-7 flex items-center gap-1.5 px-2 rounded-sm text-xs transition-colors',

@@ -98,7 +98,7 @@ export function AcfPanel({ siteId, acfData, onChange }: AcfPanelProps): JSX.Elem
           return (
             <div key={schema.id}>
               {idx > 0 && <Separator className="mb-4" />}
-              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+              <h4 className="text-xs font-semibold text-foreground/80 mb-3">
                 {schema.group_title}
               </h4>
               <div className="space-y-3">

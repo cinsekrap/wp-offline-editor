@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import {
   Plus, Loader2,
-  Filter, ArrowUpDown, Search, X, CheckSquare, LayoutGrid, Rows3, ImageIcon
+  Filter, ArrowUpDown, Search, X, CheckSquare, LayoutGrid, Rows3
 } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
 import { Input } from '@renderer/components/ui/input'
@@ -716,13 +716,13 @@ export function PostList({
       {/* List */}
       <ScrollArea className="flex-1">
         {loading ? (
-          <div className="px-6 pt-5 space-y-5" aria-label="Loading posts">
+          <div className="mx-auto max-w-[1080px] px-7 pt-6 space-y-8" aria-label="Loading posts">
             {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="flex items-center gap-4">
-                <Skeleton className="h-10 w-14 rounded-md" />
-                <div className="flex-1 space-y-2">
-                  <Skeleton className="h-3.5 w-2/5" />
-                  <Skeleton className="h-3 w-4/5" />
+              <div key={i} className="flex items-center gap-5">
+                <Skeleton className="h-[68px] w-[104px] rounded-lg" />
+                <div className="flex-1 space-y-2.5">
+                  <Skeleton className="h-4 w-2/5" />
+                  <Skeleton className="h-3.5 w-4/5" />
                 </div>
                 <Skeleton className="h-3 w-20" />
               </div>
@@ -773,7 +773,7 @@ export function PostList({
             </button>
           </div>
         ) : (
-          <div className="px-4 pb-24 pt-1">
+          <div className="mx-auto max-w-[1080px] px-4 pb-24 pt-1">
             {groups.map((group) => (
               <section key={group.label ?? 'all'}>
                 {group.label && (
@@ -807,37 +807,49 @@ export function PostList({
                           key={post.id}
                           onClick={() => activate(post)}
                           className={cn(
-                            'grid w-full grid-cols-[auto_56px_minmax(0,1fr)_150px_112px_96px] items-center gap-4 rounded-xl px-2.5 py-2.5 text-left transition-colors hover:bg-canvas',
+                            'group/row relative grid w-full grid-cols-[auto_104px_minmax(0,1fr)_132px] items-center gap-5 rounded-xl px-3 py-4 text-left transition-colors hover:bg-canvas',
+                            // Hairline between rows, hidden next to the hovered one
+                            'after:absolute after:inset-x-3 after:bottom-0 after:h-px after:bg-border/70 last:after:hidden hover:after:opacity-0',
                             selectMode && selectedIds.has(post.id) && 'bg-primary/5 hover:bg-primary/10'
                           )}
                         >
                           {selectMode ? checkbox(post) : <span className="w-0" />}
                           {image ? (
-                            <img src={image} alt="" loading="lazy" className="h-10 w-14 rounded-md object-cover bg-muted" />
+                            <img src={image} alt="" loading="lazy" className="h-[68px] w-[104px] rounded-lg object-cover bg-muted" />
                           ) : (
-                            <span className="grid h-10 w-14 place-items-center rounded-md border border-dashed text-muted-foreground/60">
-                              <ImageIcon className="h-3.5 w-3.5" />
+                            // No image: the title's initial, quietly, like the cards on Home
+                            <span
+                              aria-hidden
+                              className="relative h-[68px] w-[104px] overflow-hidden rounded-lg bg-[linear-gradient(135deg,hsl(var(--primary)/0.09),hsl(var(--primary)/0.03))]"
+                            >
+                              <span className="absolute -bottom-4 right-2 font-editor text-[64px] font-semibold leading-none text-primary/15 select-none">
+                                {(post.title || 'U').trim()[0]?.toUpperCase()}
+                              </span>
                             </span>
                           )}
                           <span className="min-w-0">
-                            <span className="block truncate font-editor text-[15px] font-semibold leading-snug">
+                            <span className="block truncate font-editor text-[17px] font-semibold leading-snug">
                               {post.title || 'Untitled'}
                             </span>
-                            <span className="mt-0.5 block truncate font-editor text-[12.5px] text-muted-foreground">
+                            <span className="mt-1 block truncate font-editor text-[14px] text-foreground/60">
                               {snippet || (tags.length > 0 ? tags.map((t) => `#${t}`).join(' ') : '\u00a0')}
                             </span>
+                            {categoryLabel(post.categories, categoryNames) && (
+                              <span className="mt-1.5 block truncate text-xs text-muted-foreground">
+                                {categoryLabel(post.categories, categoryNames)}
+                              </span>
+                            )}
                           </span>
-                          <span className="truncate text-xs text-foreground/70">
-                            {categoryLabel(post.categories, categoryNames)}
-                          </span>
-                          <StatusMark
-                            status={post.status}
-                            synced={post.synced}
-                            conflict={post.conflict}
-                            hasRemote={post.wp_id != null}
-                          />
-                          <span className="text-right text-xs tabular-nums text-muted-foreground">
-                            {getDisplayDate(post)}
+                          <span className="flex flex-col items-end gap-1.5 text-right">
+                            <StatusMark
+                              status={post.status}
+                              synced={post.synced}
+                              conflict={post.conflict}
+                              hasRemote={post.wp_id != null}
+                            />
+                            <span className="text-xs tabular-nums text-muted-foreground">
+                              {getDisplayDate(post)}
+                            </span>
                           </span>
                         </button>
                       )

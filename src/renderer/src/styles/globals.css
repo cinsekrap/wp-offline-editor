@@ -17,7 +17,7 @@
  * `--primary` is the site tint: the accent for primary buttons, focus rings,
  * links and selection.
  */
-@theme {
+@theme inline {
   --color-border: hsl(var(--border));
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));

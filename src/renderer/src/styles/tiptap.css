@@ -269,3 +269,16 @@
 .dark .tiptap pre code .hljs-type {
   color: #ffa657;
 }
+
+/* ── Focus mode: the paragraph you're in stays lit, the rest recedes ── */
+.focus-writing .tiptap > * {
+  transition: opacity 0.25s ease;
+}
+.focus-writing .tiptap.ProseMirror-focused > *:not(.has-focus) {
+  opacity: 0.32;
+}
+@media (prefers-reduced-motion: reduce) {
+  .focus-writing .tiptap > * {
+    transition: none;
+  }
+}

@@ -459,7 +459,9 @@ export function PostEditor({
 
   if (focusMode) {
     return (
-      <div className="relative flex flex-col h-full bg-background">
+      // Focus mode is always the dark "studio" treatment, whatever the app theme
+      <div className="dark relative flex flex-col h-full bg-background text-foreground">
+        <div className="h-8 shrink-0 drag-region" />
         <div className="flex-1 flex flex-col min-h-0">
           <div className="absolute top-3 right-4 z-10">
             <SaveIndicator status={saveStatus} />

@@ -6,6 +6,7 @@ import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
 import Link from '@tiptap/extension-link'
 import Placeholder from '@tiptap/extension-placeholder'
+import { Focus } from '@tiptap/extensions'
 import { Table } from '@tiptap/extension-table'
 import { TableRow } from '@tiptap/extension-table-row'
 import { TableCell } from '@tiptap/extension-table-cell'
@@ -77,7 +78,9 @@ export function TipTapEditor({
         StarterKit.configure({ codeBlock: false }),
         Underline,
         Link.configure({ openOnClick: false }),
-        Placeholder.configure({ placeholder: 'Start writing...' }),
+        Placeholder.configure({ placeholder: 'Start writing…' }),
+        // Marks the top-level block holding the caret; focus mode dims the rest
+        Focus.configure({ className: 'has-focus', mode: 'shallowest' }),
         MediaImage.configure({ onImageClick }),
         Table.configure({ resizable: false }),
         TableRow,
@@ -196,7 +199,7 @@ export function TipTapEditor({
         siteId={siteId}
         onSelect={handleLibrarySelect}
       />
-      <div className="flex-1 overflow-y-auto bg-background" style={style}>
+      <div className={cn('flex-1 overflow-y-auto bg-background', focusMode && 'focus-writing')} style={style}>
         {header && <div className="max-w-[38em] mx-auto px-6 pt-10 pb-4 text-[length:var(--editor-font-size,18px)]">{header}</div>}
         {editor && (
           <BubbleMenu

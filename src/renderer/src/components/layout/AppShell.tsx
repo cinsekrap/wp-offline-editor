@@ -7,6 +7,8 @@ interface AppShellProps {
   sidebar: ReactNode | null
   /** Title-bar content for views that don't draw their own header. */
   header?: { title: string; actions?: ReactNode }
+  /** Changes when the view does, to fade the new one in */
+  viewKey?: string
 }
 
 /**
@@ -14,7 +16,7 @@ interface AppShellProps {
  * (hiddenInset), so whichever pane is at the top-left leaves room for the
  * traffic lights and something at the top must be draggable.
  */
-export function AppShell({ children, sidebar, header }: AppShellProps): JSX.Element {
+export function AppShell({ children, sidebar, header, viewKey }: AppShellProps): JSX.Element {
   return (
     <div className="h-screen flex">
       {sidebar}
@@ -24,7 +26,12 @@ export function AppShell({ children, sidebar, header }: AppShellProps): JSX.Elem
             {header.actions}
           </ViewHeader>
         )}
-        <div className="flex-1 min-h-0 overflow-hidden">{children}</div>
+        <div
+          key={viewKey}
+          className="flex-1 min-h-0 overflow-hidden animate-in fade-in-0 duration-200 motion-reduce:animate-none"
+        >
+          {children}
+        </div>
       </main>
     </div>
   )

@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { ChevronRight, AlertTriangle, PenLine } from 'lucide-react'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
+import { Skeleton } from '@renderer/components/ui/skeleton'
 import { Button } from '@renderer/components/ui/button'
 import { PostCard } from '@renderer/components/posts/PostCard'
 import { StatusGlyph } from '@renderer/components/posts/StatusMark'
@@ -185,8 +186,17 @@ export function SiteDashboard({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full text-muted-foreground">
-        <p className="text-sm">Loading posts…</p>
+      <div className="mx-auto max-w-5xl px-8 py-7 space-y-7" aria-label="Loading">
+        <div className="space-y-2">
+          <Skeleton className="h-3 w-40" />
+          <Skeleton className="h-7 w-3/5" />
+        </div>
+        <Skeleton className="h-28 w-full rounded-xl" />
+        <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-52 rounded-xl" />
+          ))}
+        </div>
       </div>
     )
   }

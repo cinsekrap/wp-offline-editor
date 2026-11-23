@@ -6,6 +6,7 @@ import {
 import { Button } from '@renderer/components/ui/button'
 import { Input } from '@renderer/components/ui/input'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
+import { Skeleton } from '@renderer/components/ui/skeleton'
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/components/ui/popover'
 import { cn } from '@renderer/lib/utils'
 import { FILTER_STATUSES } from '@renderer/lib/post-status'
@@ -715,8 +716,17 @@ export function PostList({
       {/* List */}
       <ScrollArea className="flex-1">
         {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          <div className="px-6 pt-5 space-y-5" aria-label="Loading posts">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-4">
+                <Skeleton className="h-10 w-14 rounded-md" />
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-3.5 w-2/5" />
+                  <Skeleton className="h-3 w-4/5" />
+                </div>
+                <Skeleton className="h-3 w-20" />
+              </div>
+            ))}
           </div>
         ) : showSearchResults ? (
           // Search results

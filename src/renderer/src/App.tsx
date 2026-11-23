@@ -455,7 +455,11 @@ function App(): JSX.Element {
 
   return (
     <>
-      <AppShell sidebar={sidebar} header={header}>
+      <AppShell
+        sidebar={sidebar}
+        header={header}
+        viewKey={`${nav.currentView}:${nav.selectedPostId ?? ''}:${tmpl.editingTemplate?.id ?? ''}`}
+      >
         {renderContent()}
       </AppShell>
 

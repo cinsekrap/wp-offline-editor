@@ -82,45 +82,46 @@ function SiteCard({
         className="p-4 hover:bg-accent/30 transition-colors cursor-pointer group"
         onClick={() => onSelect(site)}
       >
-        <div className="flex items-start gap-3">
+        <div className="flex items-center gap-3">
           <SiteFavicon site={site} />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <span className="font-medium truncate">{site.label}</span>
               {site.auto_sync && (
-                <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                <Badge variant="secondary" className="shrink-0 whitespace-nowrap text-[10px] px-1.5 py-0">
                   Auto-sync
                 </Badge>
               )}
             </div>
             <p className="text-xs text-muted-foreground truncate mt-0.5">{site.url}</p>
           </div>
-        </div>
-        <div className="flex items-center justify-end gap-1 mt-3 opacity-0 group-hover:opacity-100 transition-opacity">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            onClick={(e) => {
-              e.stopPropagation()
-              onEdit(site)
-            }}
-            title="Edit site"
-          >
-            <Pencil className="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            onClick={(e) => {
-              e.stopPropagation()
-              onDelete(site)
-            }}
-            title="Delete site"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
+          {/* Shown on hover, in the header row so they don't hold open a blank strip */}
+          <div className="flex shrink-0 items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={(e) => {
+                e.stopPropagation()
+                onEdit(site)
+              }}
+              title="Edit site"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={(e) => {
+                e.stopPropagation()
+                onDelete(site)
+              }}
+              title="Delete site"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
         </div>
       </div>
 

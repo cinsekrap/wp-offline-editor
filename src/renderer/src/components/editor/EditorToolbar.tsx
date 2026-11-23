@@ -163,7 +163,7 @@ export function EditorToolbar({ editor, siteId, onImageInsert, onLibraryImageIns
   ]
 
   return (
-    <div className="flex items-center gap-0.5 p-1 border border-b-0 rounded-t-md bg-muted/30 flex-wrap">
+    <div className="flex items-center justify-center gap-0.5 px-2 py-1 border-b bg-background flex-wrap shrink-0">
       {items.map((item, i) => {
         if ('type' in item && item.type === 'separator') {
           return <div key={i} className="w-px h-6 bg-border mx-1" />

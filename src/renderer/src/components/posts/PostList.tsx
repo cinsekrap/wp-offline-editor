@@ -10,7 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@renderer/components/ui
 import { cn } from '@renderer/lib/utils'
 import { FILTER_STATUSES } from '@renderer/lib/post-status'
 import { useCategoryNames, useTermNames, categoryLabel } from '@renderer/hooks/useCategoryNames'
-import { StatusPill } from './StatusPill'
+import { StatusMark } from './StatusMark'
 import type { Post, PostStatus, SearchResult } from '@shared/types'
 
 /** Strip all HTML tags except <mark> from FTS5 snippets to prevent XSS. */
@@ -381,7 +381,7 @@ export function PostList({
           >
             <Search className="h-4 w-4" />
             {searchQuery.trim() && (
-              <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-blue-500" />
+              <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-primary" />
             )}
           </Button>
 
@@ -402,7 +402,7 @@ export function PostList({
               <Button variant="ghost" size="icon" className="h-8 w-8 relative" title="Filter by status">
                 <Filter className="h-4 w-4" />
                 {hasActiveFilters && (
-                  <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-blue-500" />
+                  <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-primary" />
                 )}
               </Button>
             </PopoverTrigger>
@@ -631,11 +631,11 @@ export function PostList({
                   className="w-full text-left px-6 py-3 transition-colors hover:bg-accent/50"
                 >
                   <p
-                    className="text-sm font-medium truncate [&_mark]:bg-yellow-200 [&_mark]:text-foreground dark:[&_mark]:bg-yellow-800"
+                    className="text-sm font-medium truncate search-marks"
                     dangerouslySetInnerHTML={{ __html: sanitizeSnippet(result.title) }}
                   />
                   <p
-                    className="text-xs text-muted-foreground mt-1 line-clamp-2 [&_mark]:bg-yellow-200 [&_mark]:text-foreground dark:[&_mark]:bg-yellow-800"
+                    className="text-xs text-muted-foreground mt-1 line-clamp-2 search-marks"
                     dangerouslySetInnerHTML={{ __html: sanitizeSnippet(result.snippet) }}
                   />
                 </button>
@@ -662,10 +662,10 @@ export function PostList({
             {!selectMode && (
               <button
                 onClick={onNewPost}
-                className="border-2 border-dashed border-green-400/50 rounded-lg p-4 hover:border-green-500 hover:bg-green-50 dark:hover:bg-green-950/20 transition-colors cursor-pointer flex items-center justify-center gap-2"
+                className="border border-dashed border-primary/35 rounded-xl p-4 hover:border-primary/70 hover:bg-primary/5 transition-colors cursor-pointer flex items-center justify-center gap-2"
               >
-                <Plus className="h-5 w-5 text-green-600 dark:text-green-500" />
-                <span className="text-sm font-medium text-green-600 dark:text-green-500">
+                <Plus className="h-5 w-5 text-primary" />
+                <span className="text-sm font-medium text-primary">
                   New post
                 </span>
               </button>
@@ -728,7 +728,7 @@ export function PostList({
                     {post.title || '(Untitled)'}
                   </p>
                   <div className="mt-2 flex items-center justify-between gap-2 min-w-0">
-                    <StatusPill
+                    <StatusMark
                       status={post.status}
                       synced={post.synced}
                       conflict={post.conflict}

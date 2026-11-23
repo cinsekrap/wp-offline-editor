@@ -13,8 +13,8 @@ import {
   Eye
 } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
-import { Input } from '@renderer/components/ui/input'
 import { TipTapEditor } from './TipTapEditor'
+import { PageTitle } from './PageTitle'
 import { PostMeta } from './PostMeta'
 import { AcfPanel } from './acf/AcfPanel'
 import { AcfMediaProvider } from './acf/AcfMediaContext'
@@ -57,7 +57,7 @@ function SaveIndicator({ status }: { status: SaveStatus }): JSX.Element | null {
       )
     case 'saved':
       return (
-        <span className="flex items-center gap-1 text-xs text-green-600">
+        <span className="flex items-center gap-1 text-xs text-muted-foreground">
           <CheckCircle className="h-3 w-3" />
           Saved
         </span>
@@ -459,18 +459,10 @@ export function PostEditor({
 
   if (focusMode) {
     return (
-      <div className="flex flex-col h-full bg-background">
-        <div className="flex-1 flex flex-col min-h-0 px-4 pb-4">
-          <div className="shrink-0 py-3">
-            <div className="flex items-center gap-2">
-              <Input
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Post title"
-                className="border-0 text-xl font-semibold h-auto py-1 px-0 focus-visible:ring-0 focus-visible:ring-offset-0 flex-1"
-              />
-              <SaveIndicator status={saveStatus} />
-            </div>
+      <div className="relative flex flex-col h-full bg-background">
+        <div className="flex-1 flex flex-col min-h-0">
+          <div className="absolute top-3 right-4 z-10">
+            <SaveIndicator status={saveStatus} />
           </div>
           <div className="flex-1 flex flex-col min-h-0">
             <TipTapEditor
@@ -484,6 +476,14 @@ export function PostEditor({
               fontSize={editorFontSize}
               focusMode
               onExitFocusMode={() => setFocusMode(false)}
+              header={
+                <PageTitle
+                  value={title}
+                  onChange={setTitle}
+                  onEnter={() => editorRef.current?.commands.focus('start')}
+                  placeholder="Post title"
+                />
+              }
             />
           </div>
         </div>
@@ -532,7 +532,7 @@ export function PostEditor({
             <Button
               variant="outline"
               size="sm"
-              className="h-7 text-xs border-orange-400 text-orange-600 hover:bg-orange-50"
+              className="h-7 text-xs border-warning/50 text-warning hover:bg-warning-soft hover:text-warning"
               onClick={() => setConflictDialogOpen(true)}
             >
               <AlertTriangle className="h-3.5 w-3.5 mr-1" />
@@ -617,18 +617,8 @@ export function PostEditor({
           </Button>
         </div>
 
-        {/* Title */}
-        <div className="px-4 py-3 shrink-0">
-          <Input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Post title"
-            className="border-0 text-xl font-semibold h-auto py-1 px-0 focus-visible:ring-0 focus-visible:ring-offset-0"
-          />
-        </div>
-
-        {/* Editor */}
-        <div className="flex-1 px-4 pb-4 flex flex-col min-h-0">
+        {/* Editor — the title is part of the page, inside the scrolling column */}
+        <div className="flex-1 flex flex-col min-h-0">
           <TipTapEditor
             key={postId}
             postId={postId}
@@ -639,6 +629,14 @@ export function PostEditor({
             onImageClick={handleImageClick}
             fontSize={editorFontSize}
             focusMode={false}
+            header={
+              <PageTitle
+                value={title}
+                onChange={setTitle}
+                onEnter={() => editorRef.current?.commands.focus('start')}
+                placeholder="Post title"
+              />
+            }
           />
         </div>
       </div>

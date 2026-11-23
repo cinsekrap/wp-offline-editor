@@ -193,7 +193,7 @@ export function PreviewDialog({
 
         {/* Notice / status bar */}
         {!loading && !hasCachedCss && (
-          <div className="flex items-center gap-2 px-4 py-2 text-xs bg-amber-50 text-amber-800 border-b border-amber-200 shrink-0 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900">
+          <div className="flex items-center gap-2 px-4 py-2 text-xs bg-warning-soft text-foreground border-b border-warning/30 shrink-0">
             <Info className="h-3.5 w-3.5 shrink-0" />
             Site styles not cached yet — sync while online to fetch them.
           </div>

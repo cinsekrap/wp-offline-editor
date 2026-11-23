@@ -87,7 +87,7 @@ describe('legacy settings migration', () => {
   })
 
   it('falls back to defaults when neither file exists', () => {
-    expect(getSettings().editorFontSize).toBe(16)
+    expect(getSettings().editorFontSize).toBe(18)
     expect(getSettings().theme).toBe('system')
   })
 })

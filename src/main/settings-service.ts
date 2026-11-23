@@ -8,7 +8,8 @@ import type { AppSettings } from '@shared/types'
 
 const defaults: AppSettings = {
   theme: 'system',
-  editorFontSize: 16,
+  editorFontSize: 18,
+  editorFontFamily: 'serif',
   forceOffline: false,
   autoSyncInterval: 5,
   writingChartMode: 'daily',
@@ -81,6 +82,7 @@ export function getSettings(): AppSettings {
   return {
     theme: s.get('theme'),
     editorFontSize: s.get('editorFontSize'),
+    editorFontFamily: s.get('editorFontFamily'),
     forceOffline: s.get('forceOffline'),
     autoSyncInterval: s.get('autoSyncInterval'),
     writingChartMode: s.get('writingChartMode'),
@@ -92,6 +94,7 @@ export function updateSettings(patch: Partial<AppSettings>): AppSettings {
   const s = getStore()
   if (patch.theme !== undefined) s.set('theme', patch.theme)
   if (patch.editorFontSize !== undefined) s.set('editorFontSize', patch.editorFontSize)
+  if (patch.editorFontFamily !== undefined) s.set('editorFontFamily', patch.editorFontFamily)
   if (patch.forceOffline !== undefined) s.set('forceOffline', patch.forceOffline)
   if (patch.autoSyncInterval !== undefined) s.set('autoSyncInterval', patch.autoSyncInterval)
   if (patch.writingChartMode !== undefined) s.set('writingChartMode', patch.writingChartMode)

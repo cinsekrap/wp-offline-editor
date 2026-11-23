@@ -36,7 +36,7 @@ function ScratchpadSaveIndicator({ status }: { status: ScratchpadSaveStatus }): 
       )
     case 'saved':
       return (
-        <span className="flex items-center gap-1 text-xs text-green-600">
+        <span className="flex items-center gap-1 text-xs text-muted-foreground">
           <CheckCircle className="h-3 w-3" />
           Saved
         </span>
@@ -110,7 +110,7 @@ export function ScratchpadPanel({ siteId, postId }: ScratchpadPanelProps): JSX.E
         <div className="flex flex-col h-full">
           <div className="flex items-center gap-1 px-3 py-2 border-b shrink-0">
             {scratchpad.conflict && (
-              <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0" aria-label="Has a conflict" />
+              <AlertTriangle className="h-3.5 w-3.5 text-warning shrink-0" aria-label="Has a conflict" />
             )}
             <span className="text-sm font-medium truncate flex-1">
               {title || 'Untitled'}
@@ -327,7 +327,7 @@ export function ScratchpadPanel({ siteId, postId }: ScratchpadPanelProps): JSX.E
                 >
                   <div className="flex items-center gap-1.5 font-medium truncate">
                     {sp.conflict && (
-                      <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                      <AlertTriangle className="h-3.5 w-3.5 text-warning shrink-0" />
                     )}
                     <span className="truncate">{sp.title || 'Untitled'}</span>
                   </div>

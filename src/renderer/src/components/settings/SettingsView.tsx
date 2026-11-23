@@ -187,6 +187,29 @@ function AppearanceSection({
         </div>
       </div>
 
+      {/* Writing typeface */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="space-y-0.5">
+          <Label>Writing typeface</Label>
+          <p className="text-xs text-muted-foreground">
+            The face used for post and scratchpad text. The rest of the app always uses the system font.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          {(['serif', 'sans'] as const).map((family) => (
+            <Button
+              key={family}
+              variant={settings.editorFontFamily === family ? 'default' : 'outline'}
+              size="sm"
+              className={family === 'serif' ? 'font-serif' : 'font-sans'}
+              onClick={() => onUpdate({ editorFontFamily: family })}
+            >
+              {family === 'serif' ? 'Serif' : 'Sans'}
+            </Button>
+          ))}
+        </div>
+      </div>
+
       {/* Editor font size */}
       <div className="space-y-3">
         <Label>Editor font size</Label>
@@ -203,10 +226,11 @@ function AppearanceSection({
           <span className="text-sm font-mono w-8 text-right">{settings.editorFontSize}</span>
         </div>
         <p
-          className="text-muted-foreground border rounded-md p-3 mt-2"
+          className="font-editor leading-relaxed border rounded-lg p-4 mt-2 bg-canvas"
           style={{ fontSize: `${settings.editorFontSize}px` }}
         >
-          The quick brown fox jumps over the lazy dog.
+          Start with the work. If the way you run the business is clear, the marketing mostly writes
+          itself.
         </p>
       </div>
     </div>

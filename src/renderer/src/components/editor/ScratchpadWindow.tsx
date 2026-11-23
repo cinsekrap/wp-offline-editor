@@ -19,7 +19,7 @@ function SaveIndicator({ status }: { status: SaveStatus }): JSX.Element | null {
       )
     case 'saved':
       return (
-        <span className="flex items-center gap-1 text-xs text-green-600">
+        <span className="flex items-center gap-1 text-xs text-muted-foreground">
           <CheckCircle className="h-3 w-3" />
           Saved
         </span>
@@ -53,6 +53,7 @@ export function ScratchpadWindow({ scratchpadId }: { scratchpadId: string }): JS
     let cleanup: (() => void) | undefined
     window.electronAPI.getSettings().then((settings: AppSettings) => {
       const root = document.documentElement
+      root.dataset.editorFont = settings.editorFontFamily ?? 'serif'
       function applyTheme(dark: boolean): void {
         if (dark) root.classList.add('dark')
         else root.classList.remove('dark')

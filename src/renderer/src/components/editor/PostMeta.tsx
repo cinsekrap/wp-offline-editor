@@ -11,7 +11,8 @@ import { Badge } from '@renderer/components/ui/badge'
 import { CalendarIcon, ImageIcon, X, Upload, Loader2, Lock, Globe, KeyRound, AlertTriangle, Plus } from 'lucide-react'
 import { format } from 'date-fns'
 import { cn } from '@renderer/lib/utils'
-import { STATUS_COLORS, STATUS_LABELS } from '@renderer/lib/post-status'
+import { STATUS_LABELS } from '@renderer/lib/post-status'
+import { StatusGlyph } from '@renderer/components/posts/StatusMark'
 import { useToast } from '@renderer/components/ui/use-toast'
 import type { PostStatus, Media, MediaLibraryItem, TaxonomyTerm } from '@shared/types'
 
@@ -268,12 +269,10 @@ export function PostMeta({
         {!published ? (
           <>
             <div className="w-full h-8 flex items-center justify-center rounded-md border text-sm">
-              <Badge
-                variant="outline"
-                className={cn('text-xs border-0', STATUS_COLORS[status] ?? STATUS_COLORS.draft)}
-              >
+              <span className="inline-flex items-center gap-1.5 text-xs font-medium">
+                <StatusGlyph status={status} />
                 {STATUS_LABELS[status] ?? 'Draft'}
-              </Badge>
+              </span>
             </div>
 
             {/* Publish actions */}
@@ -287,7 +286,7 @@ export function PostMeta({
                   </PopoverTrigger>
                   <PopoverContent align="start" className="w-72 p-3">
                     <div className="flex gap-2 mb-2">
-                      <AlertTriangle className="h-4 w-4 text-orange-500 shrink-0 mt-0.5" />
+                      <AlertTriangle className="h-4 w-4 text-warning shrink-0 mt-0.5" />
                       <p className="text-sm text-muted-foreground">
                         This post will go <strong>live on your site</strong> at the next sync. Are you sure?
                       </p>
@@ -391,12 +390,10 @@ export function PostMeta({
         ) : (
           <div className="space-y-1.5">
             <div className="w-full h-8 flex items-center justify-center rounded-md border text-sm">
-              <Badge
-                variant="outline"
-                className={cn('text-xs border-0', STATUS_COLORS[status] ?? STATUS_COLORS.publish)}
-              >
+              <span className="inline-flex items-center gap-1.5 text-xs font-medium">
+                <StatusGlyph status={status} />
                 {STATUS_LABELS[status] ?? 'Published'}
-              </Badge>
+              </span>
             </div>
             {status === 'future' && scheduledDate && (
               <p className="text-xs text-muted-foreground text-center">

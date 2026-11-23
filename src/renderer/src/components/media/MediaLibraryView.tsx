@@ -268,9 +268,9 @@ export function MediaLibraryView({ siteId, online }: MediaLibraryViewProps): JSX
                   {item.id < 0 && (
                     <span
                       title="Awaiting sync"
-                      className="absolute top-1.5 right-1.5 h-4 w-4 rounded-full bg-blue-500 ring-2 ring-background flex items-center justify-center"
+                      className="absolute top-1.5 right-1.5 h-4 w-4 rounded-full bg-primary ring-2 ring-background flex items-center justify-center"
                     >
-                      <ArrowUp className="h-2.5 w-2.5 text-white" strokeWidth={3.5} />
+                      <ArrowUp className="h-2.5 w-2.5 text-primary-foreground" strokeWidth={3.5} />
                     </span>
                   )}
                 </button>
@@ -327,9 +327,9 @@ export function MediaLibraryView({ siteId, online }: MediaLibraryViewProps): JSX
                 <p>{formatDate(selected.uploaded_at)}</p>
               </div>
               {selected.id < 0 && (
-                <div className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400">
-                  <span className="h-3.5 w-3.5 rounded-full bg-blue-500 flex items-center justify-center shrink-0">
-                    <ArrowUp className="h-2.5 w-2.5 text-white" strokeWidth={3.5} />
+                <div className="flex items-center gap-1.5 text-xs text-primary">
+                  <span className="h-3.5 w-3.5 rounded-full bg-primary flex items-center justify-center shrink-0">
+                    <ArrowUp className="h-2.5 w-2.5 text-primary-foreground" strokeWidth={3.5} />
                   </span>
                   Awaiting sync — uploads to WordPress next time you sync
                 </div>

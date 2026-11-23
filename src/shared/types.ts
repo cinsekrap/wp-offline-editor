@@ -441,6 +441,8 @@ export interface ExportMetadata {
 export interface AppSettings {
   theme: 'light' | 'dark' | 'system'
   editorFontSize: number
+  /** Typeface for post and scratchpad text. UI chrome always uses the system sans. */
+  editorFontFamily: 'serif' | 'sans'
   forceOffline: boolean
   autoSyncInterval: number // minutes — 0 means disabled
   writingChartMode: 'daily' | 'weekly'

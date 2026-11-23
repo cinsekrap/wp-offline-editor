@@ -126,6 +126,12 @@ function App(): JSX.Element {
     )
   })
 
+  // ── Writing typeface ────────────────────────────────────────────────────
+  // CSS picks --font-editor from this attribute (globals.css); serif is the default.
+  useEffect(() => {
+    document.documentElement.dataset.editorFont = settings.editorFontFamily ?? 'serif'
+  }, [settings.editorFontFamily])
+
   // ── Theme ───────────────────────────────────────────────────────────────
   useEffect(() => {
     const root = document.documentElement

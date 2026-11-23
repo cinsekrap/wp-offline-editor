@@ -10,7 +10,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '@renderer/components/ui/dialog'
-import { StatusPill } from '@renderer/components/posts/StatusPill'
+import { StatusMark } from '@renderer/components/posts/StatusMark'
 import { useCategoryNames, categoryLabel } from '@renderer/hooks/useCategoryNames'
 import { WritingStats } from './WritingStats'
 import { useWindowSize } from '@renderer/hooks/useWindowSize'
@@ -84,7 +84,7 @@ function PostCard({
         {post.title || '(Untitled)'}
       </p>
       <div className="flex items-center gap-2 mt-1.5 min-w-0">
-        <StatusPill
+        <StatusMark
           status={post.status}
           synced={post.synced}
           conflict={post.conflict}
@@ -224,10 +224,10 @@ export function SiteDashboard({
           <div className="flex gap-2.5">
             <button
               onClick={onNewPost}
-              className="border-2 border-dashed border-green-400/50 rounded-lg p-4 hover:border-green-500 hover:bg-green-50 dark:hover:bg-green-950/20 transition-colors cursor-pointer flex items-center justify-center gap-2 flex-1"
+              className="border border-dashed border-primary/35 rounded-xl p-4 hover:border-primary/70 hover:bg-primary/5 transition-colors cursor-pointer flex items-center justify-center gap-2 flex-1"
             >
-              <Plus className="h-5 w-5 text-green-600 dark:text-green-500" />
-              <span className="text-sm font-medium text-green-600 dark:text-green-500">New post</span>
+              <Plus className="h-5 w-5 text-primary" />
+              <span className="text-sm font-medium text-primary">New post</span>
             </button>
             {posts.length > 0 && (
               <button
@@ -319,9 +319,9 @@ export function SiteDashboard({
           {scheduledPosts.length > 0 ? (
             <>
               {hasUnsyncedScheduled && (
-                <div className="flex items-start gap-2 mb-2 rounded-md border border-orange-200 bg-orange-50 dark:border-orange-800 dark:bg-orange-950/30 p-2.5">
-                  <AlertTriangle className="h-3.5 w-3.5 text-orange-500 shrink-0 mt-0.5" />
-                  <p className="text-xs text-orange-700 dark:text-orange-400">
+                <div className="flex items-start gap-2 mb-2 rounded-lg border border-warning/30 bg-warning-soft p-2.5">
+                  <AlertTriangle className="h-3.5 w-3.5 text-warning shrink-0 mt-0.5" />
+                  <p className="text-xs text-foreground/85">
                     There are unsynchronized scheduled posts. They may not go live as scheduled.
                   </p>
                 </div>
@@ -352,10 +352,10 @@ export function SiteDashboard({
             {/* Dummy "new scratchpad" tile — mirrors the New post pattern */}
             <button
               onClick={handleNewScratchpad}
-              className="border-2 border-dashed border-green-400/50 rounded-lg p-3 hover:border-green-500 hover:bg-green-50 dark:hover:bg-green-950/20 transition-colors cursor-pointer flex items-center justify-center gap-2 min-h-[60px]"
+              className="border border-dashed border-primary/35 rounded-xl p-3 hover:border-primary/70 hover:bg-primary/5 transition-colors cursor-pointer flex items-center justify-center gap-2 min-h-[60px]"
             >
-              <Plus className="h-4 w-4 text-green-600 dark:text-green-500" />
-              <span className="text-sm font-medium text-green-600 dark:text-green-500">
+              <Plus className="h-4 w-4 text-primary" />
+              <span className="text-sm font-medium text-primary">
                 New scratchpad
               </span>
             </button>
@@ -378,7 +378,7 @@ export function SiteDashboard({
                   </p>
                   {sp.conflict && (
                     <AlertTriangle
-                      className="h-3.5 w-3.5 text-amber-500 shrink-0"
+                      className="h-3.5 w-3.5 text-warning shrink-0"
                       aria-label="Changed here and on WordPress"
                     />
                   )}

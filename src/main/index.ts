@@ -278,7 +278,7 @@ app.whenReady().then(async () => {
   nativeTheme.themeSource = getSettings().theme
 
   // Now that safeStorage has initialized with the old Keychain entry, rename for UI
-  app.name = 'NP Presspad'
+  app.name = 'Presspad'
 
   // Scratchpad pop-out window (registered here to avoid circular imports with ipc-handlers)
   ipcMain.handle('scratchpad-window:open', (_event, scratchpadId: unknown) => {

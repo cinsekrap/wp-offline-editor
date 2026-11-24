@@ -17,14 +17,14 @@ interface WhatsNewDialogProps {
   onOpenChange: (open: boolean) => void
   /**
    * Shown unprompted after an update, as opposed to opened from Settings.
-   * Only changes the wording — announcing "NP Presspad updated" to someone who
+   * Only changes the wording — announcing "Presspad updated" to someone who
    * just clicked "View" would be a small lie.
    */
   afterUpdate?: boolean
 }
 
 /**
- * Notes titles are written as "NP Presspad X.Y.Z — Theme". The version is shown
+ * Notes titles are written as "Presspad X.Y.Z — Theme". The version is shown
  * separately here, so pull out just the theme and drop the repetition.
  */
 function themeOf(title: string): string | null {
@@ -81,7 +81,7 @@ export function WhatsNewDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 shrink-0 text-primary" />
-            {afterUpdate ? 'NP Presspad has been updated' : "What's new"}
+            {afterUpdate ? 'Presspad has been updated' : "What's new"}
           </DialogTitle>
           <DialogDescription>
             {notes

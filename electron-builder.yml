@@ -1,5 +1,5 @@
 appId: com.np-presspad.app
-productName: NP Presspad
+productName: Presspad
 directories:
   buildResources: resources
   output: dist

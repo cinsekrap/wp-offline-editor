@@ -1,7 +1,7 @@
 <?php
 /**
- * Plugin Name: NP Presspad Companion
- * Description: Exposes ACF field groups, fields, and values via REST API for NP Presspad, including code-registered field groups that ACF's own REST integration withholds.
+ * Plugin Name: Presspad Companion
+ * Description: Exposes ACF field groups, fields, and values via REST API for Presspad, including code-registered field groups that ACF's own REST integration withholds.
  * Version: 1.2.0
  * Author: Nic Chambers-Parkes
  * Author URI: https://www.nicparkes.com

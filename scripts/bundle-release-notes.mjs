@@ -26,6 +26,6 @@ if (existsSync(source)) {
   console.log(`[release-notes] bundled v${version}`)
 } else {
   // First line is the title, matching the published notes format.
-  writeFileSync(target, `NP Presspad ${version}\n\nNo release notes for this build.\n`)
+  writeFileSync(target, `Presspad ${version}\n\nNo release notes for this build.\n`)
   console.log(`[release-notes] no notes for v${version} — wrote placeholder`)
 }

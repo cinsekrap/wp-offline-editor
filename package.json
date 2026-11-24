@@ -1,7 +1,7 @@
 {
   "name": "np-presspad",
   "version": "1.5.0",
-  "description": "NP Presspad",
+  "description": "Presspad, an offline editor for WordPress",
   "main": "./out/main/index.js",
   "author": "",
   "license": "GPL-2.0-only",

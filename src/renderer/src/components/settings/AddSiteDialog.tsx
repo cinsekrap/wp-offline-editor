@@ -183,7 +183,7 @@ export function AddSiteDialog({
             <div className="rounded-lg bg-muted/60 px-3.5 py-3 text-xs text-muted-foreground">
               <p className="mb-1 font-semibold text-foreground/80">Where do I get an application password?</p>
               In WordPress, go to <span className="text-foreground/80">Users &rarr; Profile</span>, scroll
-              to Application Passwords, enter a name such as &ldquo;NP Presspad&rdquo; and click Add New Application Password.
+              to Application Passwords, enter a name such as &ldquo;Presspad&rdquo; and click Add New Application Password.
               Copy the password it shows. It isn&rsquo;t your normal login password.
             </div>
 
@@ -248,7 +248,7 @@ export function AddSiteDialog({
                 <div className="min-w-0 flex-1 space-y-1 text-xs text-foreground/75">
                   <p className="text-sm font-medium text-foreground">Companion plugin not detected</p>
                   <p>
-                    Code-registered ACF field groups need the NP Presspad Companion plugin for
+                    Code-registered ACF field groups need the Presspad Companion plugin for
                     schema discovery. Posts will sync fine without it.
                   </p>
                   <p>

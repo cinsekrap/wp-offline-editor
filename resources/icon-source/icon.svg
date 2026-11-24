@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
-  <!-- NP Presspad app icon: a page with a paragraph mark. macOS icon grid: 824px body inset 100px. -->
+  <!-- Presspad app icon: a page with a paragraph mark. macOS icon grid: 824px body inset 100px. -->
   <defs>
     <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#5d70f2"/><stop offset="1" stop-color="#2b3aae"/>

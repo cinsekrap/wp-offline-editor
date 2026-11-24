@@ -7,7 +7,7 @@
 @custom-variant vibrant (&:is(.vibrant *));
 
 /*
- * NP Presspad 2.0 "Manuscript" design tokens.
+ * Presspad "Manuscript" design tokens.
  *
  * Every colour in the renderer comes from here: component code uses the
  * semantic names (bg-canvas, text-success, text-status-draft …) and never a

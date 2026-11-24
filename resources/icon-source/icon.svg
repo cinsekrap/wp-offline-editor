@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- NP Presspad app icon: a page with a paragraph mark. macOS icon grid: 824px body inset 100px. -->
+  <defs>
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5d70f2"/><stop offset="1" stop-color="#2b3aae"/>
+    </linearGradient>
+    <linearGradient id="paper" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#eceef4"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity=".35"/><stop offset=".5" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="bodyShadow" x="-10%" y="-10%" width="120%" height="125%">
+      <feDropShadow dx="0" dy="12" stdDeviation="12" flood-color="#000" flood-opacity=".28"/>
+    </filter>
+    <filter id="pageShadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#0b1240" flood-opacity=".35"/>
+    </filter>
+  </defs>
+  <path id="squircle" d="M285 100 H739 C894 100 924 130 924 285 V739 C924 894 894 924 739 924 H285 C130 924 100 894 100 739 V285 C100 130 130 100 285 100 Z" fill="url(#body)" filter="url(#bodyShadow)"/>
+  <path d="M285 102 H739 C892 102 922 132 922 285 V739 C922 892 892 922 739 922 H285 C132 922 102 892 102 739 V285 C102 132 132 102 285 102 Z" fill="none" stroke="url(#rim)" stroke-width="4"/>
+  <path d="M296 196 H648 L752 300 V806 Q752 836 722 836 H296 Q266 836 266 806 V226 Q266 196 296 196 Z" fill="url(#paper)" filter="url(#pageShadow)"/>
+  <path d="M648 196 V276 Q648 300 672 300 H752 Z" fill="#d5d9e5"/>
+  <g fill="#3245c9">
+    <path d="M545 320 H478 A110 110 0 0 0 478 540 H545 Z"/>
+    <rect x="520" y="320" width="134" height="38"/>
+    <rect x="532" y="320" width="42" height="396"/>
+    <rect x="612" y="320" width="42" height="396"/>
+  </g>
+</svg>

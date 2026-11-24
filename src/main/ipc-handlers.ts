@@ -374,7 +374,7 @@ export function registerIpcHandlers(): void {
 
     const { canceled, filePath } = await dialog.showSaveDialog({
       title: 'Save Companion Plugin',
-      defaultPath: join(app.getPath('downloads'), 'np-presspad-companion.zip'),
+      defaultPath: join(app.getPath('downloads'), 'presspad-companion.zip'),
       filters: [{ name: 'ZIP Archive', extensions: ['zip'] }]
     })
 
@@ -531,8 +531,8 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('dialog:save-export', async () => {
     const { canceled, filePath } = await dialog.showSaveDialog({
       title: 'Export Data',
-      defaultPath: join(app.getPath('downloads'), 'np-presspad-backup.nppexport'),
-      filters: [{ name: 'NP Presspad Export', extensions: ['nppexport'] }]
+      defaultPath: join(app.getPath('downloads'), 'presspad-backup.nppexport'),
+      filters: [{ name: 'Presspad Export', extensions: ['nppexport'] }]
     })
     return canceled || !filePath ? null : filePath
   })
@@ -540,7 +540,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('dialog:open-import', async () => {
     const { canceled, filePaths } = await dialog.showOpenDialog({
       title: 'Import Data',
-      filters: [{ name: 'NP Presspad Export', extensions: ['nppexport'] }],
+      filters: [{ name: 'Presspad Export', extensions: ['nppexport'] }],
       properties: ['openFile']
     })
     return canceled || filePaths.length === 0 ? null : filePaths[0]

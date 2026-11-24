@@ -21,7 +21,7 @@ vi.mock('electron', () => {
       getPath: (name?: string) =>
         name === 'appData' ? (process.env.WPOE_TEST_APPDATA ?? userData()) : userData(),
       getVersion: () => process.env.WPOE_TEST_APP_VERSION ?? '1.1.5',
-      getName: () => 'NP Presspad',
+      getName: () => 'Presspad',
       setName: () => {}
     },
     // Async API only — a leftover call to the deprecated sync API fails loudly.

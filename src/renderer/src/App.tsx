@@ -227,7 +227,7 @@ function App(): JSX.Element {
         notified.availableVersion = version
         toast({
           title: 'Update available',
-          description: `NP Presspad ${version} is ready to download.`,
+          description: `Presspad ${version} is ready to download.`,
           action: (
             <ToastAction altText="Download" onClick={() => window.electronAPI.downloadUpdate()}>
               Download

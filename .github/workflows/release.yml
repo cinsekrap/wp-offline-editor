@@ -161,10 +161,10 @@ jobs:
           echo "${ASSETS}"
           for NAME in \
             "latest-mac.yml" \
-            "NP-Presspad-${VERSION}-arm64-mac.zip" \
-            "NP-Presspad-${VERSION}-arm64.dmg" \
-            "NP-Presspad-${VERSION}-arm64.dmg.blockmap" \
-            "NP.Presspad-${VERSION}-arm64-mac.zip.blockmap" \
+            "Presspad-${VERSION}-arm64-mac.zip" \
+            "Presspad-${VERSION}-arm64.dmg" \
+            "Presspad-${VERSION}-arm64.dmg.blockmap" \
+            "Presspad-${VERSION}-arm64-mac.zip.blockmap" \
             "wp-offline-editor-companion.zip"; do
             echo "${ASSETS}" | grep -qxF "${NAME}" || { echo "::error::Missing asset: ${NAME}"; exit 1; }
           done

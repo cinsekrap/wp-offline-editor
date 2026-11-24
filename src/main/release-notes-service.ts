@@ -50,7 +50,7 @@ export function getReleaseNotes(): ReleaseNotes {
   const path = notesPath()
 
   if (!existsSync(path)) {
-    return { version, title: `NP Presspad ${version}`, body: '' }
+    return { version, title: `Presspad ${version}`, body: '' }
   }
 
   const raw = readFileSync(path, 'utf8')
@@ -58,7 +58,7 @@ export function getReleaseNotes(): ReleaseNotes {
   const title = (newline === -1 ? raw : raw.slice(0, newline)).trim()
   const body = newline === -1 ? '' : raw.slice(newline + 1).trim()
 
-  return { version, title: title || `NP Presspad ${version}`, body }
+  return { version, title: title || `Presspad ${version}`, body }
 }
 
 /**

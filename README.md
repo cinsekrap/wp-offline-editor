@@ -1,6 +1,6 @@
-# NP Presspad
+# Presspad
 
-A macOS desktop app for writing and managing WordPress posts offline. Edit posts locally with a rich text editor, sync when you're ready, and never lose work to a flaky connection.
+An offline editor for WordPress: a macOS desktop app for writing and managing WordPress posts offline. Edit posts locally with a rich text editor, sync when you're ready, and never lose work to a flaky connection.
 
 ## Features
 
@@ -28,13 +28,13 @@ A macOS desktop app for writing and managing WordPress posts offline. Edit posts
 
 ### Install the companion plugin
 
-The companion plugin (`NP Presspad Companion`) is bundled with each release. Download `wp-offline-editor-companion.zip` from the [latest release](https://github.com/cinsekrap/wp-offline-editor/releases/latest) and install it on your WordPress site. It provides ACF field group endpoints, scratchpad sync, and version checking.
+The companion plugin (`Presspad Companion`) is bundled with each release. Download `wp-offline-editor-companion.zip` from the [latest release](https://github.com/cinsekrap/wp-offline-editor/releases/latest) and install it on your WordPress site. It provides ACF field group endpoints, scratchpad sync, and version checking.
 
 The plugin auto-updates from GitHub releases.
 
 ### Connect a site
 
-1. Open NP Presspad
+1. Open Presspad
 2. Click **Add Site**
 3. Enter your WordPress URL, username, and an application password
 4. The app will test the connection and pull your posts
